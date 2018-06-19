@@ -68,9 +68,6 @@ bool GravityEventList::InsertEvent(GravityEvent &event) {
     if (space) {
         _list[_next] = event;
         _next = (_next + 1) % _list.size();
-        std::string message = "Inserting event ";
-        message += std::to_string(event.Type());
-        GravityLogger::getInstance().LogWarning(message);
     } else {
         GravityLogger::getInstance().LogError("Out of space for Event!!!");
     }

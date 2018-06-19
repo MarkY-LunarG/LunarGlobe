@@ -546,7 +546,7 @@ bool GravitySubmitManager::CreateSwapchain() {
             image_ownership_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
             image_ownership_barrier.pNext = nullptr;
             image_ownership_barrier.srcAccessMask = 0;
-            image_ownership_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
+            image_ownership_barrier.dstAccessMask = 0;
             image_ownership_barrier.oldLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
             image_ownership_barrier.newLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
             image_ownership_barrier.srcQueueFamilyIndex = _graphics_queue_family_index;
@@ -554,8 +554,8 @@ bool GravitySubmitManager::CreateSwapchain() {
             image_ownership_barrier.image = _vk_images[index];
             image_ownership_barrier.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
 
-            vkCmdPipelineBarrier(_vk_present_command_buffers[index], VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT,
-                                 VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT, 0, 0, nullptr, 0, nullptr, 1,
+            vkCmdPipelineBarrier(_vk_present_command_buffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
+                                 VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                  &image_ownership_barrier);
             if (VK_SUCCESS != vkEndCommandBuffer(_vk_present_command_buffers[index])) {
                 std::string error_msg = "Failed to end present command buffer ";

@@ -326,6 +326,8 @@ static void demo_set_image_layout(struct Demo *demo, VkImage image, VkImageAspec
     image_memory_barrier.pNext = nullptr;
     image_memory_barrier.srcAccessMask = srcAccessMask;
     image_memory_barrier.dstAccessMask = 0;
+    image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
+    image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
     image_memory_barrier.oldLayout = old_image_layout;
     image_memory_barrier.newLayout = new_image_layout;
     image_memory_barrier.image = image;
