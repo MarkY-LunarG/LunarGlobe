@@ -1,12 +1,29 @@
 # LunarGravity
 
-LunarGravity is a work in progress designed to be a somewhat better modular interface
-to begin Vulkan development.  My intent is to allow it to provide a framework
-that I can build a "demoscene" style application.
+LunarGravity is a personal development tree that is a work in progress.
+My intent is to design a modular interface that I can use to develop
+more complicated Vulkan applications.
+Overall, I'd like to eventually create a "demoscene" style application
+that can be used to showcase Vulkan features.
 
-While this is a personal project, it should be seen as an extension to the
+
+## License
+
+This project is licensed under the Apache License Version 2.0 dated
+January 2004.
+More information about this license can be read in the provided
+[LICENSE.txt](LICENSE.txt) file as well as at the Apache License
+website https://www.apache.org/licenses/.
+
+Feel free to use it and release it as allowed under the license.
+
+
+## Notice of Copyright
+
+While this is a personal project, it should be seen as an extension
+of my work at [LunarG](https://www.lunarg.com) and the
 [LunarG VulkanTools repository](https://github.com/KhronosGroup/Vulkan-Tools), and
-thus as copyrighted by LunarG.
+thus as copyrighted by LunarG starting in 2018.
 
 
 ## History
@@ -16,13 +33,18 @@ The majority of LunarGravity code is based on the original
 However, that code was very monolithic and wasn't flexible enough for my design.
 
 
-## TODO:
-  1.  Fix windows stutter after resize
-  2.  Reduce amount of surface capability queries
-  3.  Create separate threads for command generation, render and normal application 
-  4.  Split window functionality into separate OS-specific classes
-  5.  Port over shader code from old gravity 
-  6.  Port over model loading code from old gravity
-  7.  Port over scene functionality from old gravity
-  8.  Make gravity a library and the application link to it 
-  9.  Have multiple applications 
+## New Features To Add:
+
+1.  Move application items into class
+2.  Split app out from library
+3.  Update to Modern CMake
+4.  Reduce amount of surface capability queries
+5.  Create separate threads for command generation, render and normal application
+6.  Split window functionality into separate OS-specific classes
+7.  Port over code from old gravity:
+    * Shader Loading
+    * Scene defining
+    * Model loading
+
+## Bugs
+1.  Windows: Fix stutter after resize
