@@ -1,3 +1,7 @@
+set(GRAVITY_INCLUDE_DIRS
+  ${PROJECT_SOURCE_DIR}
+)
+
 if(NOT DEFINED GLSLANG_REPO_ROOT)
     message(STATUS "Using cmake find_program to look for glslangValidator")
     find_program(GLSLANG_VALIDATOR NAMES glslangValidator
@@ -159,6 +163,20 @@ if(WIN32)
    file(COPY gravity.vcxproj.user DESTINATION ${CMAKE_BINARY_DIR}/gravity)
 endif()
 
+add_custom_command(
+    COMMENT "Compiling gravity cube vertex shader"
+    OUTPUT gravity_cube.vert.inc
+    COMMAND ${GLSLANG_VALIDATOR} -V -x -o ${CMAKE_CURRENT_BINARY_DIR}/gravity_cube.vert.inc ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
+    MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
+    DEPENDS ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert ${GLSLANG_VALIDATOR}
+)
+add_custom_command(
+    COMMENT "Compiling gravity cube fragment shader"
+    OUTPUT gravity_cube.frag.inc
+    COMMAND ${GLSLANG_VALIDATOR} -V -x -o ${CMAKE_CURRENT_BINARY_DIR}/gravity_cube.frag.inc ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
+    MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
+    DEPENDS ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag ${GLSLANG_VALIDATOR}
+)
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 
@@ -180,24 +198,18 @@ include_directories(
 # gravity
 
 set(GRAVITY_SOURCE_FILES
-    gravity_vulkan_headers.hpp
-    gravity_app.hpp
-    gravity_app.cpp
-    gravity_logger.hpp
-    gravity_logger.cpp
-    gravity_event.hpp
-    gravity_event.cpp
-    gravity_window.hpp
-    gravity_window.cpp
-    gravity_submit_manager.hpp
-    gravity_submit_manager.cpp
+    gravity_cube.cpp
+    ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
+    gravity_cube.vert.inc
+    ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
+    gravity_cube.frag.inc
 )
 
 if(APPLE)
 elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
-        add_library(gravity ${GRAVITY_SOURCE_FILES})
-        target_link_libraries(gravity ${LIBVK})
+        add_executable(gravity_cube ${GRAVITY_SOURCE_FILES})
+        target_link_libraries(gravity_cube ${LIBVK} gravity)
     endif()
 else()
     if (CMAKE_CL_64)
@@ -206,7 +218,7 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_library(gravity WIN32 ${GRAVITY_SOURCE_FILES})
-    target_link_libraries(gravity ${LIBVK})
+    add_executable(gravity_cube WIN32 ${GRAVITY_SOURCE_FILES})
+    target_link_libraries(gravity_cube ${LIBVK} gravity)
 endif()
 

@@ -36,18 +36,15 @@
 #include <assert.h>
 #include <signal.h>
 
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
-#include "gravity_window.hpp"
-#include "gravity_submit_manager.hpp"
-
-#include "linmath.h"
-#include "object_type_string_helper.h"
-
 #include "inttypes.h"
-
-#include "gravity_app.hpp"
-#include "gravity_main.hpp"
+#include "gravity/linmath.h"
+#include "gravity/object_type_string_helper.h"
+#include "gravity/gravity_logger.hpp"
+#include "gravity/gravity_event.hpp"
+#include "gravity/gravity_window.hpp"
+#include "gravity/gravity_submit_manager.hpp"
+#include "gravity/gravity_app.hpp"
+#include "gravity/gravity_main.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -537,10 +534,10 @@ bool CubeApp::Setup()
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
         const uint32_t vs_code[] = {
-#include "gravity.vert.inc"
+#include "gravity_cube.vert.inc"
         };
         const uint32_t fs_code[] = {
-#include "gravity.frag.inc"
+#include "gravity_cube.frag.inc"
         };
 
         VkShaderModuleCreateInfo moduleCreateInfo;

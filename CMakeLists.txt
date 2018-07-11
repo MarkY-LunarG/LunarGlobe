@@ -26,3 +26,4 @@ endif()
 include_directories("${PROJECT_SOURCE_DIR}/submodules/Vulkan-Headers/include")
 
 add_subdirectory(gravity)
+add_subdirectory(apps)
