@@ -22,11 +22,14 @@
 
 #include "gravity_event.hpp"
 #include "gravity_logger.hpp"
+#include "gravity_app.hpp"
 #include "gravity_submit_manager.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-GravitySubmitManager::GravitySubmitManager(GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device) {
+GravitySubmitManager::GravitySubmitManager(GravityApp *app, GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device)
+{
+    _app = app;
     _window = window;
     _vk_instance = instance;
     _vk_physical_device = phys_device;
@@ -44,13 +47,15 @@ GravitySubmitManager::GravitySubmitManager(GravityWindow *window, VkInstance ins
 
 GravitySubmitManager::~GravitySubmitManager() {}
 
-bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_create_info, std::vector<std::string> &extensions, void **next) {
+bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next)
+{
     GravityLogger &logger = GravityLogger::getInstance();
     uint32_t extension_count = 0;
 
     // Determine the number of instance extensions supported
     VkResult result = vkEnumerateDeviceExtensionProperties(_vk_physical_device, nullptr, &extension_count, nullptr);
-    if (VK_SUCCESS != result || 0 >= extension_count) {
+    if (VK_SUCCESS != result || 0 >= extension_count)
+    {
         logger.LogError("Failed to query number of available device extensions");
         return false;
     }
@@ -60,34 +65,41 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_c
 
     extension_properties.resize(extension_count);
     result = vkEnumerateDeviceExtensionProperties(_vk_physical_device, nullptr, &extension_count, extension_properties.data());
-    if (VK_SUCCESS != result || 0 >= extension_count) {
+    if (VK_SUCCESS != result || 0 >= extension_count)
+    {
         logger.LogError("Failed to query available device extensions");
         return false;
     }
 
     bool found_swapchain_extension = false;
 
-    for (uint32_t i = 0; i < extension_count; i++) {
-        if (!strcmp(VK_KHR_SWAPCHAIN_EXTENSION_NAME, extension_properties[i].extensionName)) {
+    for (uint32_t i = 0; i < extension_count; i++)
+    {
+        if (!strcmp(VK_KHR_SWAPCHAIN_EXTENSION_NAME, extension_properties[i].extensionName))
+        {
             found_swapchain_extension = true;
             extensions.push_back(extension_properties[i].extensionName);
         }
 
-        if (!strcmp(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME, extension_properties[i].extensionName)) {
+        if (!strcmp(VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME, extension_properties[i].extensionName))
+        {
             _found_google_display_timing_extension = true;
             extensions.push_back(extension_properties[i].extensionName);
         }
     }
 
-    if (!found_swapchain_extension) {
+    if (!found_swapchain_extension)
+    {
         logger.LogFatalError("vkEnumerateInstanceExtensionProperties failed to find the " VK_KHR_SWAPCHAIN_EXTENSION_NAME
                              " extension.\n\nDo you have a compatible Vulkan installable client driver (ICD) installed?\n"
                              "Please look at the Getting Started guide for additional information.");
     }
 
     // Only create the surface the first time
-    if (VK_NULL_HANDLE == _vk_surface) {
-        if (!_window->CreateVkSurface(_vk_instance, _vk_physical_device, _vk_surface)) {
+    if (VK_NULL_HANDLE == _vk_surface)
+    {
+        if (!_window->CreateVkSurface(_vk_instance, _vk_physical_device, _vk_surface))
+        {
             logger.LogFatalError("Failed to create vk surface!");
             return false;
         }
@@ -104,7 +116,8 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_c
     PFN_vkGetPhysicalDeviceSurfaceSupportKHR fpGetPhysicalDeviceSurfaceSupportKHR =
         reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceSupportKHR>(
             vkGetInstanceProcAddr(_vk_instance, "vkGetPhysicalDeviceSurfaceSupportKHR"));
-    if (nullptr == fpGetPhysicalDeviceSurfaceSupportKHR) {
+    if (nullptr == fpGetPhysicalDeviceSurfaceSupportKHR)
+    {
         logger.LogError("Failed to get vkGetPhysicalDeviceSurfaceSupportKHR function pointer");
         return false;
     }
@@ -112,53 +125,63 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_c
     // Iterate over each queue to learn whether it supports presenting:
     std::vector<VkBool32> supports_present;
     supports_present.resize(32);
-    for (uint32_t i = 0; i < queue_family_count; i++) {
+    for (uint32_t i = 0; i < queue_family_count; i++)
+    {
         fpGetPhysicalDeviceSurfaceSupportKHR(_vk_physical_device, i, _vk_surface, &supports_present[i]);
     }
 
     // Search for a graphics and a present queue in the array of queue
     // families, try to find one that supports both
-    uint32_t graphicsQueueFamilyIndex = UINT32_MAX;
-    uint32_t presentQueueFamilyIndex = UINT32_MAX;
-    for (uint32_t i = 0; i < queue_family_count; i++) {
-        if ((queue_family_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0) {
-            if (graphicsQueueFamilyIndex == UINT32_MAX) {
-                graphicsQueueFamilyIndex = i;
+    uint32_t graphics_queue_family_index = UINT32_MAX;
+    uint32_t present_queue_family_index = UINT32_MAX;
+    for (uint32_t i = 0; i < queue_family_count; i++)
+    {
+        if ((queue_family_props[i].queueFlags & VK_QUEUE_GRAPHICS_BIT) != 0)
+        {
+            if (graphics_queue_family_index == UINT32_MAX)
+            {
+                graphics_queue_family_index = i;
             }
 
-            if (supports_present[i] == VK_TRUE) {
-                graphicsQueueFamilyIndex = i;
-                presentQueueFamilyIndex = i;
+            if (supports_present[i] == VK_TRUE)
+            {
+                graphics_queue_family_index = i;
+                present_queue_family_index = i;
                 break;
             }
         }
     }
 
-    if (presentQueueFamilyIndex == UINT32_MAX) {
+    if (present_queue_family_index == UINT32_MAX)
+    {
         // If didn't find a queue that supports both graphics and present, then
         // find a separate present queue.
-        for (uint32_t i = 0; i < queue_family_count; ++i) {
-            if (supports_present[i] == VK_TRUE) {
-                presentQueueFamilyIndex = i;
+        for (uint32_t i = 0; i < queue_family_count; ++i)
+        {
+            if (supports_present[i] == VK_TRUE)
+            {
+                present_queue_family_index = i;
                 break;
             }
         }
     }
 
     // Generate error if could not find both a graphics and a present queue
-    if (graphicsQueueFamilyIndex == UINT32_MAX || presentQueueFamilyIndex == UINT32_MAX) {
+    if (graphics_queue_family_index == UINT32_MAX || present_queue_family_index == UINT32_MAX)
+    {
         logger.LogFatalError("Could not find both graphics and present queues\n");
         return false;
     }
 
-    _graphics_queue_family_index = graphicsQueueFamilyIndex;
-    _present_queue_family_index = presentQueueFamilyIndex;
+    _graphics_queue_family_index = graphics_queue_family_index;
+    _present_queue_family_index = present_queue_family_index;
 
     _GetPhysicalDeviceSurfaceCapabilities = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
         vkGetInstanceProcAddr(_vk_instance, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"));
     _GetPhysicalDeviceSurfacePresentModes = reinterpret_cast<PFN_vkGetPhysicalDeviceSurfacePresentModesKHR>(
         vkGetInstanceProcAddr(_vk_instance, "vkGetPhysicalDeviceSurfacePresentModesKHR"));
-    if (nullptr == _GetPhysicalDeviceSurfaceCapabilities || nullptr == _GetPhysicalDeviceSurfacePresentModes) {
+    if (nullptr == _GetPhysicalDeviceSurfaceCapabilities || nullptr == _GetPhysicalDeviceSurfacePresentModes)
+    {
         logger.LogError("Failed to get physical device commands necessary for swapchain creation");
         return false;
     }
@@ -174,7 +197,8 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_c
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.queueCreateInfoCount = 1;
     device_create_info.pQueueCreateInfos = queues;
-    if (UsesSeparatePresentQueue()) {
+    if (UsesSeparatePresentQueue())
+    {
         queues[1].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
         queues[1].pNext = NULL;
         queues[1].queueFamilyIndex = _present_queue_family_index;
@@ -188,12 +212,14 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo& device_c
     return found_swapchain_extension;
 }
 
-bool GravitySubmitManager::ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next) {
+bool GravitySubmitManager::ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next)
+{
     delete[] device_create_info.pQueueCreateInfos;
     return true;
 }
 
-bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_format, VkFormat secondary_format) {
+bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_format, VkFormat secondary_format)
+{
     GravityLogger &logger = GravityLogger::getInstance();
 
     // Get the list of VkFormat's that are supported:
@@ -203,32 +229,40 @@ bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_forma
     PFN_vkGetPhysicalDeviceSurfaceFormatsKHR fpGetPhysicalDeviceSurfaceFormatsKHR =
         reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceFormatsKHR>(
             vkGetInstanceProcAddr(_vk_instance, "vkGetPhysicalDeviceSurfaceFormatsKHR"));
-    if (nullptr == fpGetPhysicalDeviceSurfaceFormatsKHR) {
+    if (nullptr == fpGetPhysicalDeviceSurfaceFormatsKHR)
+    {
         logger.LogError("Failed to get vkGetPhysicalDeviceSurfaceFormatsKHR function pointer");
         return false;
     }
-    if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _vk_surface, &num_possible_formats, NULL)) {
+    if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _vk_surface, &num_possible_formats, NULL))
+    {
         logger.LogError("Failed to get query number of device surface formats supported");
         return false;
     }
     possible_surface_formats.resize(num_possible_formats);
     if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _vk_surface, &num_possible_formats,
-                                                           possible_surface_formats.data())) {
+                                                           possible_surface_formats.data()))
+    {
         logger.LogError("Failed to get query device surface formats supported");
         return false;
     }
     // If the format list includes just one entry of VK_FORMAT_UNDEFINED,
     // the surface has no preferred format.  Otherwise, at least one
     // supported format will be returned.
-    if (num_possible_formats == 1 && possible_surface_formats[0].format == VK_FORMAT_UNDEFINED) {
+    if (num_possible_formats == 1 && possible_surface_formats[0].format == VK_FORMAT_UNDEFINED)
+    {
         _vk_format = prefered_format;
         _vk_color_space = possible_surface_formats[0].colorSpace;
-    } else {
+    }
+    else
+    {
         // Use SRGB if present, otherwise whatever is first
         _vk_format = VK_FORMAT_UNDEFINED;
-        for (uint32_t format = 0; format < num_possible_formats; ++format) {
+        for (uint32_t format = 0; format < num_possible_formats; ++format)
+        {
             if (prefered_format == possible_surface_formats[format].format ||
-                (_vk_format == VK_FORMAT_UNDEFINED && secondary_format == possible_surface_formats[format].format)) {
+                (_vk_format == VK_FORMAT_UNDEFINED && secondary_format == possible_surface_formats[format].format))
+            {
                 _vk_format = possible_surface_formats[format].format;
                 _vk_color_space = possible_surface_formats[0].colorSpace;
             }
@@ -239,35 +273,42 @@ bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_forma
 }
 
 bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_images, VkPresentModeKHR present_mode,
-                                               VkFormat prefered_format, VkFormat secondary_format) {
+                                               VkFormat prefered_format, VkFormat secondary_format)
+{
     GravityLogger &logger = GravityLogger::getInstance();
 
     _vk_device = device;
 
     // If the desired present mode is one that we haven't checked yet, look in the list of present moes
     // and make sure it is present.
-    if (_vk_present_mode != present_mode) {
+    if (_vk_present_mode != present_mode)
+    {
         logger.LogInfo("Querying if present mode is available.");
         uint32_t count = 0;
         std::vector<VkPresentModeKHR> present_modes;
-        if (VK_SUCCESS != _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _vk_surface, &count, nullptr) || count == 0) {
+        if (VK_SUCCESS != _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _vk_surface, &count, nullptr) || count == 0)
+        {
             logger.LogError("Failed querying number of surface present modes");
             return false;
         }
         present_modes.resize(count);
         if (VK_SUCCESS != _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _vk_surface, &count, present_modes.data()) ||
-            count == 0) {
+            count == 0)
+        {
             logger.LogError("Failed querying surface present modes");
             return false;
         }
 
-        for (uint32_t pm = 0; pm < count; ++pm) {
-            if (present_modes[pm] == present_mode) {
+        for (uint32_t pm = 0; pm < count; ++pm)
+        {
+            if (present_modes[pm] == present_mode)
+            {
                 _vk_present_mode = present_mode;
                 break;
             }
         }
-        if (present_mode != _vk_present_mode) {
+        if (present_mode != _vk_present_mode)
+        {
             logger.LogError("Failed querying surface present modes");
             return false;
         }
@@ -279,17 +320,20 @@ bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_imag
     _AcquireNextImage = reinterpret_cast<PFN_vkAcquireNextImageKHR>(vkGetDeviceProcAddr(_vk_device, "vkAcquireNextImageKHR"));
     _QueuePresent = reinterpret_cast<PFN_vkQueuePresentKHR>(vkGetDeviceProcAddr(_vk_device, "vkQueuePresentKHR"));
     if (nullptr == _CreateSwapchain || nullptr == _DestroySwapchain || nullptr == _GetSwapchainImages ||
-        nullptr == _AcquireNextImage || nullptr == _QueuePresent) {
+        nullptr == _AcquireNextImage || nullptr == _QueuePresent)
+    {
         logger.LogError("Failed accessing swapchain device functions");
         return false;
     }
 
-    if (_found_google_display_timing_extension) {
+    if (_found_google_display_timing_extension)
+    {
         _GetRefreshCycleDuration = reinterpret_cast<PFN_vkGetRefreshCycleDurationGOOGLE>(
             vkGetDeviceProcAddr(_vk_device, "vkGetRefreshCycleDurationGOOGLE"));
         _GetPastPresentationTiming = reinterpret_cast<PFN_vkGetPastPresentationTimingGOOGLE>(
             vkGetDeviceProcAddr(_vk_device, "vkGetPastPresentationTimingGOOGLE"));
-        if (nullptr == _GetRefreshCycleDuration || nullptr == _GetPastPresentationTiming) {
+        if (nullptr == _GetRefreshCycleDuration || nullptr == _GetPastPresentationTiming)
+        {
             logger.LogError("Failed to get Google display timing commands for swapchain creation");
             return false;
         }
@@ -297,34 +341,47 @@ bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_imag
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities))
+    {
         logger.LogError("Failed to query physical device surface capabilities");
         return false;
     }
 
-    if (num_images < surface_capabilities.minImageCount) {
+    if (num_images < surface_capabilities.minImageCount)
+    {
         _num_images = surface_capabilities.minImageCount;
-    } else if ((surface_capabilities.maxImageCount > 0) && (num_images > surface_capabilities.maxImageCount)) {
+    }
+    else if ((surface_capabilities.maxImageCount > 0) && (num_images > surface_capabilities.maxImageCount))
+    {
         _num_images = surface_capabilities.maxImageCount;
-    } else {
+    }
+    else
+    {
         _num_images = num_images;
     }
 
     _pre_transform_flags = {};
-    if (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR) {
+    if (surface_capabilities.supportedTransforms & VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR)
+    {
         _pre_transform_flags = VK_SURFACE_TRANSFORM_IDENTITY_BIT_KHR;
-    } else {
+    }
+    else
+    {
         _pre_transform_flags = surface_capabilities.currentTransform;
     }
 
-    if (!SelectBestColorFormatAndSpace(prefered_format, secondary_format)) {
+    if (!SelectBestColorFormatAndSpace(prefered_format, secondary_format))
+    {
         return false;
     }
 
     vkGetDeviceQueue(_vk_device, _graphics_queue_family_index, 0, &_graphics_queue);
-    if (!UsesSeparatePresentQueue()) {
+    if (!UsesSeparatePresentQueue())
+    {
         _present_queue = _graphics_queue;
-    } else {
+    }
+    else
+    {
         vkGetDeviceQueue(_vk_device, _present_queue_family_index, 0, &_present_queue);
     }
 
@@ -335,8 +392,10 @@ bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_imag
     fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
     fence_create_info.pNext = nullptr;
     fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
-    for (uint32_t i = 0; i < _num_images; i++) {
-        if (VK_SUCCESS != vkCreateFence(_vk_device, &fence_create_info, nullptr, &_vk_fences[i])) {
+    for (uint32_t i = 0; i < _num_images; i++)
+    {
+        if (VK_SUCCESS != vkCreateFence(_vk_device, &fence_create_info, nullptr, &_vk_fences[i]))
+        {
             std::string error_msg = "Failed to allocate the ";
             error_msg += std::to_string(i);
             error_msg += " fence for swapchain submit management";
@@ -348,7 +407,8 @@ bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_imag
     return true;
 }
 
-bool GravitySubmitManager::CreateSwapchain() {
+bool GravitySubmitManager::CreateSwapchain()
+{
     GravityLogger &logger = GravityLogger::getInstance();
     VkResult result = VK_SUCCESS;
     VkSwapchainKHR old_vk_swapchain = _vk_swapchain;
@@ -356,14 +416,16 @@ bool GravitySubmitManager::CreateSwapchain() {
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities))
+    {
         logger.LogError("Failed to query physical device surface capabilities");
         return false;
     }
 
     // Width/height of surface can be affected by swapchain capabilities of the
     // physical device.  So adjust them if necessary.
-    if (surface_capabilities.currentExtent.width != 0xFFFFFFFF) {
+    if (surface_capabilities.currentExtent.width != 0xFFFFFFFF)
+    {
         _current_width = surface_capabilities.currentExtent.width;
         _current_height = surface_capabilities.currentExtent.height;
     }
@@ -389,7 +451,8 @@ bool GravitySubmitManager::CreateSwapchain() {
     swapchain_ci.oldSwapchain = old_vk_swapchain;
     swapchain_ci.clipped = true;
     result = _CreateSwapchain(_vk_device, &swapchain_ci, nullptr, &_vk_swapchain);
-    if (VK_SUCCESS != result) {
+    if (VK_SUCCESS != result)
+    {
         logger.LogFatalError("Failed to create swapchain!");
         return false;
     }
@@ -398,12 +461,14 @@ bool GravitySubmitManager::CreateSwapchain() {
     // swapchain at this point.
     // Note: destroying the swapchain also cleans up all its associated
     // presentable images once the platform is done with them.
-    if (old_vk_swapchain != VK_NULL_HANDLE) {
+    if (old_vk_swapchain != VK_NULL_HANDLE)
+    {
         _DestroySwapchain(_vk_device, old_vk_swapchain, nullptr);
     }
 
     uint32_t actual_image_count = 0;
-    if (VK_SUCCESS != _GetSwapchainImages(_vk_device, _vk_swapchain, &actual_image_count, nullptr) || 0 == actual_image_count) {
+    if (VK_SUCCESS != _GetSwapchainImages(_vk_device, _vk_swapchain, &actual_image_count, nullptr) || 0 == actual_image_count)
+    {
         logger.LogFatalError("Failed getting number of swapchain images");
         return false;
     }
@@ -412,7 +477,8 @@ bool GravitySubmitManager::CreateSwapchain() {
     _vk_image_views.resize(_num_images);
     _vk_framebuffers.resize(_num_images);
     if (VK_SUCCESS != _GetSwapchainImages(_vk_device, _vk_swapchain, &actual_image_count, _vk_images.data()) ||
-        _num_images != actual_image_count) {
+        _num_images != actual_image_count)
+    {
         _num_images = 0;
         logger.LogFatalError("Failed getting number of swapchain images");
         return false;
@@ -422,7 +488,8 @@ bool GravitySubmitManager::CreateSwapchain() {
     _draw_complete_semaphores.resize(_num_images);
     _image_ownership_semaphores.resize(_num_images);
 
-    for (uint8_t i = 0; i < _num_images; i++) {
+    for (uint8_t i = 0; i < _num_images; i++)
+    {
         VkImageViewCreateInfo color_image_view = {};
         color_image_view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
         color_image_view.pNext = nullptr;
@@ -439,7 +506,8 @@ bool GravitySubmitManager::CreateSwapchain() {
         color_image_view.flags = 0;
         color_image_view.image = _vk_images[i];
 
-        if (VK_SUCCESS != vkCreateImageView(_vk_device, &color_image_view, nullptr, &_vk_image_views[i])) {
+        if (VK_SUCCESS != vkCreateImageView(_vk_device, &color_image_view, nullptr, &_vk_image_views[i]))
+        {
             std::string err_message = "Failed to retrieve swapchain image ";
             err_message += std::to_string(i);
             logger.LogFatalError(err_message);
@@ -453,20 +521,24 @@ bool GravitySubmitManager::CreateSwapchain() {
         semaphore_creat_info.pNext = nullptr;
         semaphore_creat_info.flags = 0;
 
-        if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_acquired_semaphores[i])) {
+        if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_acquired_semaphores[i]))
+        {
             std::string err_message = "Failed to retrieve swapchain image acquire semaphore ";
             err_message += std::to_string(i);
             logger.LogFatalError(err_message);
             return false;
         }
-        if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_draw_complete_semaphores[i])) {
+        if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_draw_complete_semaphores[i]))
+        {
             std::string err_message = "Failed to retrieve swapchain draw complete semaphore ";
             err_message += std::to_string(i);
             logger.LogFatalError(err_message);
             return false;
         }
-        if (UsesSeparatePresentQueue()) {
-            if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_ownership_semaphores[i])) {
+        if (UsesSeparatePresentQueue())
+        {
+            if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_ownership_semaphores[i]))
+            {
                 std::string err_message = "Failed to retrieve swapchain image ownership semaphore ";
                 err_message += std::to_string(i);
                 logger.LogFatalError(err_message);
@@ -475,9 +547,11 @@ bool GravitySubmitManager::CreateSwapchain() {
         }
     }
 
-    if (_found_google_display_timing_extension) {
+    if (_found_google_display_timing_extension)
+    {
         VkRefreshCycleDurationGOOGLE refresh_cycle_duration = {};
-        if (VK_SUCCESS != _GetRefreshCycleDuration(_vk_device, _vk_swapchain, &refresh_cycle_duration)) {
+        if (VK_SUCCESS != _GetRefreshCycleDuration(_vk_device, _vk_swapchain, &refresh_cycle_duration))
+        {
             logger.LogFatalError("Failed call to vkGetRefreshCycleDurationGOOGLE");
             return false;
         }
@@ -495,7 +569,8 @@ bool GravitySubmitManager::CreateSwapchain() {
     cmd_pool_create_info.pNext = nullptr;
     cmd_pool_create_info.queueFamilyIndex = _graphics_queue_family_index;
     cmd_pool_create_info.flags = 0;
-    if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_create_info, NULL, &_vk_command_pool)) {
+    if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_create_info, NULL, &_vk_command_pool))
+    {
         logger.LogFatalError("Failed to create swapchain command pool");
         return false;
     }
@@ -504,7 +579,8 @@ bool GravitySubmitManager::CreateSwapchain() {
     // through more efficiently.  Also, create a present swapchain command buffer if we have a
     // separate render and present queue.
     _vk_render_command_buffers.resize(_num_images);
-    if (UsesSeparatePresentQueue()) {
+    if (UsesSeparatePresentQueue())
+    {
         _vk_present_command_buffers.resize(_num_images);
     }
     VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
@@ -513,16 +589,20 @@ bool GravitySubmitManager::CreateSwapchain() {
     command_buffer_allocate_info.commandPool = _vk_command_pool;
     command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     command_buffer_allocate_info.commandBufferCount = 1;
-    for (index = 0; index < _num_images; ++index) {
-        if (VK_SUCCESS != vkAllocateCommandBuffers(_vk_device, &command_buffer_allocate_info, &_vk_render_command_buffers[index])) {
+    for (index = 0; index < _num_images; ++index)
+    {
+        if (VK_SUCCESS != vkAllocateCommandBuffers(_vk_device, &command_buffer_allocate_info, &_vk_render_command_buffers[index]))
+        {
             std::string error_msg = "Failed to allocate swapchain render command buffer ";
             error_msg += std::to_string(index);
             logger.LogFatalError(error_msg);
             return false;
         }
-        if (UsesSeparatePresentQueue()) {
+        if (UsesSeparatePresentQueue())
+        {
             if (VK_SUCCESS !=
-                vkAllocateCommandBuffers(_vk_device, &command_buffer_allocate_info, &_vk_present_command_buffers[index])) {
+                vkAllocateCommandBuffers(_vk_device, &command_buffer_allocate_info, &_vk_present_command_buffers[index]))
+            {
                 std::string error_msg = "Failed to allocate swapchain present command buffer ";
                 error_msg += std::to_string(index);
                 logger.LogFatalError(error_msg);
@@ -535,7 +615,8 @@ bool GravitySubmitManager::CreateSwapchain() {
             cmd_buf_info.pNext = nullptr;
             cmd_buf_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
             cmd_buf_info.pInheritanceInfo = nullptr;
-            if (VK_SUCCESS != vkBeginCommandBuffer(_vk_present_command_buffers[index], &cmd_buf_info)) {
+            if (VK_SUCCESS != vkBeginCommandBuffer(_vk_present_command_buffers[index], &cmd_buf_info))
+            {
                 std::string error_msg = "Failed to begin present command buffer ";
                 error_msg += std::to_string(index);
                 logger.LogFatalError(error_msg);
@@ -557,7 +638,8 @@ bool GravitySubmitManager::CreateSwapchain() {
             vkCmdPipelineBarrier(_vk_present_command_buffers[index], VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT,
                                  VK_PIPELINE_STAGE_BOTTOM_OF_PIPE_BIT, 0, 0, nullptr, 0, nullptr, 1,
                                  &image_ownership_barrier);
-            if (VK_SUCCESS != vkEndCommandBuffer(_vk_present_command_buffers[index])) {
+            if (VK_SUCCESS != vkEndCommandBuffer(_vk_present_command_buffers[index]))
+            {
                 std::string error_msg = "Failed to end present command buffer ";
                 error_msg += std::to_string(index);
                 logger.LogFatalError(error_msg);
@@ -569,23 +651,27 @@ bool GravitySubmitManager::CreateSwapchain() {
     return true;
 }
 
-bool GravitySubmitManager::DetachSwapchain() {
+bool GravitySubmitManager::DetachSwapchain()
+{
     uint32_t index;
 
     vkFreeCommandBuffers(_vk_device, _vk_command_pool, static_cast<uint32_t>(_vk_render_command_buffers.size()), _vk_render_command_buffers.data());
     _vk_render_command_buffers.clear();
-    if (UsesSeparatePresentQueue()) {
+    if (UsesSeparatePresentQueue())
+    {
         vkFreeCommandBuffers(_vk_device, _vk_command_pool, static_cast<uint32_t>(_vk_present_command_buffers.size()), _vk_present_command_buffers.data());
         _vk_present_command_buffers.clear();
     }
     vkDestroyCommandPool(_vk_device, _vk_command_pool, nullptr);
 
-    for (index = 0; index < _vk_image_views.size(); ++index) {
+    for (index = 0; index < _vk_image_views.size(); ++index)
+    {
         vkDestroyFramebuffer(_vk_device, _vk_framebuffers[index], nullptr);
         vkDestroyImageView(_vk_device, _vk_image_views[index], nullptr);
         vkDestroySemaphore(_vk_device, _image_acquired_semaphores[index], nullptr);
         vkDestroySemaphore(_vk_device, _draw_complete_semaphores[index], nullptr);
-        if (UsesSeparatePresentQueue()) {
+        if (UsesSeparatePresentQueue())
+        {
             vkDestroySemaphore(_vk_device, _image_ownership_semaphores[index], nullptr);
         }
     }
@@ -598,29 +684,35 @@ bool GravitySubmitManager::DetachSwapchain() {
     return true;
 }
 
-bool GravitySubmitManager::Resize() {
-    if (!DetachSwapchain()) {
+bool GravitySubmitManager::Resize()
+{
+    if (!DetachSwapchain())
+    {
         return false;
     }
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities))
+    {
         GravityLogger::getInstance().LogError("Failed to query physical device surface capabilities");
         return false;
     }
     // Width/height of surface can be affected by swapchain capabilities of the
     // physical device.  So adjust them if necessary.
-    if (surface_capabilities.currentExtent.width != 0xFFFFFFFF) {
+    if (surface_capabilities.currentExtent.width != 0xFFFFFFFF)
+    {
         _current_width = surface_capabilities.currentExtent.width;
         _current_height = surface_capabilities.currentExtent.height;
     }
     return true;
 }
 
-bool GravitySubmitManager::DestroySwapchain() {
+bool GravitySubmitManager::DestroySwapchain()
+{
     // Wait for fences from present operations
-    for (uint32_t i = 0; i < _num_images; i++) {
+    for (uint32_t i = 0; i < _num_images; i++)
+    {
         vkWaitForFences(_vk_device, 1, &_vk_fences[i], VK_TRUE, UINT64_MAX);
         vkDestroyFence(_vk_device, _vk_fences[i], nullptr);
     }
@@ -630,9 +722,8 @@ bool GravitySubmitManager::DestroySwapchain() {
     return true;
 }
 
-extern void AppForceResize();
-
-bool GravitySubmitManager::AcquireNextImageIndex(uint32_t &index) {
+bool GravitySubmitManager::AcquireNextImageIndex(uint32_t &index)
+{
     GravityLogger &logger = GravityLogger::getInstance();
     VkResult result = VK_INCOMPLETE;
 
@@ -640,19 +731,25 @@ bool GravitySubmitManager::AcquireNextImageIndex(uint32_t &index) {
     vkWaitForFences(_vk_device, 1, &_vk_fences[_cur_wait_index], VK_TRUE, UINT64_MAX);
     vkResetFences(_vk_device, 1, &_vk_fences[_cur_wait_index]);
 
-    do {
+    do
+    {
         // Get the index of the next available swapchain image:
         result = _AcquireNextImage(_vk_device, _vk_swapchain, UINT64_MAX, _image_acquired_semaphores[_cur_wait_index], VK_NULL_HANDLE,
                                    &index);
 
-        if (result == VK_ERROR_OUT_OF_DATE_KHR) {
+        if (result == VK_ERROR_OUT_OF_DATE_KHR)
+        {
             // _swapchain is out of date (e.g. the window was resized) and must be recreated:
-            AppForceResize();
-        } else if (result == VK_SUBOPTIMAL_KHR) {
+            _app->Resize();
+        }
+        else if (result == VK_SUBOPTIMAL_KHR)
+        {
             // _swapchain is not as optimal as it could be, but the platform's
             // presentation engine will still present the image correctly.
             break;
-        } else if (VK_SUCCESS != result) {
+        }
+        else if (VK_SUCCESS != result)
+        {
             logger.LogFatalError("Failed to acquire next swapchain image.");
             return false;
         }
@@ -661,34 +758,42 @@ bool GravitySubmitManager::AcquireNextImageIndex(uint32_t &index) {
     return true;
 }
 
-static bool ActualTimeLate(uint64_t desired, uint64_t actual, uint64_t rdur) {
+static bool ActualTimeLate(uint64_t desired, uint64_t actual, uint64_t rdur)
+{
     // The desired time was the earliest time that the present should have
     // occured.  In almost every case, the actual time should be later than the
     // desired time.  We should only consider the actual time "late" if it is
     // after "desired + rdur".
-    if (actual <= desired) {
+    if (actual <= desired)
+    {
         // The actual time was before or equal to the desired time.  This will
         // probably never happen, but in case it does, return false since the
         // present was obviously NOT late.
         return false;
     }
     uint64_t deadline = actual + rdur;
-    if (actual > deadline) {
+    if (actual > deadline)
+    {
         return true;
-    } else {
+    }
+    else
+    {
         return false;
     }
 }
 
 #define MILLION 1000000L
 #define BILLION 1000000000L
-static bool CanPresentEarlier(uint64_t earliest, uint64_t actual, uint64_t margin, uint64_t rdur) {
-    if (earliest < actual) {
+static bool CanPresentEarlier(uint64_t earliest, uint64_t actual, uint64_t margin, uint64_t rdur)
+{
+    if (earliest < actual)
+    {
         // Consider whether this present could have occured earlier.  Make sure
         // that earliest time was at least 2msec earlier than actual time, and
         // that the margin was at least 2msec:
         uint64_t diff = actual - earliest;
-        if ((diff >= (2 * MILLION)) && (margin >= (2 * MILLION))) {
+        if ((diff >= (2 * MILLION)) && (margin >= (2 * MILLION)))
+        {
             // This present could have occured earlier because both: 1) the
             // earliest time was at least 2 msec before actual time, and 2) the
             // margin was at least 2msec.
@@ -697,21 +802,26 @@ static bool CanPresentEarlier(uint64_t earliest, uint64_t actual, uint64_t margi
     }
     return false;
 }
-bool GravitySubmitManager::AdjustPresentTiming() {
-    if (_found_google_display_timing_extension) {
+bool GravitySubmitManager::AdjustPresentTiming()
+{
+    if (_found_google_display_timing_extension)
+    {
         // Look at what happened to previous presents, and make appropriate
         // adjustments in timing:
         uint32_t count = 0;
 
-        if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, nullptr)) {
+        if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, nullptr))
+        {
             GravityLogger::getInstance().LogFatalError(
                 "AdjustPresentTiming failed determining number of past present timings available.");
             return false;
         }
-        if (count) {
+        if (count)
+        {
             std::vector<VkPastPresentationTimingGOOGLE> past_presentations_timings;
             past_presentations_timings.resize(count);
-            if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, past_presentations_timings.data())) {
+            if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, past_presentations_timings.data()))
+            {
                 GravityLogger::getInstance().LogFatalError(
                     "AdjustPresentTiming failed determining past present timings available.");
                 return false;
@@ -720,8 +830,10 @@ bool GravitySubmitManager::AdjustPresentTiming() {
             bool early = false;
             bool late = false;
             bool calibrate_next = false;
-            for (uint32_t i = 0; i < count; i++) {
-                if (!_syncd_with_actual_presents) {
+            for (uint32_t i = 0; i < count; i++)
+            {
+                if (!_syncd_with_actual_presents)
+                {
                     // This is the first time that we've received an
                     // actualPresentTime for this swapchain.  In order to not
                     // perceive these early frames as "late", we need to sync-up
@@ -735,49 +847,63 @@ bool GravitySubmitManager::AdjustPresentTiming() {
                     _last_early_id = 0;
                     _syncd_with_actual_presents = true;
                     break;
-                } else if (CanPresentEarlier(past_presentations_timings[i].earliestPresentTime,
-                                             past_presentations_timings[i].actualPresentTime,
-                                             past_presentations_timings[i].presentMargin, _refresh_duration)) {
+                }
+                else if (CanPresentEarlier(past_presentations_timings[i].earliestPresentTime,
+                                           past_presentations_timings[i].actualPresentTime,
+                                           past_presentations_timings[i].presentMargin, _refresh_duration))
+                {
                     // This image could have been presented earlier.  We don't want
                     // to decrease the target_IPD until we've seen early presents
                     // for at least two seconds.
-                    if (_last_early_id == past_presentations_timings[i].presentID) {
+                    if (_last_early_id == past_presentations_timings[i].presentID)
+                    {
                         // We've now seen two seconds worth of early presents.
                         // Flag it as such, and reset the counter:
                         early = true;
                         _last_early_id = 0;
-                    } else if (_last_early_id == 0) {
+                    }
+                    else if (_last_early_id == 0)
+                    {
                         // This is the first early present we've seen.
                         // Calculate the presentID for two seconds from now.
                         uint64_t lastEarlyTime = past_presentations_timings[i].actualPresentTime + (2 * BILLION);
                         uint32_t howManyPresents =
                             (uint32_t)((lastEarlyTime - past_presentations_timings[i].actualPresentTime) / _target_IPD);
                         _last_early_id = past_presentations_timings[i].presentID + howManyPresents;
-                    } else {
+                    }
+                    else
+                    {
                         // We are in the midst of a set of early images,
                         // and so we won't do anything.
                     }
                     late = false;
                     _last_late_id = 0;
-                } else if (ActualTimeLate(past_presentations_timings[i].desiredPresentTime,
-                                          past_presentations_timings[i].actualPresentTime, _refresh_duration)) {
+                }
+                else if (ActualTimeLate(past_presentations_timings[i].desiredPresentTime,
+                                        past_presentations_timings[i].actualPresentTime, _refresh_duration))
+                {
                     // This image was presented after its desired time.  Since
                     // there's a delay between calling vkQueuePresentKHR and when
                     // we get the timing data, several presents may have been late.
                     // Thus, we need to threat all of the outstanding presents as
                     // being likely late, so that we only increase the target_IPD
                     // once for all of those presents.
-                    if ((_last_late_id == 0) || (_last_late_id < past_presentations_timings[i].presentID)) {
+                    if ((_last_late_id == 0) || (_last_late_id < past_presentations_timings[i].presentID))
+                    {
                         late = true;
                         // Record the last suspected-late present:
                         _last_late_id = _next_present_id - 1;
-                    } else {
+                    }
+                    else
+                    {
                         // We are in the midst of a set of likely-late images,
                         // and so we won't do anything.
                     }
                     early = false;
                     _last_early_id = 0;
-                } else {
+                }
+                else
+                {
                     // Since this image was not presented early or late, reset
                     // any sets of early or late presentIDs:
                     early = false;
@@ -788,7 +914,8 @@ bool GravitySubmitManager::AdjustPresentTiming() {
                 }
             }
 
-            if (early) {
+            if (early)
+            {
                 // Since we've seen at least two-seconds worth of presnts that
                 // could have occured earlier than desired, let's decrease the
                 // target_IPD (i.e. increase the frame rate):
@@ -796,14 +923,16 @@ bool GravitySubmitManager::AdjustPresentTiming() {
                 // TODO(ianelliott): Try to calculate a better target_IPD based
                 // on the most recently-seen present (this is overly-simplistic).
                 _refresh_duration_multiplier--;
-                if (_refresh_duration_multiplier == 0) {
+                if (_refresh_duration_multiplier == 0)
+                {
                     // This should never happen, but in case it does, don't
                     // try to go faster.
                     _refresh_duration_multiplier = 1;
                 }
                 _target_IPD = _refresh_duration * _refresh_duration_multiplier;
             }
-            if (late) {
+            if (late)
+            {
                 // Since we found a new instance of a late present, we want to
                 // increase the target_IPD (i.e. decrease the frame rate):
                 //
@@ -813,12 +942,15 @@ bool GravitySubmitManager::AdjustPresentTiming() {
                 _target_IPD = _refresh_duration * _refresh_duration_multiplier;
             }
 
-            if (calibrate_next) {
+            if (calibrate_next)
+            {
                 int64_t multiple = _next_present_id - past_presentations_timings[count - 1].presentID;
                 _prev_desired_present_time = (past_presentations_timings[count - 1].actualPresentTime + (multiple * _target_IPD));
             }
         }
-    } else {
+    }
+    else
+    {
         std::string error_msg = "AdjustPresentTiming() called in swapchain manager, but ";
         error_msg += VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME;
         error_msg += " extension is not present or enabled.  Ignoring using this functionality.";
@@ -827,8 +959,10 @@ bool GravitySubmitManager::AdjustPresentTiming() {
     return true;
 }
 
-bool GravitySubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &command_buffer) {
-    if (_vk_render_command_buffers.size() <= _cur_image) {
+bool GravitySubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &command_buffer)
+{
+    if (_vk_render_command_buffers.size() <= _cur_image)
+    {
         GravityLogger::getInstance().LogFatalError(
             "GetCurrentRenderCommandBuffer() attempting to access swapchain render command buffer that does not exist");
         return false;
@@ -837,8 +971,10 @@ bool GravitySubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &comman
     return true;
 }
 
-bool GravitySubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffer &command_buffer) {
-    if (_vk_render_command_buffers.size() <= index) {
+bool GravitySubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffer &command_buffer)
+{
+    if (_vk_render_command_buffers.size() <= index)
+    {
         GravityLogger::getInstance().LogFatalError(
             "GetRenderCommandBuffer() attempting to access swapchain render command buffer that does not exist");
         return false;
@@ -847,8 +983,10 @@ bool GravitySubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffe
     return true;
 }
 
-bool GravitySubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer) {
-    if (_vk_framebuffers.size() <= _cur_image) {
+bool GravitySubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer)
+{
+    if (_vk_framebuffers.size() <= _cur_image)
+    {
         GravityLogger::getInstance().LogFatalError(
             "GetCurrentFramebuffer() attempting to access swapchain framebuffer that does not exist");
         return false;
@@ -857,8 +995,10 @@ bool GravitySubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer) {
     return true;
 }
 
-bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebuffer) {
-    if (_vk_framebuffers.size() <= index) {
+bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebuffer)
+{
+    if (_vk_framebuffers.size() <= index)
+    {
         GravityLogger::getInstance().LogFatalError(
             "GetFramebuffer() attempting to access swapchain framebuffer that does not exist");
         return false;
@@ -867,7 +1007,8 @@ bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebu
     return true;
 }
 
-bool GravitySubmitManager::CreateFramebuffers(VkRenderPass render_pass, VkImageView depth_image_view) {
+bool GravitySubmitManager::CreateFramebuffers(VkRenderPass render_pass, VkImageView depth_image_view)
+{
     VkImageView attached_image_views[2];
     attached_image_views[1] = depth_image_view;
 
@@ -880,9 +1021,11 @@ bool GravitySubmitManager::CreateFramebuffers(VkRenderPass render_pass, VkImageV
     fb_info.width = _current_width;
     fb_info.height = _current_height;
     fb_info.layers = 1;
-    for (uint8_t i = 0; i < _num_images; i++) {
+    for (uint8_t i = 0; i < _num_images; i++)
+    {
         attached_image_views[0] = _vk_image_views[i];
-        if (VK_SUCCESS != vkCreateFramebuffer(_vk_device, &fb_info, NULL, &_vk_framebuffers[i])) {
+        if (VK_SUCCESS != vkCreateFramebuffer(_vk_device, &fb_info, NULL, &_vk_framebuffers[i]))
+        {
             std::string error_msg = "Failed to create framebuffer for swapchain index ";
             error_msg += std::to_string(i);
             GravityLogger::getInstance().LogFatalError(error_msg);
@@ -892,8 +1035,10 @@ bool GravitySubmitManager::CreateFramebuffers(VkRenderPass render_pass, VkImageV
     return true;
 }
 
-bool GravitySubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_buffer) {
-    if (UsesSeparatePresentQueue()) {
+bool GravitySubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_buffer)
+{
+    if (UsesSeparatePresentQueue())
+    {
         // We have to transfer ownership from the graphics queue family to the
         // present queue family to be able to present.  Note that we don't have
         // to transfer from present queue family back to graphics queue family at
@@ -916,7 +1061,8 @@ bool GravitySubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command
     return true;
 }
 
-bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait) {
+bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait)
+{
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
@@ -928,13 +1074,16 @@ bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, 
     submit_info.signalSemaphoreCount = 0;
     submit_info.pSignalSemaphores = nullptr;
 
-    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, fence)) {
+    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, fence))
+    {
         GravityLogger::getInstance().LogError("GravitySubmitManager::Submit failed to submit to graphics queue");
         return false;
     }
 
-    if (immediately_wait) {
-        if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &fence, VK_TRUE, UINT64_MAX)) {
+    if (immediately_wait)
+    {
+        if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &fence, VK_TRUE, UINT64_MAX))
+        {
             GravityLogger::getInstance().LogError(
                 "GravitySubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
             return false;
@@ -943,8 +1092,10 @@ bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, 
     return true;
 }
 
-bool GravitySubmitManager::SubmitAndPresent() {
-    if (_found_google_display_timing_extension) {
+bool GravitySubmitManager::SubmitAndPresent()
+{
+    if (_found_google_display_timing_extension)
+    {
         // Look at what happened to previous presents, and make appropriate
         // adjustments in timing:
         AdjustPresentTiming();
@@ -971,19 +1122,22 @@ bool GravitySubmitManager::SubmitAndPresent() {
     submit_info.pWaitDstStageMask = &pipe_stage_flags;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &_vk_render_command_buffers[_cur_image];
-    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, _vk_fences[_cur_wait_index])) {
+    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, _vk_fences[_cur_wait_index]))
+    {
         GravityLogger::getInstance().LogFatalError("SubmitAndPresent(): Render vkQueueSubmit failed.");
         return false;
     }
 
-    if (UsesSeparatePresentQueue()) {
+    if (UsesSeparatePresentQueue())
+    {
         // If we are using separate queues, change image ownership to the
         // present queue before presenting, waiting for the draw complete
         // semaphore and signalling the ownership released semaphore when finished
         submit_info.pWaitSemaphores = &_draw_complete_semaphores[_cur_wait_index];
         submit_info.pSignalSemaphores = &_image_ownership_semaphores[_cur_wait_index];
         submit_info.pCommandBuffers = &_vk_present_command_buffers[_cur_image];
-        if (VK_SUCCESS != vkQueueSubmit(_present_queue, 1, &submit_info, VK_NULL_HANDLE)) {
+        if (VK_SUCCESS != vkQueueSubmit(_present_queue, 1, &submit_info, VK_NULL_HANDLE))
+        {
             GravityLogger::getInstance().LogFatalError("SubmitAndPresent(): Present vkQueueSubmit failed.");
             return false;
         }
@@ -999,14 +1153,19 @@ bool GravitySubmitManager::SubmitAndPresent() {
     present_info.pSwapchains = &_vk_swapchain;
     present_info.waitSemaphoreCount = 1;
     present_info.pImageIndices = &_cur_image;
-    if (UsesSeparatePresentQueue()) {
+    if (UsesSeparatePresentQueue())
+    {
         present_info.pWaitSemaphores = &_image_ownership_semaphores[_cur_wait_index];
-    } else {
+    }
+    else
+    {
         present_info.pWaitSemaphores = &_draw_complete_semaphores[_cur_wait_index];
     }
 
-    if (_found_google_display_timing_extension) {
-        if (_prev_desired_present_time == 0) {
+    if (_found_google_display_timing_extension)
+    {
+        if (_prev_desired_present_time == 0)
+        {
             // This must be the first present for this swapchain.
             //
             // We don't know where we are relative to the presentation engine's
@@ -1015,14 +1174,19 @@ bool GravitySubmitManager::SubmitAndPresent() {
             // desiredPresentTime should be half way between now and
             // now+target_IPD.  We will adjust over time.
             uint64_t cur_time = getTimeInNanoseconds();
-            if (cur_time == 0) {
+            if (cur_time == 0)
+            {
                 // Since we didn't find out the current time, don't give a
                 // desiredPresentTime:
                 present_time.desiredPresentTime = 0;
-            } else {
+            }
+            else
+            {
                 present_time.desiredPresentTime = cur_time + (_target_IPD >> 1);
             }
-        } else {
+        }
+        else
+        {
             present_time.desiredPresentTime = (_prev_desired_present_time + _target_IPD);
         }
         present_time.presentID = _next_present_id++;
@@ -1035,14 +1199,19 @@ bool GravitySubmitManager::SubmitAndPresent() {
         present_info.pNext = &present_times_info;
     }
     VkResult result = _QueuePresent(_present_queue, &present_info);
-    if (VK_ERROR_OUT_OF_DATE_KHR == result) {
+    if (VK_ERROR_OUT_OF_DATE_KHR == result)
+    {
         // swapchain is out of date (e.g. the window was resized) and
         // must be recreated:
-        AppForceResize();
-    } else if (VK_SUBOPTIMAL_KHR == result) {
+        _app->Resize();
+    }
+    else if (VK_SUBOPTIMAL_KHR == result)
+    {
         // swapchain is not as optimal as it could be, but the platform's
         // presentation engine will still present the image correctly.
-    } else if (VK_SUCCESS != result) {
+    }
+    else if (VK_SUCCESS != result)
+    {
         GravityLogger::getInstance().LogFatalError("vkQueuePresentKHR failed.");
         return false;
     }

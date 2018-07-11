@@ -26,7 +26,10 @@
 
 #include "gravity_vulkan_headers.hpp"
 
-struct NativeWindowInfo {
+class GravityApp;
+
+struct NativeWindowInfo
+{
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     HINSTANCE instance_handle;
     HWND window_handle;
@@ -65,14 +68,18 @@ struct NativeWindowInfo {
     VkPhysicalDevice vk_physical_device;
 };
 
-class GravityWindow {
-   public:
-    GravityWindow(const std::string &name);
+class GravityWindow
+{
+  public:
+    GravityWindow(GravityApp *associated_app, const std::string &name);
     virtual ~GravityWindow();
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    void SetHInstance(HINSTANCE win_hinstance) { _native_win_info.instance_handle = win_hinstance; }
-    void RedrawOsWindow() { RedrawWindow(_native_win_info.window_handle, NULL, NULL, RDW_INTERNALPAINT);}
+    void SetHInstance(HINSTANCE win_hinstance)
+    {
+        _native_win_info.instance_handle = win_hinstance;
+    }
+    void RedrawOsWindow() { RedrawWindow(_native_win_info.window_handle, NULL, NULL, RDW_INTERNALPAINT); }
 #endif
 
     bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height);
@@ -108,14 +115,18 @@ class GravityWindow {
     void HandleActiveWaylandEvents();
 #endif
 #if defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-    void SetMoltenVkView(void *view) { _view = view; }
+    void SetMoltenVkView(void *view)
+    {
+        _view = view;
+    }
 #endif
 
-   private:
+  private:
 #ifdef VK_USE_PLATFORM_XCB_KHR
     void HandleXcbEvent(xcb_generic_event_t *xcb_event);
 #endif
 
+    GravityApp *_associated_app;
     std::string _name;
     uint32_t _width;
     uint32_t _height;

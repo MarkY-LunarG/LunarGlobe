@@ -201,6 +201,8 @@ include_directories(
 set(GRAVITY_SOURCE_FILES
     gravity_vulkan_headers.hpp
     gravity.cpp
+    gravity_app.hpp
+    gravity_app.cpp
     gravity_logger.hpp
     gravity_logger.cpp
     gravity_event.hpp

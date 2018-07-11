@@ -26,22 +26,22 @@
 #include "gravity_vulkan_headers.hpp"
 #include "gravity_window.hpp"
 
-typedef struct {
+typedef struct
+{
     VkBuffer uniform_buffer;
     VkDeviceMemory uniform_memory;
     VkDescriptorSet descriptor_set;
 } SwapchainImageResources;
 
-class GravitySubmitManager {
-   public:
-    GravitySubmitManager(GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device);
+class GravityApp;
+
+class GravitySubmitManager
+{
+  public:
+    GravitySubmitManager(GravityApp *app, GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device);
     ~GravitySubmitManager();
 
-    bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions, void **next) {
-        return true;
-    }
-    bool ReleaseCreateInstanceItems(void **next) { return true; }
-    bool PrepareCreateDeviceItems(VkDeviceCreateInfo& device_create_info, std::vector<std::string> &extensions, void **next);
+    bool PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next);
     bool ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next);
 
     uint32_t GetGraphicsQueueIndex() { return _graphics_queue_family_index; }
@@ -70,7 +70,8 @@ class GravitySubmitManager {
     bool Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait);
     bool SubmitAndPresent();
 
-   private:
+  private:
+    GravityApp *_app;
     GravityWindow *_window;
     VkInstance _vk_instance;
     VkPhysicalDevice _vk_physical_device;
@@ -112,11 +113,11 @@ class GravitySubmitManager {
     bool _syncd_with_actual_presents;
     uint64_t _refresh_duration;
     uint64_t _refresh_duration_multiplier;
-    uint64_t _target_IPD;  // image present duration (inverse of frame rate)
+    uint64_t _target_IPD; // image present duration (inverse of frame rate)
     uint64_t _prev_desired_present_time;
     uint32_t _next_present_id;
-    uint32_t _last_early_id;  // 0 if no early images
-    uint32_t _last_late_id;   // 0 if no late images
+    uint32_t _last_early_id; // 0 if no early images
+    uint32_t _last_late_id;  // 0 if no late images
 
     std::vector<VkSemaphore> _image_acquired_semaphores;
     std::vector<VkSemaphore> _draw_complete_semaphores;

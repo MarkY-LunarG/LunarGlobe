@@ -46,44 +46,18 @@
 
 #include "inttypes.h"
 
-#define DEMO_TEXTURE_COUNT 1
-#define APP_SHORT_NAME "gravity"
-#define APP_LONG_NAME "The Vulkan Gravity Demo Program"
+#include "gravity_app.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-#if defined(NDEBUG) && defined(__GNUC__)
-#define U_ASSERT_ONLY __attribute__((unused))
-#else
-#define U_ASSERT_ONLY
-#endif
-
-/*
- * structure to track all objects related to a texture.
- */
-struct texture_object {
-    VkSampler sampler;
-
-    VkImage image;
-    VkImageLayout imageLayout;
-
-    VkMemoryAllocateInfo mem_alloc;
-    VkDeviceMemory mem;
-    VkImageView view;
-    int32_t tex_width, tex_height;
-};
-
-static char bitmap_file[] = "lunarg.ppm";
-static char *tex_files[] = {bitmap_file};
-
-static int validation_error = 0;
-
-struct vktexgravity_vs_uniform {
+struct vktexgravity_vs_uniform
+{
     // Must start with MVP
     float mvp[4][4];
     float position[12 * 3][4];
     float attr[12 * 3][4];
 };
+
 
 //--------------------------------------------------------------------------------------
 // Mesh and VertexFormat Data
@@ -178,203 +152,88 @@ static const float g_uv_buffer_data[] = {
 };
 // clang-format on
 
-void dumpMatrix(const char *note, mat4x4 MVP) {
-    int i;
+class CubeApp : public GravityApp
+{
+  public:
+    CubeApp();
+    ~CubeApp();
 
-    printf("%s: \n", note);
-    for (i = 0; i < 4; i++) {
-        printf("%f, %f, %f, %f\n", MVP[i][0], MVP[i][1], MVP[i][2], MVP[i][3]);
-    }
-    printf("\n");
-    fflush(stdout);
-}
+  protected:
+    virtual bool Setup();
+    virtual void CleanupCommandObjects(bool is_resize);
+    virtual bool Draw();
 
-void dumpVec4(const char *note, vec4 vector) {
-    printf("%s: \n", note);
-    printf("%f, %f, %f, %f\n", vector[0], vector[1], vector[2], vector[3]);
-    printf("\n");
-    fflush(stdout);
-}
+  private:
+    bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
+    bool LoadTextures();
+    bool LoadTextureFromFile(const std::string &filename, VkImageTiling tiling, VkImageUsageFlags usage_flags,
+                             GravityTexture &texture);
+    bool LoadTextureFromFile(const std::string &filename, GravityTexture &target_texture,
+                             bool &uses_staging, GravityTexture &staging_texture);
+    virtual void HandleEvent(GravityEvent& event);
 
-struct Demo {
-    GravityWindow *gravity_window;
-    GravitySubmitManager *gravity_submit_mgr;
-    bool prepared;
-    bool use_staging_buffer;
-    bool was_minimized;
-    bool is_minimized;
-    bool paused;
+    bool _uses_staging_texture;
+    mat4x4 _projection_matrix;
+    mat4x4 _view_matrix;
+    mat4x4 _model_matrix;
+    std::vector<GravityTexture> _textures;
+    GravityTexture _staging_texture;
+    VkDescriptorSetLayout _vk_desc_set_layout;
+    VkPipelineLayout _vk_pipeline_layout;
+    VkPipelineCache _vk_pipeline_cache;
+    VkPipeline _vk_pipeline;
+    VkShaderModule _vk_vert_shader_module;
+    VkShaderModule _vk_frag_shader_module;
+    VkDescriptorPool _vk_desc_pool;
 
-    bool VK_GOOGLE_display_timing_enabled;
-
-    VkInstance inst;
-    VkPhysicalDevice gpu;
-    VkDevice device;
-    VkPhysicalDeviceMemoryProperties memory_properties;
-
-    uint32_t enabled_extension_count;
-    uint32_t enabled_layer_count;
-    const char *extension_names[64];
-    const char *enabled_layers[64];
-
-    uint32_t width, height;
-
-    uint32_t swapchainImageCount;
-    SwapchainImageResources *swapchain_image_resources;
-    VkPresentModeKHR presentMode;
-
-    VkCommandPool cmd_pool;
-
-    struct {
-        VkFormat format;
-
-        VkImage image;
-        VkMemoryAllocateInfo mem_alloc;
-        VkDeviceMemory mem;
-        VkImageView view;
-    } depth;
-
-    struct texture_object textures[DEMO_TEXTURE_COUNT];
-    struct texture_object staging_texture;
-
-    VkCommandBuffer cmd;  // Buffer for initialization commands
-    VkPipelineLayout pipeline_layout;
-    VkDescriptorSetLayout desc_layout;
-    VkPipelineCache pipelineCache;
-    VkRenderPass render_pass;
-    VkPipeline pipeline;
-
-    mat4x4 projection_matrix;
-    mat4x4 view_matrix;
-    mat4x4 model_matrix;
-
-    float spin_angle;
-    float spin_increment;
-
-    VkShaderModule vert_shader_module;
-    VkShaderModule frag_shader_module;
-
-    VkDescriptorPool desc_pool;
-
-    bool quit;
-    int32_t curFrame;
-    int32_t frameCount;
-    bool validate;
-    bool use_break;
-    bool suppress_popups;
-
-    PFN_vkCmdBeginDebugUtilsLabelEXT CmdBeginDebugUtilsLabelEXT;
-    PFN_vkCmdEndDebugUtilsLabelEXT CmdEndDebugUtilsLabelEXT;
-    PFN_vkSetDebugUtilsObjectNameEXT SetDebugUtilsObjectNameEXT;
-
-    uint32_t current_buffer;
-    uint32_t queue_family_count;
+    float _spin_angle;
+    float _spin_increment;
 };
 
-// Forward declaration:
-static void demo_resize(struct Demo *demo);
+CubeApp::CubeApp()
+{
+    _uses_staging_texture = false;
+    _vk_desc_set_layout = VK_NULL_HANDLE;
+    _vk_pipeline_layout = VK_NULL_HANDLE;
+    _vk_pipeline_cache = VK_NULL_HANDLE;
+    _vk_pipeline = VK_NULL_HANDLE;
+    _vk_vert_shader_module = VK_NULL_HANDLE;
+    _vk_frag_shader_module = VK_NULL_HANDLE;
+    _vk_desc_pool = VK_NULL_HANDLE;
 
-static bool memory_type_from_properties(struct Demo *demo, uint32_t typeBits, VkFlags requirements_mask, uint32_t *typeIndex) {
-    // Search memtypes to find first index with those properties
-    for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; i++) {
-        if ((typeBits & 1) == 1) {
-            // Type is available, does it match user properties?
-            if ((demo->memory_properties.memoryTypes[i].propertyFlags & requirements_mask) == requirements_mask) {
-                *typeIndex = i;
-                return true;
-            }
-        }
-        typeBits >>= 1;
-    }
-    // No memory types matched, return failure
-    return false;
+#if defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
+    _spin_angle = 0.4f;
+#else
+    _spin_angle = 4.0f;
+#endif
+    _spin_increment = 0.2f;
+
+    vec3 eye = {0.0f, 3.0f, 5.0f};
+    vec3 origin = {0, 0, 0};
+    vec3 up = {0.0f, 1.0f, 0.0};
+
+    mat4x4_perspective(_projection_matrix, (float)degreesToRadians(45.0f), 1.0f, 0.1f, 100.0f);
+    _projection_matrix[1][1] *= -1; // Flip projection matrix from GL to Vulkan orientation.
+
+    mat4x4_look_at(_view_matrix, eye, origin, up);
+    mat4x4_identity(_model_matrix);
 }
 
-static void demo_flush_init_cmd(struct Demo *demo) {
-    VkResult U_ASSERT_ONLY err;
-
-    // This function could get called twice if the texture uses a staging buffer
-    // In that case the second call should be ignored
-    if (demo->cmd == VK_NULL_HANDLE) return;
-
-    err = vkEndCommandBuffer(demo->cmd);
-    assert(!err);
-
-    VkFence fence;
-    VkFenceCreateInfo fence_ci = {};
-    fence_ci.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
-    fence_ci.pNext = NULL;
-    fence_ci.flags = 0;
-    err = vkCreateFence(demo->device, &fence_ci, NULL, &fence);
-    assert(!err);
-
-    std::vector<VkCommandBuffer> command_buffers;
-    command_buffers.push_back(demo->cmd);
-    demo->gravity_submit_mgr->Submit(command_buffers, fence, true);
-    vkFreeCommandBuffers(demo->device, demo->cmd_pool, 1, &demo->cmd);
-    vkDestroyFence(demo->device, fence, NULL);
-    demo->cmd = VK_NULL_HANDLE;
+CubeApp::~CubeApp()
+{
 }
 
-static void demo_set_image_layout(struct Demo *demo, VkImage image, VkImageAspectFlags aspectMask, VkImageLayout old_image_layout,
-                                  VkImageLayout new_image_layout, VkAccessFlagBits srcAccessMask, VkPipelineStageFlags src_stages,
-                                  VkPipelineStageFlags dest_stages) {
-    assert(demo->cmd);
+bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index)
+{
+    GravityLogger &logger = GravityLogger::getInstance();
+    VkCommandBuffer cmd_buf;
+    VkFramebuffer frame_buf;
+    _gravity_submit_mgr->GetRenderCommandBuffer(framebuffer_index, cmd_buf);
+    _gravity_submit_mgr->GetFramebuffer(framebuffer_index, frame_buf);
 
-    VkImageMemoryBarrier image_memory_barrier = {};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.pNext = nullptr;
-    image_memory_barrier.srcAccessMask = srcAccessMask;
-    image_memory_barrier.dstAccessMask = 0;
-    image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.oldLayout = old_image_layout;
-    image_memory_barrier.newLayout = new_image_layout;
-    image_memory_barrier.image = image;
-    image_memory_barrier.subresourceRange = {aspectMask, 0, 1, 0, 1};
-
-    switch (new_image_layout) {
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            /* Make sure anything that was copying from this image has completed */
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-            break;
-
-        default:
-            image_memory_barrier.dstAccessMask = 0;
-            break;
-    }
-
-    VkImageMemoryBarrier *pmemory_barrier = &image_memory_barrier;
-
-    vkCmdPipelineBarrier(demo->cmd, src_stages, dest_stages, 0, 0, NULL, 0, NULL, 1, pmemory_barrier);
-}
-
-static void demo_draw_build_cmd(struct Demo *demo, VkCommandBuffer cmd_buf) {
-    VkDebugUtilsLabelEXT label;
     VkCommandBufferBeginInfo cmd_buf_info = {};
     VkClearValue clear_values[2] = {{}, {}};
     VkRenderPassBeginInfo rp_begin = {};
-    memset(&label, 0, sizeof(label));
     cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     cmd_buf_info.pNext = nullptr;
     cmd_buf_info.flags = VK_COMMAND_BUFFER_USAGE_SIMULTANEOUS_USE_BIT;
@@ -387,200 +246,499 @@ static void demo_draw_build_cmd(struct Demo *demo, VkCommandBuffer cmd_buf) {
     clear_values[1].depthStencil.stencil = 0;
     rp_begin.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     rp_begin.pNext = nullptr;
-    rp_begin.renderPass = demo->render_pass;
-    demo->gravity_submit_mgr->GetFramebuffer(demo->current_buffer, rp_begin.framebuffer);
+    rp_begin.renderPass = _vk_render_pass;
+    rp_begin.framebuffer = frame_buf;
     rp_begin.renderArea.offset.x = 0;
     rp_begin.renderArea.offset.y = 0;
-    rp_begin.renderArea.extent.width = demo->width;
-    rp_begin.renderArea.extent.height = demo->height;
+    rp_begin.renderArea.extent.width = _width;
+    rp_begin.renderArea.extent.height = _height;
     rp_begin.clearValueCount = 2;
     rp_begin.pClearValues = clear_values;
-    VkResult U_ASSERT_ONLY err;
 
-    err = vkBeginCommandBuffer(cmd_buf, &cmd_buf_info);
-
-    if (demo->validate && nullptr != demo->SetDebugUtilsObjectNameEXT && nullptr != demo->CmdBeginDebugUtilsLabelEXT) {
-        // Set a name for the command buffer
-        VkDebugUtilsObjectNameInfoEXT cmd_buf_name = {};
-        cmd_buf_name.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
-        cmd_buf_name.pNext = nullptr;
-        cmd_buf_name.objectType = VK_OBJECT_TYPE_COMMAND_BUFFER;
-        cmd_buf_name.objectHandle = (uint64_t)cmd_buf;
-        cmd_buf_name.pObjectName = "GravityDrawCommandBuf";
-        demo->SetDebugUtilsObjectNameEXT(demo->device, &cmd_buf_name);
-
-        label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-        label.pNext = NULL;
-        label.pLabelName = "DrawBegin";
-        label.color[0] = 0.4f;
-        label.color[1] = 0.3f;
-        label.color[2] = 0.2f;
-        label.color[3] = 0.1f;
-        demo->CmdBeginDebugUtilsLabelEXT(cmd_buf, &label);
+    if (VK_SUCCESS != vkBeginCommandBuffer(cmd_buf, &cmd_buf_info)) {
+        std::string error_message = "Failed to begin command buffer for draw commands for framebuffer ";
+        error_message += std::to_string(framebuffer_index);
+        logger.LogFatalError(error_message);
     }
-
-    assert(!err);
     vkCmdBeginRenderPass(cmd_buf, &rp_begin, VK_SUBPASS_CONTENTS_INLINE);
 
-    if (demo->validate && nullptr != demo->CmdBeginDebugUtilsLabelEXT) {
-        label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-        label.pNext = NULL;
-        label.pLabelName = "InsideRenderPass";
-        label.color[0] = 8.4f;
-        label.color[1] = 7.3f;
-        label.color[2] = 6.2f;
-        label.color[3] = 7.1f;
-        demo->CmdBeginDebugUtilsLabelEXT(cmd_buf, &label);
-    }
-
-    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline);
-    vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, demo->pipeline_layout, 0, 1,
-                            &demo->swapchain_image_resources[demo->current_buffer].descriptor_set, 0, NULL);
+    vkCmdBindPipeline(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
+    vkCmdBindDescriptorSets(cmd_buf, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
+                            &_swapchain_resources[framebuffer_index].descriptor_set, 0, nullptr);
     VkViewport viewport;
     memset(&viewport, 0, sizeof(viewport));
-    viewport.height = (float)demo->height;
-    viewport.width = (float)demo->width;
+    viewport.height = (float)_height;
+    viewport.width = (float)_width;
     viewport.minDepth = (float)0.0f;
     viewport.maxDepth = (float)1.0f;
     vkCmdSetViewport(cmd_buf, 0, 1, &viewport);
 
     VkRect2D scissor;
     memset(&scissor, 0, sizeof(scissor));
-    scissor.extent.width = demo->width;
-    scissor.extent.height = demo->height;
+    scissor.extent.width = _width;
+    scissor.extent.height = _height;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
     vkCmdSetScissor(cmd_buf, 0, 1, &scissor);
 
-    if (demo->validate && nullptr != demo->CmdBeginDebugUtilsLabelEXT) {
-        label.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_LABEL_EXT;
-        label.pNext = NULL;
-        label.pLabelName = "ActualDraw";
-        label.color[0] = -0.4f;
-        label.color[1] = -0.3f;
-        label.color[2] = -0.2f;
-        label.color[3] = -0.1f;
-        demo->CmdBeginDebugUtilsLabelEXT(cmd_buf, &label);
-    }
-
     vkCmdDraw(cmd_buf, 12 * 3, 1, 0, 0);
-    if (demo->validate && nullptr != demo->CmdEndDebugUtilsLabelEXT) {
-        demo->CmdEndDebugUtilsLabelEXT(cmd_buf);
-    }
 
     // Note that ending the renderpass changes the image's layout from
     // COLOR_ATTACHMENT_OPTIMAL to PRESENT_SRC_KHR
     vkCmdEndRenderPass(cmd_buf);
-    if (demo->validate && nullptr != demo->CmdEndDebugUtilsLabelEXT) {
-        demo->CmdEndDebugUtilsLabelEXT(cmd_buf);
+
+    _gravity_submit_mgr->InsertPresentCommandsToBuffer(cmd_buf);
+    if (VK_SUCCESS != vkEndCommandBuffer(cmd_buf)) {
+        std::string error_message = "Failed to end command buffer for draw commands for framebuffer ";
+        error_message += std::to_string(framebuffer_index);
+        logger.LogFatalError(error_message);
     }
 
-    demo->gravity_submit_mgr->InsertPresentCommandsToBuffer(cmd_buf);
+    return true;
+}
 
-    if (demo->validate && nullptr != demo->CmdEndDebugUtilsLabelEXT) {
-        demo->CmdEndDebugUtilsLabelEXT(cmd_buf);
+
+bool CubeApp::Setup()
+{
+    GravityLogger &logger = GravityLogger::getInstance();
+
+    if (!GravityApp::PreSetup())
+    {
+        return false;
     }
-    err = vkEndCommandBuffer(cmd_buf);
-    assert(!err);
+
+    if (!_is_minimized) {
+        LoadTextures();
+
+        uint8_t *pData;
+        mat4x4 MVP, VP;
+        struct vktexgravity_vs_uniform data;
+
+        mat4x4_mul(VP, _projection_matrix, _view_matrix);
+        mat4x4_mul(MVP, VP, _model_matrix);
+        memcpy(data.mvp, MVP, sizeof(MVP));
+
+        for (unsigned int i = 0; i < 12 * 3; i++)
+        {
+            data.position[i][0] = g_vertex_buffer_data[i * 3];
+            data.position[i][1] = g_vertex_buffer_data[i * 3 + 1];
+            data.position[i][2] = g_vertex_buffer_data[i * 3 + 2];
+            data.position[i][3] = 1.0f;
+            data.attr[i][0] = g_uv_buffer_data[2 * i];
+            data.attr[i][1] = g_uv_buffer_data[2 * i + 1];
+            data.attr[i][2] = 0;
+            data.attr[i][3] = 0;
+        }
+
+        VkBufferCreateInfo buffer_create_info  = {};
+        buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
+        buffer_create_info.size = sizeof(data);
+
+        for (unsigned int i = 0; i < _swapchain_count; i++)
+        {
+            if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, nullptr, &_swapchain_resources[i].uniform_buffer)) {
+                std::string error_message = "Failed to create buffer for swapchain image ";
+                error_message += std::to_string(i);
+                logger.LogFatalError(error_message);
+                return false;
+            }
+
+            VkMemoryRequirements memory_requirements = {};
+            vkGetBufferMemoryRequirements(_vk_device, _swapchain_resources[i].uniform_buffer, &memory_requirements);
+
+            VkMemoryAllocateInfo memory_alloc_info = {};
+            memory_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+            memory_alloc_info.pNext = NULL;
+            memory_alloc_info.allocationSize = memory_requirements.size;
+            memory_alloc_info.memoryTypeIndex = 0;
+
+            if (!SelectMemoryTypeUsingRequirements(memory_requirements, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT), memory_alloc_info.memoryTypeIndex))
+            {
+                logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
+                return false;
+            }
+
+            if (VK_SUCCESS != vkAllocateMemory(_vk_device, &memory_alloc_info, NULL, &_swapchain_resources[i].uniform_memory)) {
+                logger.LogFatalError("Failed to allocate memory for buffer");
+                return false;
+            }
+
+            if (VK_SUCCESS != vkMapMemory(_vk_device, _swapchain_resources[i].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData)) {
+                logger.LogFatalError("Failed to map memory for buffer");
+                return false;
+            }
+
+            memcpy(pData, &data, sizeof data);
+
+            vkUnmapMemory(_vk_device, _swapchain_resources[i].uniform_memory);
+
+            if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _swapchain_resources[i].uniform_buffer,
+                                    _swapchain_resources[i].uniform_memory, 0)) {
+                logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
+                return false;
+            }
+        }
+
+        VkDescriptorSetLayoutBinding layout_bindings[2] = {{}, {}};
+        layout_bindings[0].binding = 0;
+        layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        layout_bindings[0].descriptorCount = 1;
+        layout_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        layout_bindings[0].pImmutableSamplers = nullptr;
+        layout_bindings[1].binding = 1;
+        layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        layout_bindings[1].descriptorCount = 1;
+        layout_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        layout_bindings[1].pImmutableSamplers = nullptr;
+        VkDescriptorSetLayoutCreateInfo descriptor_layout = {};
+        descriptor_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
+        descriptor_layout.pNext = nullptr;
+        descriptor_layout.bindingCount = 2;
+        descriptor_layout.pBindings = layout_bindings;
+
+        if (VK_SUCCESS != vkCreateDescriptorSetLayout(_vk_device, &descriptor_layout, nullptr, &_vk_desc_set_layout)) {
+            logger.LogFatalError("Failed to create descriptor set layout");
+            return false;
+        }
+
+        VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
+        pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
+        pPipelineLayoutCreateInfo.pNext = nullptr;
+        pPipelineLayoutCreateInfo.setLayoutCount = 1;
+        pPipelineLayoutCreateInfo.pSetLayouts = &_vk_desc_set_layout;
+
+        if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pPipelineLayoutCreateInfo, nullptr, &_vk_pipeline_layout)) {
+            logger.LogFatalError("Failed to create pipeline layout layout");
+            return false;
+        }
+
+        // The initial layout for the color and depth attachments will be LAYOUT_UNDEFINED
+        // because at the start of the renderpass, we don't care about their contents.
+        // At the start of the subpass, the color attachment's layout will be transitioned
+        // to LAYOUT_COLOR_ATTACHMENT_OPTIMAL and the depth stencil attachment's layout
+        // will be transitioned to LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL.  At the end of
+        // the renderpass, the color attachment's layout will be transitioned to
+        // LAYOUT_PRESENT_SRC_KHR to be ready to present.  This is all done as part of
+        // the renderpass, no barriers are necessary.
+        VkAttachmentDescription attachments[2] = {{}, {}};
+        VkAttachmentReference color_reference = {};
+        VkAttachmentReference depth_reference = {};
+        VkSubpassDescription subpass = {};
+        VkRenderPassCreateInfo rp_info = {};
+        attachments[0].format = _gravity_submit_mgr->GetSwapchainVkFormat();
+        attachments[0].flags = 0;
+        attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+        attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
+        attachments[1].format = _depth_buffer.vk_format;
+        attachments[1].flags = 0;
+        attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
+        attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+        attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+        attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+        attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+        attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        color_reference.attachment = 0;
+        color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+        depth_reference.attachment = 1;
+        depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+        subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
+        subpass.flags = 0;
+        subpass.inputAttachmentCount = 0;
+        subpass.pInputAttachments = nullptr;
+        subpass.colorAttachmentCount = 1;
+        subpass.pColorAttachments = &color_reference;
+        subpass.pResolveAttachments = nullptr;
+        subpass.pDepthStencilAttachment = &depth_reference;
+        subpass.preserveAttachmentCount = 0;
+        subpass.pPreserveAttachments = nullptr;
+        rp_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
+        rp_info.pNext = nullptr;
+        rp_info.flags = 0;
+        rp_info.attachmentCount = 2;
+        rp_info.pAttachments = attachments;
+        rp_info.subpassCount = 1;
+        rp_info.pSubpasses = &subpass;
+        rp_info.dependencyCount = 0;
+        rp_info.pDependencies = nullptr;
+
+        if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &rp_info, NULL, &_vk_render_pass)) {
+            logger.LogFatalError("Failed to create renderpass");
+            return false;
+        }
+
+        VkGraphicsPipelineCreateInfo gfx_pipeline_create_info = {};
+        VkPipelineCacheCreateInfo pipeline_cache_create_info = {};
+        VkPipelineVertexInputStateCreateInfo pipline_vert_input_state_create_info = {};
+        VkPipelineInputAssemblyStateCreateInfo pipline_input_assembly_state_create_info = {};
+        VkPipelineRasterizationStateCreateInfo pipeline_raster_state_create_info = {};
+        VkPipelineColorBlendStateCreateInfo pipeline_color_blend_state_create_info = {};
+        VkPipelineDepthStencilStateCreateInfo pipeline_depth_stencil_state_create_info = {};
+        VkPipelineViewportStateCreateInfo pipeline_viewport_state_create_info = {};
+        VkPipelineMultisampleStateCreateInfo pipeline_multisample_state_create_info = {};
+        VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE];
+        VkPipelineDynamicStateCreateInfo dynamicState = {};
+
+        memset(dynamicStateEnables, 0, sizeof dynamicStateEnables);
+        dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
+        dynamicState.pDynamicStates = dynamicStateEnables;
+
+        gfx_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
+        gfx_pipeline_create_info.layout = _vk_pipeline_layout;
+
+        pipline_vert_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
+
+        pipline_input_assembly_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
+        pipline_input_assembly_state_create_info.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
+
+        pipeline_raster_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
+        pipeline_raster_state_create_info.polygonMode = VK_POLYGON_MODE_FILL;
+        pipeline_raster_state_create_info.cullMode = VK_CULL_MODE_BACK_BIT;
+        pipeline_raster_state_create_info.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
+        pipeline_raster_state_create_info.depthClampEnable = VK_FALSE;
+        pipeline_raster_state_create_info.rasterizerDiscardEnable = VK_FALSE;
+        pipeline_raster_state_create_info.depthBiasEnable = VK_FALSE;
+        pipeline_raster_state_create_info.lineWidth = 1.0f;
+
+        pipeline_color_blend_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
+        VkPipelineColorBlendAttachmentState att_state[1];
+        memset(att_state, 0, sizeof(att_state));
+        att_state[0].colorWriteMask = 0xf;
+        att_state[0].blendEnable = VK_FALSE;
+        pipeline_color_blend_state_create_info.attachmentCount = 1;
+        pipeline_color_blend_state_create_info.pAttachments = att_state;
+
+        pipeline_viewport_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
+        pipeline_viewport_state_create_info.viewportCount = 1;
+        dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
+        pipeline_viewport_state_create_info.scissorCount = 1;
+        dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
+
+        pipeline_depth_stencil_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
+        pipeline_depth_stencil_state_create_info.depthTestEnable = VK_TRUE;
+        pipeline_depth_stencil_state_create_info.depthWriteEnable = VK_TRUE;
+        pipeline_depth_stencil_state_create_info.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
+        pipeline_depth_stencil_state_create_info.depthBoundsTestEnable = VK_FALSE;
+        pipeline_depth_stencil_state_create_info.back.failOp = VK_STENCIL_OP_KEEP;
+        pipeline_depth_stencil_state_create_info.back.passOp = VK_STENCIL_OP_KEEP;
+        pipeline_depth_stencil_state_create_info.back.compareOp = VK_COMPARE_OP_ALWAYS;
+        pipeline_depth_stencil_state_create_info.stencilTestEnable = VK_FALSE;
+        pipeline_depth_stencil_state_create_info.front = pipeline_depth_stencil_state_create_info.back;
+
+        pipeline_multisample_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
+        pipeline_multisample_state_create_info.pSampleMask = nullptr;
+        pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
+
+        const uint32_t vs_code[] = {
+#include "gravity.vert.inc"
+        };
+        const uint32_t fs_code[] = {
+#include "gravity.frag.inc"
+        };
+
+        VkShaderModuleCreateInfo moduleCreateInfo;
+        moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
+        moduleCreateInfo.pNext = NULL;
+        moduleCreateInfo.flags = 0;
+        moduleCreateInfo.codeSize = sizeof(vs_code);
+        moduleCreateInfo.pCode = vs_code;
+        if (VK_SUCCESS != vkCreateShaderModule(_vk_device, &moduleCreateInfo, nullptr, &_vk_vert_shader_module)) {
+            logger.LogFatalError("Failed to create vertex shader module");
+            return false;
+        }
+        moduleCreateInfo.codeSize = sizeof(fs_code);
+        moduleCreateInfo.pCode = fs_code;
+        if (VK_SUCCESS != vkCreateShaderModule(_vk_device, &moduleCreateInfo, nullptr, &_vk_frag_shader_module)) {
+            logger.LogFatalError("Failed to create fragment shader module");
+            return false;
+        }
+
+        // Two stages: vs and fs
+        VkPipelineShaderStageCreateInfo shaderStages[2];
+        memset(&shaderStages, 0, 2 * sizeof(VkPipelineShaderStageCreateInfo));
+
+        shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
+        shaderStages[0].module = _vk_vert_shader_module;
+        shaderStages[0].pName = "main";
+
+        shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
+        shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
+        shaderStages[1].module = _vk_frag_shader_module;
+        shaderStages[1].pName = "main";
+
+        pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
+
+        if (VK_SUCCESS != vkCreatePipelineCache(_vk_device, &pipeline_cache_create_info, nullptr, &_vk_pipeline_cache)) {
+            logger.LogFatalError("Failed to create pipeline cache");
+            return false;
+        }
+
+        gfx_pipeline_create_info.pVertexInputState = &pipline_vert_input_state_create_info;
+        gfx_pipeline_create_info.pInputAssemblyState = &pipline_input_assembly_state_create_info;
+        gfx_pipeline_create_info.pRasterizationState = &pipeline_raster_state_create_info;
+        gfx_pipeline_create_info.pColorBlendState = &pipeline_color_blend_state_create_info;
+        gfx_pipeline_create_info.pMultisampleState = &pipeline_multisample_state_create_info;
+        gfx_pipeline_create_info.pViewportState = &pipeline_viewport_state_create_info;
+        gfx_pipeline_create_info.pDepthStencilState = &pipeline_depth_stencil_state_create_info;
+        gfx_pipeline_create_info.stageCount = ARRAY_SIZE(shaderStages);
+        gfx_pipeline_create_info.pStages = shaderStages;
+        gfx_pipeline_create_info.renderPass = _vk_render_pass;
+        gfx_pipeline_create_info.pDynamicState = &dynamicState;
+
+        if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, _vk_pipeline_cache, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
+            logger.LogFatalError("Failed to create graphics pipeline");
+            return false;
+        }
+
+        vkDestroyShaderModule(_vk_device, _vk_frag_shader_module, nullptr);
+        vkDestroyShaderModule(_vk_device, _vk_vert_shader_module, nullptr);
+
+        VkDescriptorPoolSize type_counts[2] = {{}, {}};
+        type_counts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        type_counts[0].descriptorCount = _swapchain_count;
+        type_counts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        type_counts[1].descriptorCount = _swapchain_count;
+        VkDescriptorPoolCreateInfo descriptor_pool = {};
+        descriptor_pool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptor_pool.pNext = nullptr;
+        descriptor_pool.maxSets = _swapchain_count;
+        descriptor_pool.poolSizeCount = 2;
+        descriptor_pool.pPoolSizes = type_counts;
+
+        if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool, nullptr, &_vk_desc_pool)) {
+            logger.LogFatalError("Failed to create descriptor pool");
+            return false;
+        }
+
+        VkDescriptorImageInfo descriptor_image_info = {};
+        VkWriteDescriptorSet writes[2] = {{}, {}};
+
+        VkDescriptorSetAllocateInfo alloc_info = {};
+        alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        alloc_info.pNext = nullptr;
+        alloc_info.descriptorPool = _vk_desc_pool;
+        alloc_info.descriptorSetCount = 1;
+        alloc_info.pSetLayouts = &_vk_desc_set_layout;
+
+        VkDescriptorBufferInfo buffer_info;
+        buffer_info.offset = 0;
+        buffer_info.range = sizeof(struct vktexgravity_vs_uniform);
+
+        descriptor_image_info.sampler = _textures[0].vk_sampler;
+        descriptor_image_info.imageView = _textures[0].vk_image_view;
+        descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+
+        writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[0].descriptorCount = 1;
+        writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
+        writes[0].pBufferInfo = &buffer_info;
+
+        writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        writes[1].dstBinding = 1;
+        writes[1].descriptorCount = 1;
+        writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        writes[1].pImageInfo = &descriptor_image_info;
+
+        for (unsigned int i = 0; i < _swapchain_count; i++)
+        {
+            if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &alloc_info, &_swapchain_resources[i].descriptor_set)) {
+                logger.LogFatalError("Failed to allocate descriptor set");
+                return false;
+            }
+            buffer_info.buffer = _swapchain_resources[i].uniform_buffer;
+            writes[0].dstSet = _swapchain_resources[i].descriptor_set;
+            writes[1].dstSet = _swapchain_resources[i].descriptor_set;
+            vkUpdateDescriptorSets(_vk_device, 2, writes, 0, nullptr);
+        }
+
+        _gravity_submit_mgr->CreateFramebuffers(_vk_render_pass, _depth_buffer.vk_image_view);
+        for (uint32_t i = 0; i < _swapchain_count; i++)
+        {
+            if (!BuildDrawCmdBuffer(i)) {
+                return false;
+            }
+        }
+    }
+    _current_buffer = 0;
+
+    if (!GravityApp::PostSetup())
+    {
+        return false;
+    }
+
+    if (_uses_staging_texture &&
+        VK_NULL_HANDLE != _staging_texture.vk_device_memory &&
+        VK_NULL_HANDLE != _staging_texture.vk_image)
+    {
+        vkFreeMemory(_vk_device, _staging_texture.vk_device_memory, NULL);
+        vkDestroyImage(_vk_device, _staging_texture.vk_image, NULL);
+        _staging_texture = {};
+        _uses_staging_texture = false;
+    }
+
+    return true;
 }
 
-void demo_update_data_buffer(struct Demo *demo) {
-    mat4x4 MVP, Model, VP;
-    int matrixSize = sizeof(MVP);
-    uint8_t *pData;
-    VkResult U_ASSERT_ONLY err;
+void CubeApp::CleanupCommandObjects(bool is_resize)
+{
+    if (!_is_minimized)
+    {
+        for (auto texture : _textures)
+        {
+            vkDestroySampler(_vk_device, texture.vk_sampler, nullptr);
+            vkDestroyImageView(_vk_device, texture.vk_image_view, nullptr);
+            vkDestroyImage(_vk_device, texture.vk_image, nullptr);
+            vkFreeMemory(_vk_device, texture.vk_device_memory, nullptr);
+        }
+        _textures.clear();
+        if (_uses_staging_texture &&
+            VK_NULL_HANDLE != _staging_texture.vk_device_memory &&
+            VK_NULL_HANDLE != _staging_texture.vk_image)
+        {
+            vkFreeMemory(_vk_device, _staging_texture.vk_device_memory, NULL);
+            vkDestroyImage(_vk_device, _staging_texture.vk_image, NULL);
+            _staging_texture = {};
+            _uses_staging_texture = false;
+        }
+        vkDestroyDescriptorPool(_vk_device, _vk_desc_pool, NULL);
 
-    mat4x4_mul(VP, demo->projection_matrix, demo->view_matrix);
-
-    // Rotate around the Y axis
-    mat4x4_dup(Model, demo->model_matrix);
-    mat4x4_rotate(demo->model_matrix, Model, 0.0f, 1.0f, 0.0f, (float)degreesToRadians(demo->spin_angle));
-    mat4x4_mul(MVP, VP, demo->model_matrix);
-
-    err = vkMapMemory(demo->device, demo->swapchain_image_resources[demo->current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0,
-                      (void **)&pData);
-    assert(!err);
-
-    memcpy(pData, (const void *)&MVP[0][0], matrixSize);
-
-    vkUnmapMemory(demo->device, demo->swapchain_image_resources[demo->current_buffer].uniform_memory);
+        vkDestroyPipeline(_vk_device, _vk_pipeline, NULL);
+        vkDestroyPipelineCache(_vk_device, _vk_pipeline_cache, NULL);
+        vkDestroyRenderPass(_vk_device, _vk_render_pass, NULL);
+        vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, NULL);
+        vkDestroyDescriptorSetLayout(_vk_device, _vk_desc_set_layout, NULL);
+    }
+    GravityApp::CleanupCommandObjects(is_resize);
 }
 
-static void demo_draw(struct Demo *demo) {
-    demo->gravity_submit_mgr->AcquireNextImageIndex(demo->current_buffer);
+bool CubeApp::LoadTextureFromFile(const std::string &filename, GravityTexture &gravity_texture,
+                                  bool &uses_staging, GravityTexture &staging_texture)
+{
+    GravityLogger &logger = GravityLogger::getInstance();
 
-    demo_update_data_buffer(demo);
+    VkFormatProperties vk_format_props;
+    vkGetPhysicalDeviceFormatProperties(_vk_phys_device, gravity_texture.vk_format, &vk_format_props);
 
-    demo->gravity_submit_mgr->SubmitAndPresent();
-}
+    VkImageUsageFlags loading_texture_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
+    GravityTexture *target_texture = &gravity_texture;
+    uses_staging = false;
+    if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !_uses_staging_buffer)
+    {
+        loading_texture_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
+        target_texture = &staging_texture;
+        uses_staging = true;
+    }
 
-static void demo_prepare_depth(struct Demo *demo) {
-    const VkFormat depth_format = VK_FORMAT_D16_UNORM;
-    VkImageCreateInfo image = {};
-    image.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image.pNext = nullptr;
-    image.imageType = VK_IMAGE_TYPE_2D;
-    image.format = depth_format;
-    image.extent = {demo->width, demo->height, 1};
-    image.mipLevels = 1;
-    image.arrayLayers = 1;
-    image.samples = VK_SAMPLE_COUNT_1_BIT;
-    image.tiling = VK_IMAGE_TILING_OPTIMAL;
-    image.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
-    image.flags = 0;
+    // Textures loaded from files are treated as RGBA with 8-bit components
+    target_texture->vk_format = VK_FORMAT_R8G8B8A8_UNORM;
 
-    VkImageViewCreateInfo view = {};
-    view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    view.pNext = nullptr;
-    view.image = VK_NULL_HANDLE;
-    view.format = depth_format;
-    view.subresourceRange.aspectMask = VK_IMAGE_ASPECT_DEPTH_BIT;
-    view.subresourceRange.baseMipLevel = 0;
-    view.subresourceRange.levelCount = 1;
-    view.subresourceRange.baseArrayLayer = 0;
-    view.subresourceRange.layerCount = 1;
-    view.flags = 0;
-    view.viewType = VK_IMAGE_VIEW_TYPE_2D;
-
-    VkMemoryRequirements mem_reqs;
-    VkResult U_ASSERT_ONLY err;
-    bool U_ASSERT_ONLY pass;
-
-    demo->depth.format = depth_format;
-
-    /* create image */
-    err = vkCreateImage(demo->device, &image, NULL, &demo->depth.image);
-    assert(!err);
-
-    vkGetImageMemoryRequirements(demo->device, demo->depth.image, &mem_reqs);
-    assert(!err);
-
-    demo->depth.mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    demo->depth.mem_alloc.pNext = NULL;
-    demo->depth.mem_alloc.allocationSize = mem_reqs.size;
-    demo->depth.mem_alloc.memoryTypeIndex = 0;
-
-    pass = memory_type_from_properties(demo, mem_reqs.memoryTypeBits, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                       &demo->depth.mem_alloc.memoryTypeIndex);
-    assert(pass);
-
-    /* allocate memory */
-    err = vkAllocateMemory(demo->device, &demo->depth.mem_alloc, NULL, &demo->depth.mem);
-    assert(!err);
-
-    /* bind memory */
-    err = vkBindImageMemory(demo->device, demo->depth.image, demo->depth.mem, 0);
-    assert(!err);
-
-    /* create image view */
-    view.image = demo->depth.image;
-    err = vkCreateImageView(demo->device, &view, NULL, &demo->depth.view);
-    assert(!err);
-}
-
-/* Load a ppm file into memory */
-bool loadTexture(const char *filename, void *void_data, VkSubresourceLayout *layout, int32_t *width, int32_t *height) {
-    uint8_t *rgba_data = reinterpret_cast<uint8_t *>(void_data);
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
     filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename)].UTF8String;
 #endif
@@ -589,1176 +747,368 @@ bool loadTexture(const char *filename, void *void_data, VkSubresourceLayout *lay
 #include <lunarg.ppm.h>
     char *cPtr;
     cPtr = (char *)lunarg_ppm;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3)) {
+    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3))
+    {
         return false;
     }
     while (strncmp(cPtr++, "\n", 1))
         ;
-    sscanf(cPtr, "%u %u", width, height);
-    if (rgba_data == NULL) {
-        return true;
-    }
+    sscanf(cPtr, "%u %u", &target_texture->width, &target_texture->height);
+    target_texture->raw_data.resize(target_texture->width * target_texture->height * 4);
+    uint8_t *rgba_data = target_texture->raw_data.data();
     while (strncmp(cPtr++, "\n", 1))
         ;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4)) {
+    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4))
+    {
         return false;
     }
     while (strncmp(cPtr++, "\n", 1))
         ;
 
-    for (int y = 0; y < *height; y++) {
-        uint8_t *rowPtr = rgba_data;
-        for (int x = 0; x < *width; x++) {
-            memcpy(rowPtr, cPtr, 3);
-            rowPtr[3] = 255; /* Alpha of 1 */
-            rowPtr += 4;
+    uint8_t *row_ptr = rgba_data;
+    for (int y = 0; y < target_texture->height; y++)
+    {
+        for (int x = 0; x < target_texture->width; x++)
+        {
+            memcpy(row_ptr, cPtr, 3);
+            row_ptr[3] = 255;
+            row_ptr += 4;
             cPtr += 3;
         }
-        rgba_data += layout->rowPitch;
     }
-
-    return true;
 #else
-    FILE *fPtr = fopen(filename, "rb");
+    FILE *fPtr = fopen(filename.c_str(), "rb");
     char header[256], *cPtr, *tmp;
 
-    if (!fPtr) return false;
+    if (!fPtr)
+        return false;
 
-    cPtr = fgets(header, 256, fPtr);  // P6
-    if (cPtr == NULL || strncmp(header, "P6\n", 3)) {
+    cPtr = fgets(header, 256, fPtr); // P6
+    if (cPtr == NULL || strncmp(header, "P6\n", 3))
+    {
         fclose(fPtr);
         return false;
     }
 
-    do {
+    do
+    {
         cPtr = fgets(header, 256, fPtr);
-        if (cPtr == NULL) {
+        if (cPtr == NULL)
+        {
             fclose(fPtr);
             return false;
         }
     } while (!strncmp(header, "#", 1));
 
-    sscanf(header, "%u %u", width, height);
-    if (rgba_data == NULL) {
-        fclose(fPtr);
-        return true;
-    }
-    tmp = fgets(header, 256, fPtr);  // Format
+    sscanf(header, "%u %u", &target_texture->width, &target_texture->height);
+    target_texture->raw_data.resize(target_texture->width * target_texture->height * 4);
+    uint8_t *rgba_data = target_texture->raw_data.data();
+    tmp = fgets(header, 256, fPtr); // Format
     (void)tmp;
-    if (cPtr == NULL || strncmp(header, "255\n", 3)) {
+    if (cPtr == NULL || strncmp(header, "255\n", 3))
+    {
         fclose(fPtr);
         return false;
     }
 
-    for (int y = 0; y < *height; y++) {
-        uint8_t *rowPtr = rgba_data;
-        for (int x = 0; x < *width; x++) {
-            size_t s = fread(rowPtr, 3, 1, fPtr);
+    uint8_t *row_ptr = rgba_data;
+    for (int y = 0; y < target_texture->height; y++)
+    {
+        for (int x = 0; x < target_texture->width; x++)
+        {
+            size_t s = fread(row_ptr, 3, 1, fPtr);
             (void)s;
-            rowPtr[3] = 255; /* Alpha of 1 */
-            rowPtr += 4;
+            row_ptr[3] = 255;
+            row_ptr += 4;
         }
-        rgba_data += layout->rowPitch;
     }
     fclose(fPtr);
-    return true;
 #endif
-}
-
-static void demo_prepare_texture_image(struct Demo *demo, const char *filename, struct texture_object *tex_obj,
-                                       VkImageTiling tiling, VkImageUsageFlags usage, VkFlags required_props) {
-    const VkFormat tex_format = VK_FORMAT_R8G8B8A8_UNORM;
-    int32_t tex_width;
-    int32_t tex_height;
-    VkResult U_ASSERT_ONLY err;
-    bool U_ASSERT_ONLY pass;
-
-    if (!loadTexture(filename, NULL, NULL, &tex_width, &tex_height)) {
-        GravityLogger::getInstance().LogFatalError("Failed to load textures");
-    }
-
-    tex_obj->tex_width = tex_width;
-    tex_obj->tex_height = tex_height;
 
     VkImageCreateInfo image_create_info = {};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_create_info.pNext = nullptr;
     image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = tex_format;
-    image_create_info.extent.width = tex_width;
-    image_create_info.extent.height = tex_height;
+    image_create_info.format = target_texture->vk_format;
+    image_create_info.extent.width = target_texture->width;
+    image_create_info.extent.height = target_texture->height;
     image_create_info.extent.depth = 1;
     image_create_info.mipLevels = 1;
     image_create_info.arrayLayers = 1;
     image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.tiling = tiling;
-    image_create_info.usage = usage;
+    image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+    image_create_info.usage = loading_texture_usage_flags;
     image_create_info.flags = 0;
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-
-    VkMemoryRequirements mem_reqs;
-
-    err = vkCreateImage(demo->device, &image_create_info, NULL, &tex_obj->image);
-    assert(!err);
-
-    vkGetImageMemoryRequirements(demo->device, tex_obj->image, &mem_reqs);
-
-    tex_obj->mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    tex_obj->mem_alloc.pNext = nullptr;
-    tex_obj->mem_alloc.allocationSize = mem_reqs.size;
-    tex_obj->mem_alloc.memoryTypeIndex = 0;
-
-    pass = memory_type_from_properties(demo, mem_reqs.memoryTypeBits, required_props, &tex_obj->mem_alloc.memoryTypeIndex);
-    assert(pass);
-
-    /* allocate memory */
-    err = vkAllocateMemory(demo->device, &tex_obj->mem_alloc, NULL, &(tex_obj->mem));
-    assert(!err);
-
-    /* bind memory */
-    err = vkBindImageMemory(demo->device, tex_obj->image, tex_obj->mem, 0);
-    assert(!err);
-
-    if (required_props & VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT) {
-        VkImageSubresource subres = {};
-        subres.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-        subres.mipLevel = 0;
-        subres.arrayLayer = 0;
-        VkSubresourceLayout layout;
-        void *data;
-
-        vkGetImageSubresourceLayout(demo->device, tex_obj->image, &subres, &layout);
-
-        err = vkMapMemory(demo->device, tex_obj->mem, 0, tex_obj->mem_alloc.allocationSize, 0, &data);
-        assert(!err);
-
-        if (!loadTexture(filename, data, &layout, &tex_width, &tex_height)) {
-            fprintf(stderr, "Error loading texture: %s\n", filename);
-        }
-
-        vkUnmapMemory(demo->device, tex_obj->mem);
-    }
-
-    tex_obj->imageLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-}
-
-static void demo_destroy_texture_image(struct Demo *demo, struct texture_object *tex_objs) {
-    /* clean up staging resources */
-    vkFreeMemory(demo->device, tex_objs->mem, NULL);
-    vkDestroyImage(demo->device, tex_objs->image, NULL);
-}
-
-static void demo_prepare_textures(struct Demo *demo) {
-    const VkFormat tex_format = VK_FORMAT_R8G8B8A8_UNORM;
-    VkFormatProperties props;
-    uint32_t i;
-
-    vkGetPhysicalDeviceFormatProperties(demo->gpu, tex_format, &props);
-
-    for (i = 0; i < DEMO_TEXTURE_COUNT; i++) {
-        VkResult U_ASSERT_ONLY err;
-
-        if ((props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !demo->use_staging_buffer) {
-            /* Device can texture using linear textures */
-            demo_prepare_texture_image(demo, tex_files[i], &demo->textures[i], VK_IMAGE_TILING_LINEAR, VK_IMAGE_USAGE_SAMPLED_BIT,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-            // Nothing in the pipeline needs to be complete to start, and don't allow fragment
-            // shader to run until layout transition completes
-            demo_set_image_layout(demo, demo->textures[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                  demo->textures[i].imageLayout, static_cast<VkAccessFlagBits>(0),
-                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-            demo->staging_texture.image = 0;
-        } else if (props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) {
-            /* Must use staging buffer to copy linear texture to optimized */
-
-            memset(&demo->staging_texture, 0, sizeof(demo->staging_texture));
-            demo_prepare_texture_image(demo, tex_files[i], &demo->staging_texture, VK_IMAGE_TILING_LINEAR,
-                                       VK_IMAGE_USAGE_TRANSFER_SRC_BIT,
-                                       VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT);
-
-            demo_prepare_texture_image(demo, tex_files[i], &demo->textures[i], VK_IMAGE_TILING_OPTIMAL,
-                                       (VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT),
-                                       VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT);
-
-            demo_set_image_layout(demo, demo->staging_texture.image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                  VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, static_cast<VkAccessFlagBits>(0),
-                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-            demo_set_image_layout(demo, demo->textures[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                  VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<VkAccessFlagBits>(0),
-                                  VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT);
-
-            VkImageCopy copy_region = {};
-            copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-            copy_region.srcOffset = {0, 0, 0};
-            copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-            copy_region.dstOffset = {0, 0, 0};
-            copy_region.extent.width = demo->staging_texture.tex_width;
-            copy_region.extent.height = demo->staging_texture.tex_height;
-            copy_region.extent.depth = 1;
-            vkCmdCopyImage(demo->cmd, demo->staging_texture.image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, demo->textures[i].image,
-                           VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
-
-            demo_set_image_layout(demo, demo->textures[i].image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                  demo->textures[i].imageLayout, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                  VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT);
-
-        } else {
-            /* Can't support VK_FORMAT_R8G8B8A8_UNORM !? */
-            assert(!"No support for R8G8B8A8_UNORM as texture image format");
-        }
-
-        VkSamplerCreateInfo sampler = {};
-        sampler.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-        sampler.pNext = nullptr;
-        sampler.magFilter = VK_FILTER_NEAREST;
-        sampler.minFilter = VK_FILTER_NEAREST;
-        sampler.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-        sampler.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampler.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampler.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-        sampler.mipLodBias = 0.0f;
-        sampler.anisotropyEnable = VK_FALSE;
-        sampler.maxAnisotropy = 1;
-        sampler.compareOp = VK_COMPARE_OP_NEVER;
-        sampler.minLod = 0.0f;
-        sampler.maxLod = 0.0f;
-        sampler.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-        sampler.unnormalizedCoordinates = VK_FALSE;
-
-        VkImageViewCreateInfo view = {};
-        view.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-        view.pNext = nullptr;
-        view.image = VK_NULL_HANDLE;
-        view.viewType = VK_IMAGE_VIEW_TYPE_2D;
-        view.format = tex_format;
-        view.components = {
-            VK_COMPONENT_SWIZZLE_R,
-            VK_COMPONENT_SWIZZLE_G,
-            VK_COMPONENT_SWIZZLE_B,
-            VK_COMPONENT_SWIZZLE_A,
-        };
-        view.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-        view.flags = 0;
-
-        /* create sampler */
-        err = vkCreateSampler(demo->device, &sampler, NULL, &demo->textures[i].sampler);
-        assert(!err);
-
-        /* create image view */
-        view.image = demo->textures[i].image;
-        err = vkCreateImageView(demo->device, &view, NULL, &demo->textures[i].view);
-        assert(!err);
-    }
-}
-
-void demo_prepare_gravity_data_buffers(struct Demo *demo) {
-    VkBufferCreateInfo buf_info;
-    VkMemoryRequirements mem_reqs;
-    VkMemoryAllocateInfo mem_alloc;
-    uint8_t *pData;
-    mat4x4 MVP, VP;
-    VkResult U_ASSERT_ONLY err;
-    bool U_ASSERT_ONLY pass;
-    struct vktexgravity_vs_uniform data;
-
-    mat4x4_mul(VP, demo->projection_matrix, demo->view_matrix);
-    mat4x4_mul(MVP, VP, demo->model_matrix);
-    memcpy(data.mvp, MVP, sizeof(MVP));
-    //    dumpMatrix("MVP", MVP);
-
-    for (unsigned int i = 0; i < 12 * 3; i++) {
-        data.position[i][0] = g_vertex_buffer_data[i * 3];
-        data.position[i][1] = g_vertex_buffer_data[i * 3 + 1];
-        data.position[i][2] = g_vertex_buffer_data[i * 3 + 2];
-        data.position[i][3] = 1.0f;
-        data.attr[i][0] = g_uv_buffer_data[2 * i];
-        data.attr[i][1] = g_uv_buffer_data[2 * i + 1];
-        data.attr[i][2] = 0;
-        data.attr[i][3] = 0;
-    }
-
-    memset(&buf_info, 0, sizeof(buf_info));
-    buf_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-    buf_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    buf_info.size = sizeof(data);
-
-    for (unsigned int i = 0; i < demo->swapchainImageCount; i++) {
-        err = vkCreateBuffer(demo->device, &buf_info, NULL, &demo->swapchain_image_resources[i].uniform_buffer);
-        assert(!err);
-
-        vkGetBufferMemoryRequirements(demo->device, demo->swapchain_image_resources[i].uniform_buffer, &mem_reqs);
-
-        mem_alloc.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        mem_alloc.pNext = NULL;
-        mem_alloc.allocationSize = mem_reqs.size;
-        mem_alloc.memoryTypeIndex = 0;
-
-        pass = memory_type_from_properties(demo, mem_reqs.memoryTypeBits,
-                                           VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
-                                           &mem_alloc.memoryTypeIndex);
-        assert(pass);
-
-        err = vkAllocateMemory(demo->device, &mem_alloc, NULL, &demo->swapchain_image_resources[i].uniform_memory);
-        assert(!err);
-
-        err = vkMapMemory(demo->device, demo->swapchain_image_resources[i].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData);
-        assert(!err);
-
-        memcpy(pData, &data, sizeof data);
-
-        vkUnmapMemory(demo->device, demo->swapchain_image_resources[i].uniform_memory);
-
-        err = vkBindBufferMemory(demo->device, demo->swapchain_image_resources[i].uniform_buffer,
-                                 demo->swapchain_image_resources[i].uniform_memory, 0);
-        assert(!err);
-    }
-}
-
-static void demo_prepare_descriptor_layout(struct Demo *demo) {
-    VkDescriptorSetLayoutBinding layout_bindings[2] = {{}, {}};
-    layout_bindings[0].binding = 0;
-    layout_bindings[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    layout_bindings[0].descriptorCount = 1;
-    layout_bindings[0].stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
-    layout_bindings[0].pImmutableSamplers = nullptr;
-    layout_bindings[1].binding = 1;
-    layout_bindings[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    layout_bindings[1].descriptorCount = DEMO_TEXTURE_COUNT;
-    layout_bindings[1].stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-    layout_bindings[1].pImmutableSamplers = nullptr;
-    VkDescriptorSetLayoutCreateInfo descriptor_layout = {};
-    descriptor_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
-    descriptor_layout.pNext = nullptr;
-    descriptor_layout.bindingCount = 2;
-    descriptor_layout.pBindings = layout_bindings;
-    VkResult U_ASSERT_ONLY err;
-
-    err = vkCreateDescriptorSetLayout(demo->device, &descriptor_layout, NULL, &demo->desc_layout);
-    assert(!err);
-
-    VkPipelineLayoutCreateInfo pPipelineLayoutCreateInfo = {};
-    pPipelineLayoutCreateInfo.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
-    pPipelineLayoutCreateInfo.pNext = nullptr;
-    pPipelineLayoutCreateInfo.setLayoutCount = 1;
-    pPipelineLayoutCreateInfo.pSetLayouts = &demo->desc_layout;
-
-    err = vkCreatePipelineLayout(demo->device, &pPipelineLayoutCreateInfo, NULL, &demo->pipeline_layout);
-    assert(!err);
-}
-
-static void demo_prepare_render_pass(struct Demo *demo) {
-    // The initial layout for the color and depth attachments will be LAYOUT_UNDEFINED
-    // because at the start of the renderpass, we don't care about their contents.
-    // At the start of the subpass, the color attachment's layout will be transitioned
-    // to LAYOUT_COLOR_ATTACHMENT_OPTIMAL and the depth stencil attachment's layout
-    // will be transitioned to LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL.  At the end of
-    // the renderpass, the color attachment's layout will be transitioned to
-    // LAYOUT_PRESENT_SRC_KHR to be ready to present.  This is all done as part of
-    // the renderpass, no barriers are necessary.
-    VkAttachmentDescription attachments[2] = {{}, {}};
-    VkAttachmentReference color_reference = {};
-    VkAttachmentReference depth_reference = {};
-    VkSubpassDescription subpass = {};
-    VkRenderPassCreateInfo rp_info = {};
-    attachments[0].format = demo->gravity_submit_mgr->GetSwapchainVkFormat();
-    attachments[0].flags = 0;
-    attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[0].storeOp = VK_ATTACHMENT_STORE_OP_STORE;
-    attachments[0].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachments[0].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachments[0].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachments[0].finalLayout = VK_IMAGE_LAYOUT_PRESENT_SRC_KHR;
-    attachments[1].format = demo->depth.format;
-    attachments[1].flags = 0;
-    attachments[1].samples = VK_SAMPLE_COUNT_1_BIT;
-    attachments[1].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
-    attachments[1].storeOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachments[1].stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
-    attachments[1].stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
-    attachments[1].initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
-    attachments[1].finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    color_reference.attachment = 0;
-    color_reference.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
-    depth_reference.attachment = 1;
-    depth_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
-    subpass.pipelineBindPoint = VK_PIPELINE_BIND_POINT_GRAPHICS;
-    subpass.flags = 0;
-    subpass.inputAttachmentCount = 0;
-    subpass.pInputAttachments = nullptr;
-    subpass.colorAttachmentCount = 1;
-    subpass.pColorAttachments = &color_reference;
-    subpass.pResolveAttachments = nullptr;
-    subpass.pDepthStencilAttachment = &depth_reference;
-    subpass.preserveAttachmentCount = 0;
-    subpass.pPreserveAttachments = nullptr;
-    rp_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_CREATE_INFO;
-    rp_info.pNext = nullptr;
-    rp_info.flags = 0;
-    rp_info.attachmentCount = 2;
-    rp_info.pAttachments = attachments;
-    rp_info.subpassCount = 1;
-    rp_info.pSubpasses = &subpass;
-    rp_info.dependencyCount = 0;
-    rp_info.pDependencies = nullptr;
-    VkResult U_ASSERT_ONLY err;
-
-    err = vkCreateRenderPass(demo->device, &rp_info, NULL, &demo->render_pass);
-    assert(!err);
-}
-
-static VkShaderModule demo_prepare_shader_module(struct Demo *demo, const uint32_t *code, size_t size) {
-    VkShaderModule module;
-    VkShaderModuleCreateInfo moduleCreateInfo;
-    VkResult U_ASSERT_ONLY err;
-
-    moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-    moduleCreateInfo.pNext = NULL;
-    moduleCreateInfo.flags = 0;
-    moduleCreateInfo.codeSize = size;
-    moduleCreateInfo.pCode = code;
-
-    err = vkCreateShaderModule(demo->device, &moduleCreateInfo, NULL, &module);
-    assert(!err);
-
-    return module;
-}
-
-static void demo_prepare_vs(struct Demo *demo) {
-    const uint32_t vs_code[] = {
-#include "gravity.vert.inc"
-    };
-    demo->vert_shader_module = demo_prepare_shader_module(demo, vs_code, sizeof(vs_code));
-}
-
-static void demo_prepare_fs(struct Demo *demo) {
-    const uint32_t fs_code[] = {
-#include "gravity.frag.inc"
-    };
-    demo->frag_shader_module = demo_prepare_shader_module(demo, fs_code, sizeof(fs_code));
-}
-
-static void demo_prepare_pipeline(struct Demo *demo) {
-    VkGraphicsPipelineCreateInfo pipeline;
-    VkPipelineCacheCreateInfo pipelineCache;
-    VkPipelineVertexInputStateCreateInfo vi;
-    VkPipelineInputAssemblyStateCreateInfo ia;
-    VkPipelineRasterizationStateCreateInfo rs;
-    VkPipelineColorBlendStateCreateInfo cb;
-    VkPipelineDepthStencilStateCreateInfo ds;
-    VkPipelineViewportStateCreateInfo vp;
-    VkPipelineMultisampleStateCreateInfo ms;
-    VkDynamicState dynamicStateEnables[VK_DYNAMIC_STATE_RANGE_SIZE];
-    VkPipelineDynamicStateCreateInfo dynamicState;
-    VkResult U_ASSERT_ONLY err;
-
-    memset(dynamicStateEnables, 0, sizeof dynamicStateEnables);
-    memset(&dynamicState, 0, sizeof dynamicState);
-    dynamicState.sType = VK_STRUCTURE_TYPE_PIPELINE_DYNAMIC_STATE_CREATE_INFO;
-    dynamicState.pDynamicStates = dynamicStateEnables;
-
-    memset(&pipeline, 0, sizeof(pipeline));
-    pipeline.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    pipeline.layout = demo->pipeline_layout;
-
-    memset(&vi, 0, sizeof(vi));
-    vi.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
-
-    memset(&ia, 0, sizeof(ia));
-    ia.sType = VK_STRUCTURE_TYPE_PIPELINE_INPUT_ASSEMBLY_STATE_CREATE_INFO;
-    ia.topology = VK_PRIMITIVE_TOPOLOGY_TRIANGLE_LIST;
-
-    memset(&rs, 0, sizeof(rs));
-    rs.sType = VK_STRUCTURE_TYPE_PIPELINE_RASTERIZATION_STATE_CREATE_INFO;
-    rs.polygonMode = VK_POLYGON_MODE_FILL;
-    rs.cullMode = VK_CULL_MODE_BACK_BIT;
-    rs.frontFace = VK_FRONT_FACE_COUNTER_CLOCKWISE;
-    rs.depthClampEnable = VK_FALSE;
-    rs.rasterizerDiscardEnable = VK_FALSE;
-    rs.depthBiasEnable = VK_FALSE;
-    rs.lineWidth = 1.0f;
-
-    memset(&cb, 0, sizeof(cb));
-    cb.sType = VK_STRUCTURE_TYPE_PIPELINE_COLOR_BLEND_STATE_CREATE_INFO;
-    VkPipelineColorBlendAttachmentState att_state[1];
-    memset(att_state, 0, sizeof(att_state));
-    att_state[0].colorWriteMask = 0xf;
-    att_state[0].blendEnable = VK_FALSE;
-    cb.attachmentCount = 1;
-    cb.pAttachments = att_state;
-
-    memset(&vp, 0, sizeof(vp));
-    vp.sType = VK_STRUCTURE_TYPE_PIPELINE_VIEWPORT_STATE_CREATE_INFO;
-    vp.viewportCount = 1;
-    dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_VIEWPORT;
-    vp.scissorCount = 1;
-    dynamicStateEnables[dynamicState.dynamicStateCount++] = VK_DYNAMIC_STATE_SCISSOR;
-
-    memset(&ds, 0, sizeof(ds));
-    ds.sType = VK_STRUCTURE_TYPE_PIPELINE_DEPTH_STENCIL_STATE_CREATE_INFO;
-    ds.depthTestEnable = VK_TRUE;
-    ds.depthWriteEnable = VK_TRUE;
-    ds.depthCompareOp = VK_COMPARE_OP_LESS_OR_EQUAL;
-    ds.depthBoundsTestEnable = VK_FALSE;
-    ds.back.failOp = VK_STENCIL_OP_KEEP;
-    ds.back.passOp = VK_STENCIL_OP_KEEP;
-    ds.back.compareOp = VK_COMPARE_OP_ALWAYS;
-    ds.stencilTestEnable = VK_FALSE;
-    ds.front = ds.back;
-
-    memset(&ms, 0, sizeof(ms));
-    ms.sType = VK_STRUCTURE_TYPE_PIPELINE_MULTISAMPLE_STATE_CREATE_INFO;
-    ms.pSampleMask = NULL;
-    ms.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
-
-    demo_prepare_vs(demo);
-    demo_prepare_fs(demo);
-
-    // Two stages: vs and fs
-    VkPipelineShaderStageCreateInfo shaderStages[2];
-    memset(&shaderStages, 0, 2 * sizeof(VkPipelineShaderStageCreateInfo));
-
-    shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-    shaderStages[0].module = demo->vert_shader_module;
-    shaderStages[0].pName = "main";
-
-    shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-    shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-    shaderStages[1].module = demo->frag_shader_module;
-    shaderStages[1].pName = "main";
-
-    memset(&pipelineCache, 0, sizeof(pipelineCache));
-    pipelineCache.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-
-    err = vkCreatePipelineCache(demo->device, &pipelineCache, NULL, &demo->pipelineCache);
-    assert(!err);
-
-    pipeline.pVertexInputState = &vi;
-    pipeline.pInputAssemblyState = &ia;
-    pipeline.pRasterizationState = &rs;
-    pipeline.pColorBlendState = &cb;
-    pipeline.pMultisampleState = &ms;
-    pipeline.pViewportState = &vp;
-    pipeline.pDepthStencilState = &ds;
-    pipeline.stageCount = ARRAY_SIZE(shaderStages);
-    pipeline.pStages = shaderStages;
-    pipeline.renderPass = demo->render_pass;
-    pipeline.pDynamicState = &dynamicState;
-
-    pipeline.renderPass = demo->render_pass;
-
-    err = vkCreateGraphicsPipelines(demo->device, demo->pipelineCache, 1, &pipeline, NULL, &demo->pipeline);
-    assert(!err);
-
-    vkDestroyShaderModule(demo->device, demo->frag_shader_module, NULL);
-    vkDestroyShaderModule(demo->device, demo->vert_shader_module, NULL);
-}
-
-static void demo_prepare_descriptor_pool(struct Demo *demo) {
-    VkDescriptorPoolSize type_counts[2] = {{}, {}};
-    type_counts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    type_counts[0].descriptorCount = demo->swapchainImageCount;
-    type_counts[1].type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    type_counts[1].descriptorCount = demo->swapchainImageCount * DEMO_TEXTURE_COUNT;
-    VkDescriptorPoolCreateInfo descriptor_pool = {};
-    descriptor_pool.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-    descriptor_pool.pNext = nullptr;
-    descriptor_pool.maxSets = demo->swapchainImageCount;
-    descriptor_pool.poolSizeCount = 2;
-    descriptor_pool.pPoolSizes = type_counts;
-    VkResult U_ASSERT_ONLY err;
-
-    err = vkCreateDescriptorPool(demo->device, &descriptor_pool, NULL, &demo->desc_pool);
-    assert(!err);
-}
-
-static void demo_prepare_descriptor_set(struct Demo *demo) {
-    VkDescriptorImageInfo tex_descs[DEMO_TEXTURE_COUNT];
-    VkWriteDescriptorSet writes[2] = {{}, {}};
-    VkResult U_ASSERT_ONLY err;
-
-    VkDescriptorSetAllocateInfo alloc_info = {};
-    alloc_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-    alloc_info.pNext = NULL;
-    alloc_info.descriptorPool = demo->desc_pool;
-    alloc_info.descriptorSetCount = 1;
-    alloc_info.pSetLayouts = &demo->desc_layout;
-
-    VkDescriptorBufferInfo buffer_info;
-    buffer_info.offset = 0;
-    buffer_info.range = sizeof(struct vktexgravity_vs_uniform);
-
-    memset(&tex_descs, 0, sizeof(tex_descs));
-    for (unsigned int i = 0; i < DEMO_TEXTURE_COUNT; i++) {
-        tex_descs[i].sampler = demo->textures[i].sampler;
-        tex_descs[i].imageView = demo->textures[i].view;
-        tex_descs[i].imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-    }
-
-    writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes[0].descriptorCount = 1;
-    writes[0].descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
-    writes[0].pBufferInfo = &buffer_info;
-
-    writes[1].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-    writes[1].dstBinding = 1;
-    writes[1].descriptorCount = DEMO_TEXTURE_COUNT;
-    writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-    writes[1].pImageInfo = tex_descs;
-
-    for (unsigned int i = 0; i < demo->swapchainImageCount; i++) {
-        err = vkAllocateDescriptorSets(demo->device, &alloc_info, &demo->swapchain_image_resources[i].descriptor_set);
-        assert(!err);
-        buffer_info.buffer = demo->swapchain_image_resources[i].uniform_buffer;
-        writes[0].dstSet = demo->swapchain_image_resources[i].descriptor_set;
-        writes[1].dstSet = demo->swapchain_image_resources[i].descriptor_set;
-        vkUpdateDescriptorSets(demo->device, 2, writes, 0, NULL);
-    }
-}
-
-static void demo_prepare(struct Demo *demo) {
-    demo->gravity_submit_mgr->CreateSwapchain();
-
-    VkResult U_ASSERT_ONLY err;
-    if (demo->cmd_pool == VK_NULL_HANDLE) {
-        VkCommandPoolCreateInfo cmd_pool_info = {};
-        cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
-        cmd_pool_info.pNext = nullptr;
-        cmd_pool_info.queueFamilyIndex = demo->gravity_submit_mgr->GetGraphicsQueueIndex();
-        cmd_pool_info.flags = 0;
-        err = vkCreateCommandPool(demo->device, &cmd_pool_info, NULL, &demo->cmd_pool);
-        assert(!err);
-    }
-
-    VkCommandBufferAllocateInfo cmd = {};
-    cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
-    cmd.pNext = nullptr;
-    cmd.commandPool = demo->cmd_pool;
-    cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
-    cmd.commandBufferCount = 1;
-    err = vkAllocateCommandBuffers(demo->device, &cmd, &demo->cmd);
-    assert(!err);
-    VkCommandBufferBeginInfo cmd_buf_info = {};
-    cmd_buf_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
-    cmd_buf_info.pNext = nullptr;
-    cmd_buf_info.flags = 0;
-    cmd_buf_info.pInheritanceInfo = nullptr;
-    err = vkBeginCommandBuffer(demo->cmd, &cmd_buf_info);
-    assert(!err);
-
-    if (demo->is_minimized) {
-        demo->prepared = false;
-        return;
-    }
-
-    demo_prepare_depth(demo);
-    demo_prepare_textures(demo);
-    demo_prepare_gravity_data_buffers(demo);
-
-    demo_prepare_descriptor_layout(demo);
-    demo_prepare_render_pass(demo);
-    demo_prepare_pipeline(demo);
-
-    demo_prepare_descriptor_pool(demo);
-    demo_prepare_descriptor_set(demo);
-
-    demo->gravity_submit_mgr->CreateFramebuffers(demo->render_pass, demo->depth.view);
-
-    for (uint32_t i = 0; i < demo->swapchainImageCount; i++) {
-        demo->current_buffer = i;
-        VkCommandBuffer current;
-        demo->gravity_submit_mgr->GetRenderCommandBuffer(i, current);
-        demo_draw_build_cmd(demo, current);
-    }
-
-    /*
-     * Prepare functions above may generate pipeline commands
-     * that need to be flushed before beginning the render loop.
-     */
-    demo_flush_init_cmd(demo);
-    if (demo->staging_texture.image) {
-        demo_destroy_texture_image(demo, &demo->staging_texture);
-    }
-
-    demo->current_buffer = 0;
-    demo->prepared = true;
-}
-
-static void demo_cleanup(struct Demo *demo) {
-    uint32_t i;
-
-    demo->prepared = false;
-    vkDeviceWaitIdle(demo->device);
-
-    // If the window is currently minimized, demo_resize has already done some cleanup for us.
-    if (!demo->is_minimized) {
-        vkDestroyDescriptorPool(demo->device, demo->desc_pool, NULL);
-
-        vkDestroyPipeline(demo->device, demo->pipeline, NULL);
-        vkDestroyPipelineCache(demo->device, demo->pipelineCache, NULL);
-        vkDestroyRenderPass(demo->device, demo->render_pass, NULL);
-        vkDestroyPipelineLayout(demo->device, demo->pipeline_layout, NULL);
-        vkDestroyDescriptorSetLayout(demo->device, demo->desc_layout, NULL);
-
-        for (i = 0; i < DEMO_TEXTURE_COUNT; i++) {
-            vkDestroyImageView(demo->device, demo->textures[i].view, NULL);
-            vkDestroyImage(demo->device, demo->textures[i].image, NULL);
-            vkFreeMemory(demo->device, demo->textures[i].mem, NULL);
-            vkDestroySampler(demo->device, demo->textures[i].sampler, NULL);
-        }
-
-        vkDestroyImageView(demo->device, demo->depth.view, NULL);
-        vkDestroyImage(demo->device, demo->depth.image, NULL);
-        vkFreeMemory(demo->device, demo->depth.mem, NULL);
-
-        demo->gravity_submit_mgr->DestroySwapchain();
-        for (i = 0; i < demo->swapchainImageCount; i++) {
-            vkDestroyBuffer(demo->device, demo->swapchain_image_resources[i].uniform_buffer, NULL);
-            vkFreeMemory(demo->device, demo->swapchain_image_resources[i].uniform_memory, NULL);
-        }
-        free(demo->swapchain_image_resources);
-    }
-    vkDestroyCommandPool(demo->device, demo->cmd_pool, NULL);
-    vkDeviceWaitIdle(demo->device);
-    if (demo->gravity_submit_mgr) {
-        delete demo->gravity_submit_mgr;
-        demo->gravity_submit_mgr = nullptr;
-    }
-    vkDestroyDevice(demo->device, NULL);
-    GravityLogger::getInstance().DestroyInstanceDebugInfo(demo->inst);
-    delete demo->gravity_window;
-
-    vkDestroyInstance(demo->inst, NULL);
-}
-
-static void demo_resize(struct Demo *demo) {
-    uint32_t i;
-
-    // Don't react to resize until after first initialization.
-    if (demo->was_minimized) {
-        demo_prepare(demo);
-        return;
-    }
-
-    // In order to properly resize the window, we must re-create the swapchain
-    // AND redo the command buffers, etc.
-    //
-    // First, perform part of the demo_cleanup() function:
-    demo->prepared = false;
-    vkDeviceWaitIdle(demo->device);
-
-    vkDestroyDescriptorPool(demo->device, demo->desc_pool, NULL);
-
-    vkDestroyPipeline(demo->device, demo->pipeline, NULL);
-    vkDestroyPipelineCache(demo->device, demo->pipelineCache, NULL);
-    vkDestroyRenderPass(demo->device, demo->render_pass, NULL);
-    vkDestroyPipelineLayout(demo->device, demo->pipeline_layout, NULL);
-    vkDestroyDescriptorSetLayout(demo->device, demo->desc_layout, NULL);
-
-    for (i = 0; i < DEMO_TEXTURE_COUNT; i++) {
-        vkDestroyImageView(demo->device, demo->textures[i].view, NULL);
-        vkDestroyImage(demo->device, demo->textures[i].image, NULL);
-        vkFreeMemory(demo->device, demo->textures[i].mem, NULL);
-        vkDestroySampler(demo->device, demo->textures[i].sampler, NULL);
-    }
-
-    vkDestroyImageView(demo->device, demo->depth.view, NULL);
-    vkDestroyImage(demo->device, demo->depth.image, NULL);
-    vkFreeMemory(demo->device, demo->depth.mem, NULL);
-
-    demo->gravity_submit_mgr->Resize();
-    for (i = 0; i < demo->swapchainImageCount; i++) {
-        vkDestroyBuffer(demo->device, demo->swapchain_image_resources[i].uniform_buffer, NULL);
-        vkFreeMemory(demo->device, demo->swapchain_image_resources[i].uniform_memory, NULL);
-    }
-    vkDestroyCommandPool(demo->device, demo->cmd_pool, NULL);
-    demo->cmd_pool = VK_NULL_HANDLE;
-
-    demo->width = demo->gravity_submit_mgr->CurrentWidth();
-    demo->height = demo->gravity_submit_mgr->CurrentHeight();
-
-    // Second, re-perform the demo_prepare() function, which will re-create the
-    // swapchain:
-    demo_prepare(demo);
-}
-
-struct Demo g_demo;
-void AppForceResize() { demo_resize(&g_demo); }
-
-static bool demo_process_events(struct Demo *demo) {
-    std::vector<GravityEvent> current_events;
-    if (!GravityEventList::getInstance().GetEvents(current_events)) {
+    if (VK_SUCCESS != vkCreateImage(_vk_device, &image_create_info, NULL, &target_texture->vk_image))
+    {
+        std::string error_message = "Failed to load texture from file \"";
+        error_message += filename;
+        error_message += "\"";
+        logger.LogFatalError(error_message);
         return false;
     }
-    for (auto &cur_event : current_events) {
-        switch (cur_event.Type()) {
-            case GRAVITY_EVENT_KEY_RELEASE:
-                switch (cur_event._data.key) {
-                    case GRAVITY_KEYNAME_ESCAPE:
-                        demo->quit = true;
-                        break;
-                    case GRAVITY_KEYNAME_ARROW_LEFT:
-                        demo->spin_angle -= demo->spin_increment;
-                        break;
-                    case GRAVITY_KEYNAME_ARROW_RIGHT:
-                        demo->spin_angle += demo->spin_increment;
-                        break;
-                    case GRAVITY_KEYNAME_SPACE:
-                        demo->paused = !demo->paused;
-                        break;
-                    default:
-                        break;
-                }
-                break;
-            case GRAVITY_EVENT_WINDOW_DRAW:
-                if (!demo->is_minimized) {
-                    demo_draw(demo);
-                    demo->curFrame++;
-                    if (demo->frameCount != INT_MAX && demo->curFrame == demo->frameCount) {
-                        GravityEvent quit_event(GRAVITY_EVENT_QUIT);
-                        GravityEventList::getInstance().InsertEvent(quit_event);
-                    }
-                }
-                break;
-            case GRAVITY_EVENT_WINDOW_RESIZE:
-                // Only resize if the data is different
-                if (demo->width != cur_event._data.resize.width || demo->height != cur_event._data.resize.height) {
-                    demo->was_minimized = demo->width == 0 || demo->height == 0;
-                    demo->is_minimized = cur_event._data.resize.width == 0 || cur_event._data.resize.height == 0;
-                    demo->width = cur_event._data.resize.width;
-                    demo->height = cur_event._data.resize.height;
-                    demo_resize(demo);
-                } else {
-                    GravityLogger::getInstance().LogInfo("Redundant resize call");
-                }
-                break;
-            case GRAVITY_EVENT_QUIT:
-                demo->quit = true;
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-                PostQuitMessage(validation_error);
-#endif
-                break;
-            default:
-                break;
+
+    VkMemoryRequirements texture_mem_reqs = {};
+    vkGetImageMemoryRequirements(_vk_device, target_texture->vk_image, &texture_mem_reqs);
+    target_texture->vk_mem_alloc_info = {};
+    target_texture->vk_mem_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
+    target_texture->vk_mem_alloc_info.pNext = nullptr;
+    target_texture->vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
+    if (!SelectMemoryTypeUsingRequirements(texture_mem_reqs, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT), target_texture->vk_mem_alloc_info.memoryTypeIndex))
+    {
+        logger.LogFatalError("Failed to find memory type supporting necessary texture requirements");
+        return false;
+    }
+
+    if (VK_SUCCESS != vkAllocateMemory(_vk_device, &target_texture->vk_mem_alloc_info, nullptr, &target_texture->vk_device_memory))
+    {
+        logger.LogFatalError("Failed to allocate memory for texture image");
+        return false;
+    }
+
+    if (VK_SUCCESS != vkBindImageMemory(_vk_device, target_texture->vk_image, target_texture->vk_device_memory, 0))
+    {
+        logger.LogFatalError("Failed to binding memory to texture image");
+        return false;
+    }
+
+    VkImageSubresource image_subresource = {};
+    image_subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_subresource.mipLevel = 0;
+    image_subresource.arrayLayer = 0;
+    VkSubresourceLayout vk_subresource_layout;
+
+    vkGetImageSubresourceLayout(_vk_device, target_texture->vk_image, &image_subresource, &vk_subresource_layout);
+
+    void *data;
+    if (VK_SUCCESS != vkMapMemory(_vk_device, target_texture->vk_device_memory, 0, target_texture->vk_mem_alloc_info.allocationSize, 0, &data))
+    {
+        logger.LogFatalError("Failed to map memory for copying over texture image");
+        return false;
+    }
+    uint8_t *data_ptr = reinterpret_cast<uint8_t *>(data);
+    row_ptr = target_texture->raw_data.data();
+    uint32_t from_size = target_texture->width * 4;
+    uint32_t to_size = target_texture->width * 4;
+    for (int y = 0; y < target_texture->height; y++)
+    {
+        memcpy(data_ptr, row_ptr, from_size);
+        row_ptr += from_size;
+        data_ptr += vk_subresource_layout.rowPitch;
+    }
+    vkUnmapMemory(_vk_device, target_texture->vk_device_memory);
+
+    target_texture->raw_data.clear();
+    target_texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+    // If we need to place this in tiled memory, we need to use a staging texture.
+    if (uses_staging)
+    {
+        if (!TransitionVkImageLayout(_vk_cmd_buffer, staging_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
+                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, static_cast<VkAccessFlagBits>(0),
+                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT))
+        {
+            logger.LogFatalError("Failed to transition staging image to transfer format");
+            return false;
+        }
+
+        gravity_texture.width = staging_texture.width;
+        gravity_texture.height = staging_texture.height;
+        gravity_texture.vk_format = staging_texture.vk_format;
+        gravity_texture.vk_mem_alloc_info = staging_texture.vk_mem_alloc_info;
+        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        if (VK_SUCCESS != vkCreateImage(_vk_device, &image_create_info, NULL, &gravity_texture.vk_image))
+        {
+            std::string error_message = "Failed to setup optimized tiled texture target for \"";
+            error_message += filename;
+            error_message += "\"";
+            logger.LogFatalError(error_message);
+            return false;
+        }
+        vkGetImageMemoryRequirements(_vk_device, gravity_texture.vk_image, &texture_mem_reqs);
+        target_texture->vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
+        if (!SelectMemoryTypeUsingRequirements(texture_mem_reqs, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, gravity_texture.vk_mem_alloc_info.memoryTypeIndex))
+        {
+            logger.LogFatalError("Failed to find memory type supporting necessary tiled texture requirements");
+            return false;
+        }
+
+        if (VK_SUCCESS != vkAllocateMemory(_vk_device, &gravity_texture.vk_mem_alloc_info, nullptr, &gravity_texture.vk_device_memory))
+        {
+            logger.LogFatalError("Failed to allocate memory for tiled texture image");
+            return false;
+        }
+
+        if (VK_SUCCESS != vkBindImageMemory(_vk_device, gravity_texture.vk_image, gravity_texture.vk_device_memory, 0))
+        {
+            logger.LogFatalError("Failed to binding memory to tiled texture image");
+            return false;
+        }
+
+        gravity_texture.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+
+        if (!TransitionVkImageLayout(_vk_cmd_buffer, gravity_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
+                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<VkAccessFlagBits>(0),
+                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT))
+        {
+            logger.LogFatalError("Failed to transition resulting image to accept staging content");
+            return false;
         }
     }
+    else
+    {
+        if (!TransitionVkImageLayout(_vk_cmd_buffer, gravity_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
+                                     gravity_texture.vk_image_layout, static_cast<VkAccessFlagBits>(0),
+                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT))
+        {
+            logger.LogFatalError("Failed to transition texture image to shader readable format");
+            return false;
+        }
+    }
+
     return true;
 }
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-
-static void demo_run_xlib(struct Demo *demo) {
-    while (!demo->quit) {
-        if (demo->paused) {
-            demo->gravity_window->HandleXlibEvent();
-        }
-        demo->gravity_window->HandleAllXlibEvents();
-        demo_process_events(demo);
-
-        if (!demo->is_minimized) {
-	    demo_draw(demo);
-	    demo->curFrame++;
-	    if (demo->frameCount != INT32_MAX && demo->curFrame == demo->frameCount) {
-	        GravityEvent quit_event(GRAVITY_EVENT_QUIT);
-	        GravityEventList::getInstance().InsertEvent(quit_event);
-	    }
-        }
-    }
-}
-
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-
-static void demo_run_xcb(struct Demo *demo) {
-    while (!demo->quit) {
-        if (demo->paused) {
-            demo->gravity_window->HandlePausedXcbEvent();
-        }
-        demo->gravity_window->HandleAllXcbEvents();
-        demo_process_events(demo);
-
-        if (!demo->is_minimized) {
-            demo_draw(demo);
-            demo->curFrame++;
-            if (demo->frameCount != INT32_MAX && demo->curFrame == demo->frameCount) {
-                demo->quit = true;
-            }
-        }
-    }
-}
-
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-
-static void demo_run(struct Demo *demo) {
-    while (!demo->quit) {
-        if (demo->paused) {
-            demo->gravity_window->HandlePausedWaylandEvent();
-        } else {
-            demo->gravity_window->HandleActiveWaylandEvents();
-        }
-        demo_process_events(demo);
-        if (!demo->is_minimized) {
-            demo_draw(demo);
-            demo->curFrame++;
-            if (demo->frameCount != INT32_MAX && demo->curFrame == demo->frameCount) demo->quit = true;
-        }
-    }
-}
-
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-
-static void demo_run(struct Demo *demo) {
-    if (!demo->prepared) {
-        return;
-    }
-
-    demo_draw(demo);
-    demo->curFrame++;
-}
-
-#endif
-
-static void demo_init_vk(struct Demo *demo) {
-    GravityLogger &logger = GravityLogger::getInstance();
-    VkResult err;
-    demo->enabled_extension_count = 0;
-    demo->enabled_layer_count = 0;
-    demo->is_minimized = false;
-    demo->cmd_pool = VK_NULL_HANDLE;
-
-    void *next_ptr = nullptr;
-    std::vector<std::string> instance_layers;
-    std::vector<std::string> instance_extensions;
-    if (logger.PrepareCreateInstanceItems(instance_layers, instance_extensions, &next_ptr) &&
-        demo->gravity_window->PrepareCreateInstanceItems(instance_layers, instance_extensions, &next_ptr) &&
-        demo->gravity_submit_mgr->PrepareCreateInstanceItems(instance_layers, instance_extensions, &next_ptr)) {
-        for (uint32_t i = 0; i < instance_layers.size(); i++) {
-            demo->enabled_layers[demo->enabled_layer_count++] = instance_layers[i].c_str();
-        }
-        for (uint32_t i = 0; i < instance_extensions.size(); i++) {
-            demo->extension_names[demo->enabled_extension_count++] = instance_extensions[i].c_str();
-        }
-    }
-
-    VkApplicationInfo app = {};
-    app.sType = VK_STRUCTURE_TYPE_APPLICATION_INFO;
-    app.pNext = nullptr;
-    app.pApplicationName = APP_SHORT_NAME;
-    app.applicationVersion = 0;
-    app.pEngineName = APP_SHORT_NAME;
-    app.engineVersion = 0;
-    app.apiVersion = VK_API_VERSION_1_0;
-    VkInstanceCreateInfo inst_info = {};
-    inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
-    inst_info.pNext = next_ptr;
-    inst_info.pApplicationInfo = &app;
-    inst_info.enabledLayerCount = demo->enabled_layer_count;
-    inst_info.ppEnabledLayerNames = demo->enabled_layers;
-    inst_info.enabledExtensionCount = demo->enabled_extension_count;
-    inst_info.ppEnabledExtensionNames = demo->extension_names;
-
-    uint32_t gpu_count;
-
-    err = vkCreateInstance(&inst_info, NULL, &demo->inst);
-    if (err == VK_ERROR_INCOMPATIBLE_DRIVER) {
-        logger.LogFatalError(
-            "vkCreateInstance failed: Cannot find a compatible Vulkan installable "
-            "client driver (ICD).\n\nPlease look at the Getting Started guide for "
-            "additional information.");
-    } else if (err == VK_ERROR_EXTENSION_NOT_PRESENT) {
-        logger.LogFatalError(
-            "vkCreateInstance failed: Cannot find a specified extension library.\n"
-            "Make sure your layers path is set appropriately.");
-    } else if (err) {
-        logger.LogFatalError(
-            "vkCreateInstance failed: Do you have a compatible Vulkan installable "
-            "client driver (ICD) installed?\nPlease look at the Getting Started "
-            "guide for additional information.");
-    }
-
-    if (!logger.ReleaseCreateInstanceItems(&next_ptr) || !demo->gravity_window->ReleaseCreateInstanceItems(&next_ptr) ||
-        !demo->gravity_submit_mgr->ReleaseCreateInstanceItems(&next_ptr)) {
-        logger.LogFatalError("Failed cleaning up after creating instance");
-    }
-    logger.CreateInstanceDebugInfo(demo->inst);
-
-    /* Make initial call to query gpu_count, then second call for gpu info*/
-    err = vkEnumeratePhysicalDevices(demo->inst, &gpu_count, NULL);
-    assert(!err && gpu_count > 0);
-
-    if (gpu_count > 0) {
-        VkPhysicalDevice *physical_devices = new VkPhysicalDevice[gpu_count];
-        err = vkEnumeratePhysicalDevices(demo->inst, &gpu_count, physical_devices);
-        assert(!err);
-        /* For gravity demo we just grab the first physical device */
-        demo->gpu = physical_devices[0];
-        delete[] physical_devices;
-    } else {
-        logger.LogFatalError(
-            "vkEnumeratePhysicalDevices reported zero accessible devices.\n\n"
-            "Do you have a compatible Vulkan installable client driver (ICD) installed?\n"
-            "Please look at the Getting Started guide for additional information.");
-    }
-
-    // Query fine-grained feature support for this device.
-    //  If app has specific feature requirements it should check supported
-    //  features based on this query
-    VkPhysicalDeviceFeatures physDevFeatures;
-    vkGetPhysicalDeviceFeatures(demo->gpu, &physDevFeatures);
-}
-
-static void demo_create_device(struct Demo *demo) {
-    VkResult U_ASSERT_ONLY err;
-    GravityLogger &logger = GravityLogger::getInstance();
-    VkDeviceCreateInfo device_create_info = {};
-
-    /* Look for device extensions */
-    demo->enabled_extension_count = 0;
-    memset(demo->extension_names, 0, sizeof(demo->extension_names));
-
-    demo->gravity_submit_mgr = new GravitySubmitManager(demo->gravity_window, demo->inst, demo->gpu);
-    assert(demo->gravity_submit_mgr != nullptr);
-
-    void *next_ptr = nullptr;
-    std::vector<std::string> device_extensions;
-    if (demo->gravity_submit_mgr->PrepareCreateDeviceItems(device_create_info, device_extensions, &next_ptr)) {
-        for (uint32_t i = 0; i < device_extensions.size(); i++) {
-            demo->extension_names[demo->enabled_extension_count++] = device_extensions[i].c_str();
-        }
-    }
-
-    device_create_info.enabledLayerCount = 0;
-    device_create_info.ppEnabledLayerNames = nullptr;
-    device_create_info.pEnabledFeatures = nullptr;  // If specific features are required, pass them in here
-    device_create_info.enabledExtensionCount = demo->enabled_extension_count;
-    device_create_info.ppEnabledExtensionNames = demo->extension_names;
-    device_create_info.pNext = next_ptr;
-    err = vkCreateDevice(demo->gpu, &device_create_info, NULL, &demo->device);
-    assert(!err);
-
-    if (!demo->gravity_submit_mgr->ReleaseCreateDeviceItems(device_create_info, &next_ptr)) {
-        logger.LogFatalError("Failed cleaning up after creating device");
-    }
-}
-
-static void demo_init_vk_swapchain(struct Demo *demo) {
-    demo_create_device(demo);
-
-    if (!demo->gravity_submit_mgr->PrepareForSwapchain(demo->device, 3, demo->presentMode, VK_FORMAT_B8G8R8A8_SRGB,
-                                                       VK_FORMAT_B8G8R8A8_UNORM)) {
-        assert(false);
-    }
-    demo->swapchainImageCount = demo->gravity_submit_mgr->NumSwapchainImages();
-    demo->swapchain_image_resources =
-        (SwapchainImageResources *)malloc(demo->swapchainImageCount * sizeof(SwapchainImageResources));
-    assert(demo->swapchain_image_resources);
-
-    demo->quit = false;
-    demo->curFrame = 0;
-
-    // Get Memory information and properties
-    vkGetPhysicalDeviceMemoryProperties(demo->gpu, &demo->memory_properties);
-}
-
-static void demo_init(struct Demo *demo, int argc, char **argv) {
+bool CubeApp::LoadTextures()
+{
     GravityLogger &logger = GravityLogger::getInstance();
 
-    vec3 eye = {0.0f, 3.0f, 5.0f};
-    vec3 origin = {0, 0, 0};
-    vec3 up = {0.0f, 1.0f, 0.0};
-
-    memset(demo, 0, sizeof(*demo));
-    demo->presentMode = VK_PRESENT_MODE_FIFO_KHR;
-    demo->frameCount = INT32_MAX;
-
-    for (int i = 1; i < argc; i++) {
-        if (strcmp(argv[i], "--use_staging") == 0) {
-            demo->use_staging_buffer = true;
-            continue;
-        }
-        if ((strcmp(argv[i], "--present_mode") == 0) && (i < argc - 1)) {
-            demo->presentMode = static_cast<VkPresentModeKHR>(atoi(argv[i + 1]));
-            i++;
-            continue;
-        }
-        if (strcmp(argv[i], "--break") == 0) {
-            GravityLogger::getInstance().EnableBreakOnError(true);
-            demo->use_break = true;
-            continue;
-        }
-        if (strcmp(argv[i], "--validate") == 0) {
-            GravityLogger::getInstance().EnableValidation(true);
-            demo->validate = true;
-            continue;
-        }
-        if (strcmp(argv[i], "--xlib") == 0) {
-            fprintf(stderr, "--xlib is deprecated and no longer does anything");
-            continue;
-        }
-        if (strcmp(argv[i], "--c") == 0 && demo->frameCount == INT32_MAX && i < argc - 1 &&
-            sscanf(argv[i + 1], "%d", &demo->frameCount) == 1 && demo->frameCount >= 0) {
-            i++;
-            continue;
-        }
-        if (strcmp(argv[i], "--suppress_popups") == 0) {
-            demo->suppress_popups = true;
-            logger.EnablePopups(false);
-            continue;
-        }
-        if (strcmp(argv[i], "--display_timing") == 0) {
-            demo->VK_GOOGLE_display_timing_enabled = true;
-            continue;
-        }
-
-#if defined(ANDROID)
-        GravityLogger::getInstance().LogFatalError("Usage: gravity [--validate]");
-#else
-        fprintf(stderr,
-                "Usage:\n  %s\t[--use_staging] [--validate] [--break]\n"
-                "\t[--c <framecount>] [--suppress_popups] [--display_timing]\n"
-                "\t[--present_mode <present mode enum>]\n"
-                "\t <present_mode_enum>\tVK_PRESENT_MODE_IMMEDIATE_KHR = %d\n"
-                "\t\t\t\tVK_PRESENT_MODE_MAILBOX_KHR = %d\n"
-                "\t\t\t\tVK_PRESENT_MODE_FIFO_KHR = %d\n"
-                "\t\t\t\tVK_PRESENT_MODE_FIFO_RELAXED_KHR = %d\n",
-                APP_SHORT_NAME, VK_PRESENT_MODE_IMMEDIATE_KHR, VK_PRESENT_MODE_MAILBOX_KHR, VK_PRESENT_MODE_FIFO_KHR,
-                VK_PRESENT_MODE_FIFO_RELAXED_KHR);
-        fflush(stderr);
-        exit(1);
-#endif
+    _textures.resize(1);
+    if (!LoadTextureFromFile("lunarg.ppm", _textures[0], _uses_staging_texture, _staging_texture))
+    {
+        logger.LogFatalError("Failed to load textures");
+        return false;
     }
 
-    demo->paused = false;
-    demo->is_minimized = false;
-    demo->was_minimized = false;
-
-    demo->gravity_window = new GravityWindow(APP_SHORT_NAME);
-    if (!GravityEventList::getInstance().Alloc(100)) {
-        GravityLogger::getInstance().LogFatalError("Failed allocating space for events");
+    if (_uses_staging_buffer)
+    {
+        VkImageCopy copy_region = {};
+        copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        copy_region.srcOffset = {0, 0, 0};
+        copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
+        copy_region.dstOffset = {0, 0, 0};
+        copy_region.extent.width = _staging_texture.width;
+        copy_region.extent.height = _staging_texture.height;
+        copy_region.extent.depth = 1;
+        vkCmdCopyImage(_vk_cmd_buffer, _staging_texture.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _textures[0].vk_image,
+                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
+        if (!TransitionVkImageLayout(_vk_cmd_buffer, _textures[0].vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                                     _textures[0].vk_image_layout, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT))
+        {
+            logger.LogFatalError("Failed to transition resulting texture to shader readable after staging copy");
+            return false;
+        }
     }
 
-    demo_init_vk(demo);
+    VkSamplerCreateInfo sampler_create_info = {};
+    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+    sampler_create_info.pNext = nullptr;
+    sampler_create_info.magFilter = VK_FILTER_NEAREST;
+    sampler_create_info.minFilter = VK_FILTER_NEAREST;
+    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
+    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+    sampler_create_info.mipLodBias = 0.0f;
+    sampler_create_info.anisotropyEnable = VK_FALSE;
+    sampler_create_info.maxAnisotropy = 1;
+    sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+    sampler_create_info.minLod = 0.0f;
+    sampler_create_info.maxLod = 0.0f;
+    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
 
-    demo->width = 500;
-    demo->height = 500;
+    VkImageViewCreateInfo image_view_create_info = {};
+    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    image_view_create_info.pNext = nullptr;
+    image_view_create_info.image = VK_NULL_HANDLE;
+    image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    image_view_create_info.format = _textures[0].vk_format;
+    image_view_create_info.components = {
+        VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_A,
+    };
+    image_view_create_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
+    image_view_create_info.flags = 0;
 
-    demo->spin_angle = 4.0f;
-    demo->spin_increment = 0.2f;
+    if (VK_SUCCESS != vkCreateSampler(_vk_device, &sampler_create_info, nullptr, &_textures[0].vk_sampler))
+    {
+        logger.LogFatalError("Failed creating texture sampler for primary texture");
+        return false;
+    }
 
-    mat4x4_perspective(demo->projection_matrix, (float)degreesToRadians(45.0f), 1.0f, 0.1f, 100.0f);
-    mat4x4_look_at(demo->view_matrix, eye, origin, up);
-    mat4x4_identity(demo->model_matrix);
+    image_view_create_info.image = _textures[0].vk_image;
+    if (VK_SUCCESS != vkCreateImageView(_vk_device, &image_view_create_info, nullptr, &_textures[0].vk_image_view))
+    {
+        logger.LogFatalError("Failed creating texture image view for primary texture");
+        return false;
+    }
 
-    demo->projection_matrix[1][1] *= -1;  // Flip projection matrix from GL to Vulkan orientation.
+    return true;
 }
+
+bool CubeApp::Draw()
+{
+    GravityLogger &logger = GravityLogger::getInstance();
+    _gravity_submit_mgr->AcquireNextImageIndex(_current_buffer);
+
+    mat4x4 MVP, Model, VP;
+    int matrixSize = sizeof(MVP);
+    uint8_t *pData;
+
+    mat4x4_mul(VP, _projection_matrix, _view_matrix);
+
+    // Rotate around the Y axis
+    mat4x4_dup(Model, _model_matrix);
+    mat4x4_rotate(_model_matrix, Model, 0.0f, 1.0f, 0.0f, (float)degreesToRadians(_spin_angle));
+    mat4x4_mul(MVP, VP, _model_matrix);
+
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0,
+                      (void **)&pData)) {
+        logger.LogFatalError("Failed to map uniform buffer memory");
+        return false;
+    }
+    memcpy(pData, (const void *)&MVP[0][0], matrixSize);
+    vkUnmapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory);
+
+    _gravity_submit_mgr->SubmitAndPresent();
+    return true;
+}
+
+void CubeApp::HandleEvent(GravityEvent& event) {
+    switch (event.Type())
+    {
+    case GRAVITY_EVENT_KEY_RELEASE:
+        switch (event._data.key)
+        {
+        case GRAVITY_KEYNAME_ARROW_LEFT:
+            _spin_angle -= _spin_increment;
+            break;
+        case GRAVITY_KEYNAME_ARROW_RIGHT:
+            _spin_angle += _spin_increment;
+            break;
+        }
+        break;
+    default:
+        break;
+    }
+    GravityApp::HandleEvent(event);
+}
+
+static CubeApp *g_app = nullptr;
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 // Include header required for parsing the command line options.
 #include <shellapi.h>
 
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow) {
-    bool done;  // flag saying when app is complete
+int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
+{
+    bool done; // flag saying when app is complete
     int argc;
     char **argv;
     Demo demo;
@@ -1770,87 +1120,119 @@ int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine,
     // with the non-Windows side.  So, we have to convert the information to
     // Ascii character strings.
     LPWSTR *commandLineArgs = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (NULL == commandLineArgs) {
+    if (NULL == commandLineArgs)
+    {
         argc = 0;
     }
 
-    if (argc > 0) {
+    GravityInitStruct init_struct = {};
+    if (argc > 0)
+    {
+        init_struct.command_line_args.resize(argc);
         argv = (char **)malloc(sizeof(char *) * argc);
-        if (argv == NULL) {
+        if (argv == NULL)
+        {
             argc = 0;
-        } else {
-            for (int iii = 0; iii < argc; iii++) {
+        }
+        else
+        {
+            for (int iii = 0; iii < argc; iii++)
+            {
                 size_t wideCharLen = wcslen(commandLineArgs[iii]);
                 size_t numConverted = 0;
 
                 argv[iii] = (char *)malloc(sizeof(char) * (wideCharLen + 1));
-                if (argv[iii] != NULL) {
+                if (argv[iii] != NULL)
+                {
                     wcstombs_s(&numConverted, argv[iii], wideCharLen + 1, commandLineArgs[iii], wideCharLen + 1);
+                    init_struct.command_line_args[iii] = argv[iii];
                 }
             }
         }
-    } else {
+    }
+    else
+    {
         argv = NULL;
     }
-
-    demo_init(&demo, argc, argv);
+    init_struct.app_name = "Gravity App 1 - Cube";
+    init_struct.version.major = 0;
+    init_struct.version.minor = 1;
+    init_struct.version.patch = 0;
+    init_struct.width = 500;
+    init_struct.height = 500;
+    init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    init_struct.num_swapchain_buffers = 3;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    g_app = new CubeApp();
+    g_app->Init(init_struct);
 
     // Free up the items we had to allocate for the command line arguments.
-    if (argc > 0 && argv != NULL) {
-        for (int iii = 0; iii < argc; iii++) {
-            if (argv[iii] != NULL) {
+    if (argc > 0 && argv != NULL)
+    {
+        for (int iii = 0; iii < argc; iii++)
+        {
+            if (argv[iii] != NULL)
+            {
                 free(argv[iii]);
             }
         }
         free(argv);
     }
 
-    demo.gravity_window->SetHInstance(hInstance);
-    demo.gravity_window->CreatePlatformWindow(demo.inst, demo.gpu, demo.width, demo.height);
-    demo_init_vk_swapchain(&demo);
-
     demo_prepare(&demo);
 
-    done = false;  // initialize loop condition variable
+    done = false; // initialize loop condition variable
 
     // main message loop
-    while (!demo.quit) {
-        MSG msg = { 0 };
+    while (!demo.quit)
+    {
+        MSG msg = {0};
         PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
-        if (msg.message == WM_QUIT)  // check for a quit message
+        if (msg.message == WM_QUIT) // check for a quit message
         {
             GravityEvent quit_event(GRAVITY_EVENT_QUIT);
             GravityEventList::getInstance().InsertEvent(quit_event);
-        } else {
+        }
+        else
+        {
             /* Translate and dispatch to event queue*/
             TranslateMessage(&msg);
             DispatchMessage(&msg);
             demo_process_events(&demo);
-            if (demo.quit) {
+            if (demo.quit)
+            {
                 break;
             }
-            if (!demo.is_minimized) {
-                demo_draw(&demo);
+            if (!demo.is_minimized)
+            {
+                g_app->Draw();
             }
         }
     }
 
-    demo_cleanup(&demo);
+    g_app->Exit();
 
     return 0;
 }
 
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
 
-static void demo_main(struct Demo *demo, void *view) {
-    const char *argv[] = {"GravitySample"};
-    int argc = sizeof(argv) / sizeof(char *);
-
-    demo_init(demo, argc, (char **)argv);
-    demo->gravity_window->SetMoltenVkView(view);
-    demo_init_vk_swapchain(demo);
-    demo_prepare(demo);
-    demo->spin_angle = 0.4f;
+static void demo_main(struct Demo *demo, void *view)
+{
+    GravityInitStruct init_struct = {};
+    init_struct.app_name = "Gravity App 1 - Cube";
+    init_struct.version.major = 0;
+    init_struct.version.minor = 1;
+    init_struct.version.patch = 0;
+    init_struct.width = 500;
+    init_struct.height = 500;
+    init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    init_struct.num_swapchain_buffers = 3;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    g_app = new CubeApp();
+    g_app->Init(init_struct);
 }
 
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -1864,62 +1246,72 @@ struct Demo demo;
 
 static int32_t processInput(struct android_app *app, AInputEvent *event) { return 0; }
 
-static void processCommand(struct android_app *app, int32_t cmd) {
-    switch (cmd) {
-        case APP_CMD_INIT_WINDOW: {
-            if (app->window) {
-                // We're getting a new window.  If the app is starting up, we
-                // need to initialize.  If the app has already been
-                // initialized, that means that we lost our previous window,
-                // which means that we have a lot of work to do.  At a minimum,
-                // we need to destroy the swapchain and surface associated with
-                // the old window, and create a new surface and swapchain.
-                // However, since there are a lot of other objects/state that
-                // is tied to the swapchain, it's easiest to simply cleanup and
-                // start over (i.e. use a brute-force approach of re-starting
-                // the app)
-                if (demo.prepared) {
-                    demo_cleanup(&demo);
-                }
-
-                // Parse Intents into argc, argv
-                // Use the following key to send arguments, i.e.
-                // --es args "--validate"
-                const char key[] = "args";
-                char *appTag = (char *)APP_SHORT_NAME;
-                int argc = 0;
-                char **argv = get_args(app, key, appTag, &argc);
-
-                __android_log_print(ANDROID_LOG_INFO, appTag, "argc = %i", argc);
-                for (int i = 0; i < argc; i++) __android_log_print(ANDROID_LOG_INFO, appTag, "argv[%i] = %s", i, argv[i]);
-
-                demo_init(&demo, argc, argv);
-
-                // Free the argv malloc'd by get_args
-                for (int i = 0; i < argc; i++) free(argv[i]);
-
-                demo.window = (void *)app->window;
-                demo_init_vk_swapchain(&demo);
-                demo_prepare(&demo);
-                initialized = true;
+static void processCommand(struct android_app *app, int32_t cmd)
+{
+    switch (cmd)
+    {
+    case APP_CMD_INIT_WINDOW:
+    {
+        if (app->window)
+        {
+            // We're getting a new window.  If the app is starting up, we
+            // need to initialize.  If the app has already been
+            // initialized, that means that we lost our previous window,
+            // which means that we have a lot of work to do.  At a minimum,
+            // we need to destroy the swapchain and surface associated with
+            // the old window, and create a new surface and swapchain.
+            // However, since there are a lot of other objects/state that
+            // is tied to the swapchain, it's easiest to simply cleanup and
+            // start over (i.e. use a brute-force approach of re-starting
+            // the app)
+            if (demo.prepared)
+            {
+                demo_cleanup(&demo);
             }
-            break;
+
+            // Parse Intents into argc, argv
+            // Use the following key to send arguments, i.e.
+            // --es args "--validate"
+            const char key[] = "args";
+            char *appTag = (char *)APP_SHORT_NAME;
+            int argc = 0;
+            char **argv = get_args(app, key, appTag, &argc);
+
+            __android_log_print(ANDROID_LOG_INFO, appTag, "argc = %i", argc);
+            for (int i = 0; i < argc; i++)
+                __android_log_print(ANDROID_LOG_INFO, appTag, "argv[%i] = %s", i, argv[i]);
+
+            demo_init(&demo, argc, argv);
+
+            // Free the argv malloc'd by get_args
+            for (int i = 0; i < argc; i++)
+                free(argv[i]);
+
+            demo.window = (void *)app->window;
+            demo_init_vk_swapchain(&demo);
+            initialized = true;
         }
-        case APP_CMD_GAINED_FOCUS: {
-            active = true;
-            break;
-        }
-        case APP_CMD_LOST_FOCUS: {
-            active = false;
-            break;
-        }
+        break;
+    }
+    case APP_CMD_GAINED_FOCUS:
+    {
+        active = true;
+        break;
+    }
+    case APP_CMD_LOST_FOCUS:
+    {
+        active = false;
+        break;
+    }
     }
 }
 
-void android_main(struct android_app *app) {
+void android_main(struct android_app *app)
+{
 #ifdef ANDROID
     int vulkanSupport = InitVulkan();
-    if (vulkanSupport == 0) return;
+    if (vulkanSupport == 0)
+        return;
 #endif
 
     demo.prepared = false;
@@ -1927,44 +1319,55 @@ void android_main(struct android_app *app) {
     app->onAppCmd = processCommand;
     app->onInputEvent = processInput;
 
-    while (1) {
+    while (1)
+    {
         int events;
         struct android_poll_source *source;
-        while (ALooper_pollAll(active ? 0 : -1, NULL, &events, (void **)&source) >= 0) {
-            if (source) {
+        while (ALooper_pollAll(active ? 0 : -1, NULL, &events, (void **)&source) >= 0)
+        {
+            if (source)
+            {
                 source->process(app, source);
             }
 
-            if (app->destroyRequested != 0) {
-                demo_cleanup(&demo);
+            if (app->destroyRequested != 0)
+            {
+                g_app->Exit();
                 return;
             }
         }
         demo_process_events(&demo);
-        if (initialized && active) {
+        if (initialized && active)
+        {
             demo_run(&demo);
         }
     }
 }
 #else
-int main(int argc, char **argv) {
-    demo_init(&g_demo, argc, argv);
-    g_demo.gravity_window->CreatePlatformWindow(g_demo.inst, g_demo.gpu, g_demo.width, g_demo.height);
+int main(int argc, char **argv)
+{
+    GravityInitStruct init_struct = {};
+    init_struct.app_name = "Gravity App 1 - Cube";
+    init_struct.command_line_args.resize(argc - 1);
+    for (uint32_t arg = 1; arg < argc; ++arg)
+    {
+        init_struct.command_line_args[arg - 1] = argv[arg];
+    }
+    init_struct.version.major = 0;
+    init_struct.version.minor = 1;
+    init_struct.version.patch = 0;
+    init_struct.width = 500;
+    init_struct.height = 500;
+    init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
+    init_struct.num_swapchain_buffers = 3;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    g_app = new CubeApp();
+    g_app->Init(init_struct);
+    g_app->Run();
 
-    demo_init_vk_swapchain(&g_demo);
+    g_app->Exit();
 
-    demo_prepare(&g_demo);
-
-#if defined(VK_USE_PLATFORM_XCB_KHR)
-    demo_run_xcb(&g_demo);
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-    demo_run_xlib(&g_demo);
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    demo_run(&g_demo);
-#endif
-
-    demo_cleanup(&g_demo);
-
-    return validation_error;
+    return 0;
 }
 #endif
