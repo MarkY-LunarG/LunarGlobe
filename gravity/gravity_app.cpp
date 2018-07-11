@@ -186,9 +186,9 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
     inst_info.sType = VK_STRUCTURE_TYPE_INSTANCE_CREATE_INFO;
     inst_info.pNext = next_ptr;
     inst_info.pApplicationInfo = &app;
-    inst_info.enabledLayerCount = enabled_layers.size();
+    inst_info.enabledLayerCount = static_cast<uint32_t>(enabled_layers.size());
     inst_info.ppEnabledLayerNames = enabled_layers.data();
-    inst_info.enabledExtensionCount = enabled_extensions.size();
+    inst_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
     inst_info.ppEnabledExtensionNames = enabled_extensions.data();
 
     VkResult result = vkCreateInstance(&inst_info, nullptr, &_vk_instance);
@@ -277,7 +277,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
     device_create_info.enabledLayerCount = 0;
     device_create_info.ppEnabledLayerNames = nullptr;
     device_create_info.pEnabledFeatures = nullptr; // If specific features are required, pass them in here
-    device_create_info.enabledExtensionCount = enabled_extensions.size();
+    device_create_info.enabledExtensionCount = static_cast<uint32_t>(enabled_extensions.size());
     device_create_info.ppEnabledExtensionNames = enabled_extensions.data();
     device_create_info.pNext = next_ptr;
     if (VK_SUCCESS != vkCreateDevice(_vk_phys_device, &device_create_info, nullptr, &_vk_device))
@@ -498,6 +498,10 @@ bool GravityApp::SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirem
 
 void GravityApp::Resize()
 {
+    if (_must_exit) {
+        return;
+    }
+
     if (!_was_minimized)
     {
         vkDeviceWaitIdle(_vk_device);

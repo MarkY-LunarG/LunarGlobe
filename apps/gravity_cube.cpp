@@ -810,9 +810,9 @@ bool CubeApp::LoadTextureFromFile(const std::string &filename, GravityTexture &g
     }
 
     uint8_t *row_ptr = rgba_data;
-    for (int y = 0; y < target_texture->height; y++)
+    for (uint32_t y = 0; y < target_texture->height; y++)
     {
-        for (int x = 0; x < target_texture->width; x++)
+        for (uint32_t x = 0; x < target_texture->width; x++)
         {
             size_t s = fread(row_ptr, 3, 1, fPtr);
             (void)s;
@@ -889,7 +889,7 @@ bool CubeApp::LoadTextureFromFile(const std::string &filename, GravityTexture &g
     row_ptr = target_texture->raw_data.data();
     uint32_t from_size = target_texture->width * 4;
     uint32_t to_size = target_texture->width * 4;
-    for (int y = 0; y < target_texture->height; y++)
+    for (uint32_t y = 0; y < target_texture->height; y++)
     {
         memcpy(data_ptr, row_ptr, from_size);
         row_ptr += from_size;
@@ -1104,8 +1104,12 @@ GRAVITY_APP_MAIN()
 {
     GravityInitStruct init_struct = {};
 
+#if 0
     GRAVITY_APP_MAIN_BEGIN(init_struct)
+#else
 
+
+#endif
     init_struct.app_name = "Gravity App 1 - Cube";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;

@@ -30,45 +30,22 @@
 
 #define GRAVITY_APP_MAIN_BEGIN(init_struct) \
     int argc; \
-    char **argv; \
     LPWSTR *commandLineArgs = CommandLineToArgvW(GetCommandLineW(), &argc); \
-    if (NULL == commandLineArgs) \
-    { \
+    if (NULL == commandLineArgs) { \
         argc = 0; \
     } \
-    if (argc > 0) \
-    { \
-        init_struct.command_line_args.resize(argc); \
-        argv = (char **)malloc(sizeof(char *) * argc); \
-        if (argv == NULL) \
-        { \
-            argc = 0; \
-        } \
-        else \
-        { \
-            for (int iii = 0; iii < argc; iii++) \
-            { \
-                size_t wideCharLen = wcslen(commandLineArgs[iii]); \
-                size_t numConverted = 0; \
-                argv[iii] = (char *)malloc(sizeof(char) * (wideCharLen + 1)); \
-                if (argv[iii] != NULL) \
-                { \
-                    wcstombs_s(&numConverted, argv[iii], wideCharLen + 1, commandLineArgs[iii], wideCharLen + 1); \
-                    init_struct.command_line_args[iii] = argv[iii]; \
-                } \
+    if (argc > 1) { \
+        init_struct.command_line_args.resize(argc - 1); \
+        for (int iii = 1; iii < argc; iii++) { \
+            size_t wideCharLen = wcslen(commandLineArgs[iii]); \
+            size_t numConverted = 0; \
+            char* argv = (char *)malloc(sizeof(char) * (wideCharLen + 1)); \
+            if (argv != NULL) { \
+                wcstombs_s(&numConverted, argv, wideCharLen + 1, commandLineArgs[iii], wideCharLen + 1); \
+                init_struct.command_line_args[iii - 1] = argv; \
             } \
+            free(argv); \
         } \
-    } \
-    if (argc > 0 && argv != NULL) \
-    { \
-        for (int iii = 0; iii < argc; iii++) \
-        { \
-            if (argv[iii] != NULL) \
-            { \
-                free(argv[iii]); \
-            } \
-        } \
-        free(argv); \
     }
 
 #define GRAVITY_APP_MAIN_END(return_val) \

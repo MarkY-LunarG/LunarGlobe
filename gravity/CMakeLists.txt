@@ -206,7 +206,6 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_library(gravity WIN32 ${GRAVITY_SOURCE_FILES})
+    add_library(gravity ${GRAVITY_SOURCE_FILES})
     target_link_libraries(gravity ${LIBVK})
 endif()
-
