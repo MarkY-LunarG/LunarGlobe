@@ -40,6 +40,7 @@ GravityApp::GravityApp()
     _prepared = false;
     _uses_staging_buffer = false;
     _was_minimized = false;
+    _focused = true;
     _is_minimized = false;
     _is_paused = false;
     _must_exit = false;
@@ -250,6 +251,8 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
     _gravity_window->SetHInstance(init_struct.windows_instance);
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
     _gravity_window->SetMoltenVkView(init_struct.molten_view);
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+    _gravity_window->SetAndroidNativeWindow(_android_native_window);
 #endif
     _gravity_window->CreatePlatformWindow(_vk_instance, _vk_phys_device, init_struct.width, init_struct.height);
 
@@ -563,14 +566,51 @@ bool GravityApp::Run()
         {
             _gravity_window->HandleActiveWaylandEvents();
         }
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+        MSG msg = {0};
+        PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
+        if (msg.message == WM_QUIT) // check for a quit message
+        {
+            GravityEvent quit_event(GRAVITY_EVENT_QUIT);
+            GravityEventList::getInstance().InsertEvent(quit_event);
+        }
+        else
+        {
+            /* Translate and dispatch to event queue*/
+            TranslateMessage(&msg);
+            DispatchMessage(&msg);
+        }
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+        int events;
+        struct android_poll_source *source;
+        while (ALooper_pollAll(active ? 0 : -1, NULL, &events, (void **)&source) >= 0) {
+            if (source) {
+                source->process(app, source);
+            }
+
+            if (app->destroyRequested != 0) {
+                g_app->Exit();
+                return;
+            }
+        }
 #endif
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+        if (_focused) {
+            if (!ProcessEvents()) {
+                return false;
+            }
+            Draw();
+        }
+#else
         if (!ProcessEvents()) {
             return false;
         }
-        if (!_is_minimized)
-        {
+        if (_focused) {
             Draw();
         }
+#endif
+
     }
     return true;
 }
@@ -693,7 +733,7 @@ void GravityApp::HandleEvent(GravityEvent& event) {
         }
         break;
     case GRAVITY_EVENT_WINDOW_DRAW:
-        if (!_is_minimized)
+        if (_focused)
         {
             Draw();
         }
@@ -704,6 +744,7 @@ void GravityApp::HandleEvent(GravityEvent& event) {
         {
             _was_minimized = _width == 0 || _height == 0;
             _is_minimized = event._data.resize.width == 0 || event._data.resize.height == 0;
+            _focused = !_is_minimized;
             _width = event._data.resize.width;
             _height = event._data.resize.height;
             Resize();

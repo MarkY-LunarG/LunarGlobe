@@ -84,7 +84,14 @@ class GravityApp
     virtual void Resize();
     virtual bool Run();
     virtual bool Draw();
+    virtual void CleanupCommandObjects(bool is_resize);
     virtual void Exit();
+    bool Prepared() { return _prepared; }
+
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    void SetAndroidNativeWindow(ANativeWindow *android_native_window) { _android_native_window = android_native_window; }
+    void SetFocused(bool focused) { _focused = focused; }
+#endif
 
   protected:
     virtual bool Setup() = 0;
@@ -92,7 +99,6 @@ class GravityApp
     bool PostSetup();
     bool ProcessEvents();
     virtual void HandleEvent(GravityEvent& event);
-    virtual void CleanupCommandObjects(bool is_resize);
     virtual bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type);
     bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_image_layout,
                                       VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
@@ -110,6 +116,7 @@ class GravityApp
     bool _uses_staging_texture;
     bool _was_minimized;
     bool _is_minimized;
+    bool _focused;
     bool _is_paused;
     bool _must_exit;
     bool _google_display_timing_enabled;
@@ -129,4 +136,7 @@ class GravityApp
     VkCommandBuffer _vk_cmd_buffer;
     GravityDepthBuffer _depth_buffer;
     VkRenderPass _vk_render_pass;
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    ANativeWindow *_android_native_window;
+#endif
 };

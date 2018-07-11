@@ -1007,7 +1007,7 @@ bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebu
     return true;
 }
 
-bool GravitySubmitManager::CreateFramebuffers(VkRenderPass render_pass, VkImageView depth_image_view)
+bool GravitySubmitManager::AttachRenderPassAndDepthBuffer(VkRenderPass render_pass, VkImageView depth_image_view)
 {
     VkImageView attached_image_views[2];
     attached_image_views[1] = depth_image_view;

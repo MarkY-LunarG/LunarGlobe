@@ -47,6 +47,7 @@
 #include "inttypes.h"
 
 #include "gravity_app.hpp"
+#include "gravity_main.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -658,7 +659,7 @@ bool CubeApp::Setup()
             vkUpdateDescriptorSets(_vk_device, 2, writes, 0, nullptr);
         }
 
-        _gravity_submit_mgr->CreateFramebuffers(_vk_render_pass, _depth_buffer.vk_image_view);
+        _gravity_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
         for (uint32_t i = 0; i < _swapchain_count; i++)
         {
             if (!BuildDrawCmdBuffer(i)) {
@@ -1102,257 +1103,13 @@ void CubeApp::HandleEvent(GravityEvent& event) {
 
 static CubeApp *g_app = nullptr;
 
-#if defined(VK_USE_PLATFORM_WIN32_KHR)
-// Include header required for parsing the command line options.
-#include <shellapi.h>
-
-int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
-{
-    bool done; // flag saying when app is complete
-    int argc;
-    char **argv;
-    Demo demo;
-
-    // Use the CommandLine functions to get the command line arguments.
-    // Unfortunately, Microsoft outputs
-    // this information as wide characters for Unicode, and we simply want the
-    // Ascii version to be compatible
-    // with the non-Windows side.  So, we have to convert the information to
-    // Ascii character strings.
-    LPWSTR *commandLineArgs = CommandLineToArgvW(GetCommandLineW(), &argc);
-    if (NULL == commandLineArgs)
-    {
-        argc = 0;
-    }
-
-    GravityInitStruct init_struct = {};
-    if (argc > 0)
-    {
-        init_struct.command_line_args.resize(argc);
-        argv = (char **)malloc(sizeof(char *) * argc);
-        if (argv == NULL)
-        {
-            argc = 0;
-        }
-        else
-        {
-            for (int iii = 0; iii < argc; iii++)
-            {
-                size_t wideCharLen = wcslen(commandLineArgs[iii]);
-                size_t numConverted = 0;
-
-                argv[iii] = (char *)malloc(sizeof(char) * (wideCharLen + 1));
-                if (argv[iii] != NULL)
-                {
-                    wcstombs_s(&numConverted, argv[iii], wideCharLen + 1, commandLineArgs[iii], wideCharLen + 1);
-                    init_struct.command_line_args[iii] = argv[iii];
-                }
-            }
-        }
-    }
-    else
-    {
-        argv = NULL;
-    }
-    init_struct.app_name = "Gravity App 1 - Cube";
-    init_struct.version.major = 0;
-    init_struct.version.minor = 1;
-    init_struct.version.patch = 0;
-    init_struct.width = 500;
-    init_struct.height = 500;
-    init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new CubeApp();
-    g_app->Init(init_struct);
-
-    // Free up the items we had to allocate for the command line arguments.
-    if (argc > 0 && argv != NULL)
-    {
-        for (int iii = 0; iii < argc; iii++)
-        {
-            if (argv[iii] != NULL)
-            {
-                free(argv[iii]);
-            }
-        }
-        free(argv);
-    }
-
-    demo_prepare(&demo);
-
-    done = false; // initialize loop condition variable
-
-    // main message loop
-    while (!demo.quit)
-    {
-        MSG msg = {0};
-        PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
-        if (msg.message == WM_QUIT) // check for a quit message
-        {
-            GravityEvent quit_event(GRAVITY_EVENT_QUIT);
-            GravityEventList::getInstance().InsertEvent(quit_event);
-        }
-        else
-        {
-            /* Translate and dispatch to event queue*/
-            TranslateMessage(&msg);
-            DispatchMessage(&msg);
-            demo_process_events(&demo);
-            if (demo.quit)
-            {
-                break;
-            }
-            if (!demo.is_minimized)
-            {
-                g_app->Draw();
-            }
-        }
-    }
-
-    g_app->Exit();
-
-    return 0;
-}
-
-#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-
-static void demo_main(struct Demo *demo, void *view)
+GRAVITY_APP_MAIN()
 {
     GravityInitStruct init_struct = {};
+
+    GRAVITY_APP_MAIN_BEGIN(init_struct)
+
     init_struct.app_name = "Gravity App 1 - Cube";
-    init_struct.version.major = 0;
-    init_struct.version.minor = 1;
-    init_struct.version.patch = 0;
-    init_struct.width = 500;
-    init_struct.height = 500;
-    init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new CubeApp();
-    g_app->Init(init_struct);
-}
-
-#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-#include <android/log.h>
-#include <android_native_app_glue.h>
-#include "android_util.h"
-
-static bool initialized = false;
-static bool active = false;
-struct Demo demo;
-
-static int32_t processInput(struct android_app *app, AInputEvent *event) { return 0; }
-
-static void processCommand(struct android_app *app, int32_t cmd)
-{
-    switch (cmd)
-    {
-    case APP_CMD_INIT_WINDOW:
-    {
-        if (app->window)
-        {
-            // We're getting a new window.  If the app is starting up, we
-            // need to initialize.  If the app has already been
-            // initialized, that means that we lost our previous window,
-            // which means that we have a lot of work to do.  At a minimum,
-            // we need to destroy the swapchain and surface associated with
-            // the old window, and create a new surface and swapchain.
-            // However, since there are a lot of other objects/state that
-            // is tied to the swapchain, it's easiest to simply cleanup and
-            // start over (i.e. use a brute-force approach of re-starting
-            // the app)
-            if (demo.prepared)
-            {
-                demo_cleanup(&demo);
-            }
-
-            // Parse Intents into argc, argv
-            // Use the following key to send arguments, i.e.
-            // --es args "--validate"
-            const char key[] = "args";
-            char *appTag = (char *)APP_SHORT_NAME;
-            int argc = 0;
-            char **argv = get_args(app, key, appTag, &argc);
-
-            __android_log_print(ANDROID_LOG_INFO, appTag, "argc = %i", argc);
-            for (int i = 0; i < argc; i++)
-                __android_log_print(ANDROID_LOG_INFO, appTag, "argv[%i] = %s", i, argv[i]);
-
-            demo_init(&demo, argc, argv);
-
-            // Free the argv malloc'd by get_args
-            for (int i = 0; i < argc; i++)
-                free(argv[i]);
-
-            demo.window = (void *)app->window;
-            demo_init_vk_swapchain(&demo);
-            initialized = true;
-        }
-        break;
-    }
-    case APP_CMD_GAINED_FOCUS:
-    {
-        active = true;
-        break;
-    }
-    case APP_CMD_LOST_FOCUS:
-    {
-        active = false;
-        break;
-    }
-    }
-}
-
-void android_main(struct android_app *app)
-{
-#ifdef ANDROID
-    int vulkanSupport = InitVulkan();
-    if (vulkanSupport == 0)
-        return;
-#endif
-
-    demo.prepared = false;
-
-    app->onAppCmd = processCommand;
-    app->onInputEvent = processInput;
-
-    while (1)
-    {
-        int events;
-        struct android_poll_source *source;
-        while (ALooper_pollAll(active ? 0 : -1, NULL, &events, (void **)&source) >= 0)
-        {
-            if (source)
-            {
-                source->process(app, source);
-            }
-
-            if (app->destroyRequested != 0)
-            {
-                g_app->Exit();
-                return;
-            }
-        }
-        demo_process_events(&demo);
-        if (initialized && active)
-        {
-            demo_run(&demo);
-        }
-    }
-}
-#else
-int main(int argc, char **argv)
-{
-    GravityInitStruct init_struct = {};
-    init_struct.app_name = "Gravity App 1 - Cube";
-    init_struct.command_line_args.resize(argc - 1);
-    for (uint32_t arg = 1; arg < argc; ++arg)
-    {
-        init_struct.command_line_args[arg - 1] = argv[arg];
-    }
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -1365,9 +1122,7 @@ int main(int argc, char **argv)
     g_app = new CubeApp();
     g_app->Init(init_struct);
     g_app->Run();
-
     g_app->Exit();
 
-    return 0;
+    GRAVITY_APP_MAIN_END(0)
 }
-#endif

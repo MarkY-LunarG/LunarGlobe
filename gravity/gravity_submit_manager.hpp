@@ -52,7 +52,7 @@ class GravitySubmitManager
     bool DetachSwapchain();
     bool DestroySwapchain();
     VkFormat GetSwapchainVkFormat() { return _vk_format; }
-    bool CreateFramebuffers(VkRenderPass render_pass, VkImageView depth_image_view);
+    bool AttachRenderPassAndDepthBuffer(VkRenderPass render_pass, VkImageView depth_image_view);
     bool Resize();
     uint32_t CurrentWidth() { return _current_width; }
     uint32_t CurrentHeight() { return _current_height; }

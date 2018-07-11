@@ -97,24 +97,23 @@ class GravityWindow
     uint32_t Width() const { return _width; }
     uint32_t Height() const { return _height; }
 
-#ifdef VK_USE_PLATFORM_XLIB_KHR
+#if defined(VK_USE_PLATFORM_ANDROID_KHR)
+    void SetAndroidNativeWindow(ANativeWindow *android_native_window) { _native_win_info.window = android_native_window; }
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
     void HandleXlibEvent();
     void HandleAllXlibEvents();
-#endif
-#ifdef VK_USE_PLATFORM_XCB_KHR
+#elif defined(VK_USE_PLATFORM_XCB_KHR)
     void HandlePausedXcbEvent();
     void HandleActiveXcbEvent();
     void HandleAllXcbEvents();
-#endif
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
     void MoveSurface(uint32_t serial);
     void HandleSeatCapabilities(void *data, struct wl_seat *seat, enum wl_seat_capability caps);
     void HandleGlobalRegistration(void *data, struct wl_registry *registry, uint32_t id, const char *interface,
                                   uint32_t version);
     void HandlePausedWaylandEvent();
     void HandleActiveWaylandEvents();
-#endif
-#if defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
+#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
     void SetMoltenVkView(void *view)
     {
         _view = view;
