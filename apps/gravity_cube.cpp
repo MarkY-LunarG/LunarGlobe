@@ -332,24 +332,13 @@ bool CubeApp::Setup() {
                 return false;
             }
 
-            VkMemoryRequirements memory_requirements = {};
-            vkGetBufferMemoryRequirements(_vk_device, _swapchain_resources[i].uniform_buffer, &memory_requirements);
-
-            VkMemoryAllocateInfo memory_alloc_info = {};
-            memory_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-            memory_alloc_info.pNext = NULL;
-            memory_alloc_info.allocationSize = memory_requirements.size;
-            memory_alloc_info.memoryTypeIndex = 0;
-
-            if (!SelectMemoryTypeUsingRequirements(memory_requirements,
-                                                   (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                                                   memory_alloc_info.memoryTypeIndex)) {
-                logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
-                return false;
-            }
-
-            if (VK_SUCCESS != vkAllocateMemory(_vk_device, &memory_alloc_info, NULL, &_swapchain_resources[i].uniform_memory)) {
-                logger.LogFatalError("Failed to allocate memory for buffer");
+            if (!_gravity_resource_mgr->AllocateDeviceBufferMemory(
+                    _swapchain_resources[i].uniform_buffer,
+                    (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                    _swapchain_resources[i].uniform_memory, _swapchain_resources[i].vk_allocated_size)) {
+                std::string error_message = "Failed to allocate buffer for swapchain image ";
+                error_message += std::to_string(i);
+                logger.LogFatalError(error_message);
                 return false;
             }
 

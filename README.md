@@ -33,16 +33,3 @@ The majority of LunarGravity code is based on the original
 However, that code was very monolithic and wasn't flexible enough for my design.
 
 
-## New Features To Add:
-
-1.  Update to Modern CMake
-2.  Reduce amount of surface capability queries
-3.  Create separate threads for command generation, render and normal application
-4.  Split window functionality into separate OS-specific classes
-5.  Port over code from old gravity:
-    * Shader Loading
-    * Scene defining
-    * Model loading
-
-## Bugs
-1.  Windows: Fix stutter after resize

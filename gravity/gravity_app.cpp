@@ -242,12 +242,6 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
 #endif
     _gravity_window->CreatePlatformWindow(_vk_instance, _vk_phys_device, init_struct.width, init_struct.height);
 
-    _gravity_resource_mgr = new GravityResourceManager(this, _resource_directory);
-    if (nullptr == _gravity_resource_mgr) {
-        logger.LogFatalError("Failed to create resource manager!");
-        return false;
-    }
-
     _gravity_submit_mgr = new GravitySubmitManager(this, _gravity_window, _vk_instance, _vk_phys_device);
     if (nullptr == _gravity_submit_mgr) {
         logger.LogFatalError("Failed to create swapchain manager!");
@@ -279,8 +273,11 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
         return false;
     }
 
-    // Get Memory information and properties
-    vkGetPhysicalDeviceMemoryProperties(_vk_phys_device, &_memory_properties);
+    _gravity_resource_mgr = new GravityResourceManager(this, _resource_directory);
+    if (nullptr == _gravity_resource_mgr) {
+        logger.LogFatalError("Failed to create resource manager!");
+        return false;
+    }
 
     if (!_gravity_submit_mgr->PrepareForSwapchain(_vk_device, init_struct.num_swapchain_buffers, init_struct.present_mode,
                                                   init_struct.ideal_swapchain_format, init_struct.secondary_swapchain_format)) {
@@ -374,23 +371,9 @@ bool GravityApp::PreSetup() {
             return false;
         }
 
-        VkMemoryRequirements mem_reqs;
-        vkGetImageMemoryRequirements(_vk_device, _depth_buffer.vk_image, &mem_reqs);
-
-        _depth_buffer.vk_mem_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-        _depth_buffer.vk_mem_alloc_info.pNext = nullptr;
-        _depth_buffer.vk_mem_alloc_info.allocationSize = mem_reqs.size;
-        _depth_buffer.vk_mem_alloc_info.memoryTypeIndex = 0;
-
-        if (!SelectMemoryTypeUsingRequirements(mem_reqs, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                               _depth_buffer.vk_mem_alloc_info.memoryTypeIndex)) {
-            logger.LogFatalError("Failed selecting memory type for depth buffer image memory");
-            return false;
-        }
-
-        if (VK_SUCCESS !=
-            vkAllocateMemory(_vk_device, &_depth_buffer.vk_mem_alloc_info, nullptr, &_depth_buffer.vk_device_memory)) {
-            logger.LogFatalError("Failed allocating depth buffer image memory");
+        if (!_gravity_resource_mgr->AllocateDeviceImageMemory(_depth_buffer.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                              _depth_buffer.vk_device_memory, _depth_buffer.vk_allocated_size)) {
+            logger.LogFatalError("Failed allocating depth buffer image to memory");
             return false;
         }
 
@@ -441,24 +424,6 @@ bool GravityApp::PostSetup() {
     return true;
 }
 
-bool GravityApp::SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags,
-                                                   uint32_t &type) const {
-    uint32_t type_bits = requirements.memoryTypeBits;
-    // Search memtypes to find first index with those properties
-    for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; i++) {
-        if ((type_bits & 1) == 1) {
-            // Type is available, does it match user properties?
-            if ((_memory_properties.memoryTypes[i].propertyFlags & required_flags) == required_flags) {
-                type = i;
-                return true;
-            }
-        }
-        type_bits >>= 1;
-    }
-    // No memory types matched, return failure
-    return false;
-}
-
 void GravityApp::Resize() {
     if (_must_exit) {
         return;
@@ -480,7 +445,7 @@ void GravityApp::CleanupCommandObjects(bool is_resize) {
     if (!_is_minimized) {
         vkDestroyImageView(_vk_device, _depth_buffer.vk_image_view, nullptr);
         vkDestroyImage(_vk_device, _depth_buffer.vk_image, nullptr);
-        vkFreeMemory(_vk_device, _depth_buffer.vk_device_memory, nullptr);
+        _gravity_resource_mgr->FreeDeviceMemory(_depth_buffer.vk_device_memory);
 
         if (is_resize) {
             _gravity_submit_mgr->Resize();
@@ -488,8 +453,8 @@ void GravityApp::CleanupCommandObjects(bool is_resize) {
             _gravity_submit_mgr->DestroySwapchain();
         }
         for (uint32_t i = 0; i < _swapchain_count; i++) {
+            _gravity_resource_mgr->FreeDeviceMemory(_swapchain_resources[i].uniform_memory);
             vkDestroyBuffer(_vk_device, _swapchain_resources[i].uniform_buffer, nullptr);
-            vkFreeMemory(_vk_device, _swapchain_resources[i].uniform_memory, nullptr);
         }
         vkDestroyCommandPool(_vk_device, _vk_cmd_pool, nullptr);
         _vk_cmd_pool = VK_NULL_HANDLE;

@@ -30,10 +30,7 @@ class GravityShader;
 
 class GravityResourceManager {
    public:
-    GravityResourceManager(const GravityApp* app, const std::string& directory) {
-        _app = app;
-        _base_directory = directory;
-    }
+    GravityResourceManager(const GravityApp* app, const std::string& directory);
     ~GravityResourceManager();
 
     GravityTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
@@ -43,8 +40,23 @@ class GravityResourceManager {
     void FreeShader(GravityShader* shader);
     void FreeAllShaders();
 
+    bool AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
+                                    VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const;
+    bool AllocateDeviceImageMemory(VkImage vk_image, VkMemoryPropertyFlags vk_memory_properties, VkDeviceMemory& vk_device_memory,
+                                   VkDeviceSize& vk_allocated_size) const;
+    void FreeDeviceMemory(VkDeviceMemory& vk_device_memory) const;
+
+    bool UseStagingBuffer() const { return _uses_staging_buffer; }
+    VkFormatProperties GetVkFormatProperties(VkFormat format) const;
+
    private:
-    const GravityApp* _app;
+    bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t& type) const;
+
+    VkInstance _vk_instance;
+    VkPhysicalDevice _vk_physical_device;
+    VkDevice _vk_device;
+    VkPhysicalDeviceMemoryProperties _vk_physical_device_memory_properties;
+    bool _uses_staging_buffer;
     std::string _base_directory;
     std::vector<GravityTexture*> _textures;
     std::vector<GravityShader*> _shaders;

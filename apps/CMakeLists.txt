@@ -161,20 +161,6 @@ if(WIN32)
     endforeach()
 endif()
 
-add_custom_command(
-    COMMENT "Compiling gravity cube vertex shader"
-    OUTPUT gravity_cube.vert.inc
-    COMMAND ${GLSLANG_VALIDATOR} -V -x -o ${CMAKE_CURRENT_BINARY_DIR}/gravity_cube.vert.inc ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
-    MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
-    DEPENDS ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert ${GLSLANG_VALIDATOR}
-)
-add_custom_command(
-    COMMENT "Compiling gravity cube fragment shader"
-    OUTPUT gravity_cube.frag.inc
-    COMMAND ${GLSLANG_VALIDATOR} -V -x -o ${CMAKE_CURRENT_BINARY_DIR}/gravity_cube.frag.inc ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
-    MAIN_DEPENDENCY ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
-    DEPENDS ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag ${GLSLANG_VALIDATOR}
-)
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
 
 
@@ -224,18 +210,10 @@ endforeach(shader_prefix)
 ######################################################################################
 # gravity
 
-set(GRAVITY_SOURCE_FILES
-    gravity_cube.cpp
-    ${PROJECT_SOURCE_DIR}/apps/gravity_cube.vert
-    gravity_cube.vert.inc
-    ${PROJECT_SOURCE_DIR}/apps/gravity_cube.frag
-    gravity_cube.frag.inc
-)
-
 if(APPLE)
 elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
-        add_executable(gravity_cube ${GRAVITY_SOURCE_FILES} ${SHADER_FILES})
+        add_executable(gravity_cube gravity_cube.cpp ${SHADER_FILES})
         target_link_libraries(gravity_cube ${LIBVK} gravity)
     endif()
 else()
@@ -245,7 +223,7 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_executable(gravity_cube WIN32 ${GRAVITY_SOURCE_FILES} ${SHADER_FILES})
+    add_executable(gravity_cube WIN32 gravity_cube.cpp ${SHADER_FILES})
     target_link_libraries(gravity_cube ${LIBVK} gravity)
 endif()
 

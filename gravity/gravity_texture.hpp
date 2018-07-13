@@ -32,21 +32,22 @@ struct GravityTextureData {
     VkSampler vk_sampler;
     VkImage vk_image;
     VkImageLayout vk_image_layout;
-    VkMemoryAllocateInfo vk_mem_alloc_info;
     VkDeviceMemory vk_device_memory;
+    VkDeviceSize vk_allocated_size;
     VkImageView vk_image_view;
     std::vector<uint8_t> raw_data;
     GravityTextureData* staging_texture_data;
 };
 
-class GravityApp;
+class GravityResourceManager;
 
 class GravityTexture {
    public:
-    static GravityTexture* LoadFromFile(const GravityApp* app, VkCommandBuffer command_buffer, const std::string& texture_name,
+    static GravityTexture* LoadFromFile(const GravityResourceManager* resource_manager, VkDevice vk_device,
+                                        VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                         const std::string& directory);
 
-    GravityTexture(VkPhysicalDevice vk_phys_device, VkDevice vk_device, const std::string& texture_name,
+    GravityTexture(const GravityResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
                    GravityTextureData* texture_data);
     ~GravityTexture();
 
@@ -62,6 +63,7 @@ class GravityTexture {
     VkImageLayout GetVkImageLayout() { return _vk_image_layout; }
 
    private:
+    const GravityResourceManager* _gravity_resource_mgr;
     VkPhysicalDevice _vk_physical_device;
     VkDevice _vk_device;
     std::string _texture_name;
@@ -73,7 +75,7 @@ class GravityTexture {
     VkSampler _vk_sampler;
     VkImage _vk_image;
     VkImageLayout _vk_image_layout;
-    VkMemoryAllocateInfo _vk_mem_alloc_info;
     VkDeviceMemory _vk_device_memory;
+    VkDeviceSize _vk_allocated_size;
     VkImageView _vk_image_view;
 };

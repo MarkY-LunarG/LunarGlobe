@@ -51,8 +51,8 @@ struct GravityInitStruct {
 struct GravityDepthBuffer {
     VkFormat vk_format;
     VkImage vk_image;
-    VkMemoryAllocateInfo vk_mem_alloc_info;
     VkDeviceMemory vk_device_memory;
+    VkDeviceSize vk_allocated_size;
     VkImageView vk_image_view;
 };
 
@@ -71,7 +71,6 @@ class GravityApp {
     virtual void CleanupCommandObjects(bool is_resize);
     virtual void Exit();
     bool Prepared() { return _prepared; }
-    virtual bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type) const;
     void GetVkInfo(VkInstance &instance, VkPhysicalDevice &phys_device, VkDevice &device) const {
         instance = _vk_instance, phys_device = _vk_phys_device, device = _vk_device;
     }
@@ -120,7 +119,6 @@ class GravityApp {
     uint32_t _swapchain_count;
     std::vector<SwapchainImageResources> _swapchain_resources;
     VkFormat _vk_swapchain_format;
-    VkPhysicalDeviceMemoryProperties _memory_properties;
     VkCommandPool _vk_cmd_pool;
     VkCommandBuffer _vk_cmd_buffer;
     GravityDepthBuffer _depth_buffer;

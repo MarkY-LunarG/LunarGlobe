@@ -30,6 +30,7 @@ typedef struct
 {
     VkBuffer uniform_buffer;
     VkDeviceMemory uniform_memory;
+    VkDeviceSize vk_allocated_size;
     VkDescriptorSet descriptor_set;
 } SwapchainImageResources;
 

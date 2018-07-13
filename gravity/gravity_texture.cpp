@@ -165,7 +165,8 @@ static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkIm
     return true;
 }
 
-GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuffer command_buffer, const std::string& texture_name,
+GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resource_manager, VkDevice vk_device,
+                                             VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                              const std::string& directory) {
     GravityLogger& logger = GravityLogger::getInstance();
     GravityTextureData texture_data = {};
@@ -180,18 +181,13 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         return nullptr;
     }
 
-    VkInstance vk_instance = VK_NULL_HANDLE;
-    VkPhysicalDevice vk_physical_device = VK_NULL_HANDLE;
-    VkDevice vk_device = VK_NULL_HANDLE;
-    VkFormatProperties vk_format_props;
-    app->GetVkInfo(vk_instance, vk_physical_device, vk_device);
-    vkGetPhysicalDeviceFormatProperties(vk_physical_device, texture_data.vk_format, &vk_format_props);
+    VkFormatProperties vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
 
     bool uses_staging = false;
     GravityTextureData staging_texture_data = texture_data;
     GravityTextureData* target_texture_data = &texture_data;
     VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
-    if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !app->UsesStagingBuffer()) {
+    if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !resource_manager->UseStagingBuffer()) {
         loading_image_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         target_texture_data = &staging_texture_data;
         uses_staging = true;
@@ -220,22 +216,10 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         return nullptr;
     }
 
-    VkMemoryRequirements texture_mem_reqs = {};
-    vkGetImageMemoryRequirements(vk_device, target_texture_data->vk_image, &texture_mem_reqs);
-    target_texture_data->vk_mem_alloc_info = {};
-    target_texture_data->vk_mem_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    target_texture_data->vk_mem_alloc_info.pNext = nullptr;
-    target_texture_data->vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
-    if (!app->SelectMemoryTypeUsingRequirements(texture_mem_reqs,
-                                                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                                                target_texture_data->vk_mem_alloc_info.memoryTypeIndex)) {
-        logger.LogError("Failed to find memory type supporting necessary texture requirements");
-        return nullptr;
-    }
-
-    if (VK_SUCCESS !=
-        vkAllocateMemory(vk_device, &target_texture_data->vk_mem_alloc_info, nullptr, &target_texture_data->vk_device_memory)) {
-        logger.LogError("Failed to allocate memory for texture image");
+    if (!resource_manager->AllocateDeviceImageMemory(
+            target_texture_data->vk_image, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+            target_texture_data->vk_device_memory, target_texture_data->vk_allocated_size)) {
+        logger.LogFatalError("Failed allocating target texture image to memory");
         return nullptr;
     }
 
@@ -253,8 +237,8 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
     vkGetImageSubresourceLayout(vk_device, target_texture_data->vk_image, &image_subresource, &vk_subresource_layout);
 
     void* data;
-    if (VK_SUCCESS != vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0,
-                                  target_texture_data->vk_mem_alloc_info.allocationSize, 0, &data)) {
+    if (VK_SUCCESS !=
+        vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0, target_texture_data->vk_allocated_size, 0, &data)) {
         logger.LogError("Failed to map memory for copying over texture image");
         return nullptr;
     }
@@ -274,7 +258,7 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
 
     // If we need to place this in tiled memory, we need to use a staging texture.
     if (uses_staging) {
-        if (!TransitionVkImageLayout(command_buffer, staging_texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
+        if (!TransitionVkImageLayout(vk_command_buffer, staging_texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                      static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                      VK_PIPELINE_STAGE_TRANSFER_BIT)) {
@@ -285,7 +269,6 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         texture_data.width = staging_texture_data.width;
         texture_data.height = staging_texture_data.height;
         texture_data.vk_format = staging_texture_data.vk_format;
-        texture_data.vk_mem_alloc_info = staging_texture_data.vk_mem_alloc_info;
         image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
         image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &texture_data.vk_image)) {
@@ -295,16 +278,10 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
             logger.LogError(error_message);
             return nullptr;
         }
-        vkGetImageMemoryRequirements(vk_device, texture_data.vk_image, &texture_mem_reqs);
-        texture_data.vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
-        if (!app->SelectMemoryTypeUsingRequirements(texture_mem_reqs, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                    texture_data.vk_mem_alloc_info.memoryTypeIndex)) {
-            logger.LogError("Failed to find memory type supporting necessary tiled texture requirements");
-            return nullptr;
-        }
 
-        if (VK_SUCCESS != vkAllocateMemory(vk_device, &texture_data.vk_mem_alloc_info, nullptr, &texture_data.vk_device_memory)) {
-            logger.LogError("Failed to allocate memory for tiled texture image");
+        if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                         texture_data.vk_device_memory, texture_data.vk_allocated_size)) {
+            logger.LogFatalError("Failed allocating tiled target texture image to memory");
             return nullptr;
         }
 
@@ -315,7 +292,7 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
 
         texture_data.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
-        if (!TransitionVkImageLayout(command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
+        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                      static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                      VK_PIPELINE_STAGE_TRANSFER_BIT)) {
@@ -332,9 +309,9 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         image_copy.extent.width = texture_data.width;
         image_copy.extent.height = texture_data.height;
         image_copy.extent.depth = 1;
-        vkCmdCopyImage(command_buffer, staging_texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture_data.vk_image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
-        if (!TransitionVkImageLayout(command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
+        vkCmdCopyImage(vk_command_buffer, staging_texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
+                       texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
+        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture_data.vk_image_layout,
                                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
@@ -342,7 +319,7 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
             return nullptr;
         }
     } else {
-        if (!TransitionVkImageLayout(command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
+        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, texture_data.vk_image_layout, static_cast<VkAccessFlagBits>(0),
                                      VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
             logger.LogError("Failed to transition texture image to shader readable format");
@@ -395,24 +372,24 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         return nullptr;
     }
 
-    return new GravityTexture(vk_physical_device, vk_device, texture_name, &texture_data);
+    return new GravityTexture(resource_manager, vk_device, texture_name, &texture_data);
 }
 
-GravityTexture::GravityTexture(VkPhysicalDevice vk_phys_device, VkDevice vk_device, const std::string& texture_name,
+GravityTexture::GravityTexture(const GravityResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
                                GravityTextureData* texture_data)
-    : _vk_physical_device(vk_phys_device), _vk_device(vk_device), _texture_name(texture_name) {
+    : _gravity_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
     _width = texture_data->width;
     _height = texture_data->height;
     _vk_format = texture_data->vk_format;
     _vk_sampler = texture_data->vk_sampler;
     _vk_image = texture_data->vk_image;
     _vk_image_layout = texture_data->vk_image_layout;
-    _vk_mem_alloc_info = texture_data->vk_mem_alloc_info;
+    _vk_allocated_size = texture_data->vk_allocated_size;
     _vk_device_memory = texture_data->vk_device_memory;
     _vk_image_view = texture_data->vk_image_view;
     if (nullptr != texture_data->staging_texture_data) {
         _uses_staging_texture = true;
-        _staging_texture = new GravityTexture(vk_phys_device, vk_device, texture_name, texture_data->staging_texture_data);
+        _staging_texture = new GravityTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
     } else {
         _uses_staging_texture = false;
         _staging_texture = nullptr;
@@ -429,7 +406,7 @@ GravityTexture::~GravityTexture() {
         _vk_image_view = VK_NULL_HANDLE;
     }
     vkDestroyImage(_vk_device, _vk_image, nullptr);
-    vkFreeMemory(_vk_device, _vk_device_memory, nullptr);
+    _gravity_resource_mgr->FreeDeviceMemory(_vk_device_memory);
 }
 
 bool GravityTexture::DeleteStagingTexture() {
