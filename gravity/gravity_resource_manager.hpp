@@ -29,8 +29,11 @@ class GravityTexture;
 class GravityShader;
 
 class GravityResourceManager {
-  public:
-    GravityResourceManager(const GravityApp* app, const std::string& directory) { _app = app; _base_directory = directory; }
+   public:
+    GravityResourceManager(const GravityApp* app, const std::string& directory) {
+        _app = app;
+        _base_directory = directory;
+    }
     ~GravityResourceManager();
 
     GravityTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
@@ -40,7 +43,7 @@ class GravityResourceManager {
     void FreeShader(GravityShader* shader);
     void FreeAllShaders();
 
-  private:
+   private:
     const GravityApp* _app;
     std::string _base_directory;
     std::vector<GravityTexture*> _textures;

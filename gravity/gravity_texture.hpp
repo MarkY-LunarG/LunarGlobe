@@ -47,7 +47,7 @@ class GravityTexture {
                                         const std::string& directory);
 
     GravityTexture(VkPhysicalDevice vk_phys_device, VkDevice vk_device, const std::string& texture_name,
-                   GravityTextureData *texture_data);
+                   GravityTextureData* texture_data);
     ~GravityTexture();
 
     uint32_t Width() { return _width; }

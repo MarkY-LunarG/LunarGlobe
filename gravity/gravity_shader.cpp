@@ -67,7 +67,7 @@ GravityShader* GravityShader::LoadFromFile(VkDevice vk_device, const std::string
             default:
                 continue;
         }
-        std::ifstream *infile = nullptr;
+        std::ifstream* infile = nullptr;
         std::string line;
         std::stringstream strstream;
         size_t shader_spv_size;
@@ -90,11 +90,10 @@ GravityShader* GravityShader::LoadFromFile(VkDevice vk_device, const std::string
     return new GravityShader(vk_device, shader_name, shader_data);
 }
 
-GravityShader::GravityShader(VkDevice vk_device,
-                             const std::string& shader_name,
-                             const GravityShaderStageInitData shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES]) :
-                             _initialized(true), _vk_device(vk_device), _shader_name(shader_name) {
-    GravityLogger &logger = GravityLogger::getInstance();
+GravityShader::GravityShader(VkDevice vk_device, const std::string& shader_name,
+                             const GravityShaderStageInitData shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES])
+    : _initialized(true), _vk_device(vk_device), _shader_name(shader_name) {
+    GravityLogger& logger = GravityLogger::getInstance();
     uint32_t num_loaded_shaders = 0;
     for (uint32_t stage = 0; stage < GRAVITY_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
         if (shader_data[stage].valid) {
@@ -106,7 +105,8 @@ GravityShader::GravityShader(VkDevice vk_device,
             shader_module_create_info.codeSize = shader_data[stage].spirv_content.size() * sizeof(uint32_t);
             shader_module_create_info.pCode = shader_data[stage].spirv_content.data();
             shader_module_create_info.flags = 0;
-            VkResult vk_result = vkCreateShaderModule(vk_device, &shader_module_create_info, NULL, &_shader_data[stage].vk_shader_module);
+            VkResult vk_result =
+                vkCreateShaderModule(vk_device, &shader_module_create_info, NULL, &_shader_data[stage].vk_shader_module);
             if (VK_SUCCESS != vk_result) {
                 _initialized = false;
                 _shader_data[stage].valid = false;
@@ -141,7 +141,7 @@ GravityShader::~GravityShader() {
     }
 }
 
-bool GravityShader::GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo> &pipeline_stages) const {
+bool GravityShader::GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo>& pipeline_stages) const {
     if (!_initialized) {
         return false;
     }

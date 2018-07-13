@@ -28,8 +28,7 @@
 
 class GravityApp;
 
-struct NativeWindowInfo
-{
+struct NativeWindowInfo {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     HINSTANCE instance_handle;
     HWND window_handle;
@@ -68,17 +67,13 @@ struct NativeWindowInfo
     VkPhysicalDevice vk_physical_device;
 };
 
-class GravityWindow
-{
-  public:
+class GravityWindow {
+   public:
     GravityWindow(GravityApp *associated_app, const std::string &name);
     virtual ~GravityWindow();
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
-    void SetHInstance(HINSTANCE win_hinstance)
-    {
-        _native_win_info.instance_handle = win_hinstance;
-    }
+    void SetHInstance(HINSTANCE win_hinstance) { _native_win_info.instance_handle = win_hinstance; }
     void RedrawOsWindow() { RedrawWindow(_native_win_info.window_handle, NULL, NULL, RDW_INTERNALPAINT); }
 #endif
 
@@ -109,18 +104,14 @@ class GravityWindow
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
     void MoveSurface(uint32_t serial);
     void HandleSeatCapabilities(void *data, struct wl_seat *seat, enum wl_seat_capability caps);
-    void HandleGlobalRegistration(void *data, struct wl_registry *registry, uint32_t id, const char *interface,
-                                  uint32_t version);
+    void HandleGlobalRegistration(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version);
     void HandlePausedWaylandEvent();
     void HandleActiveWaylandEvents();
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-    void SetMoltenVkView(void *view)
-    {
-        _view = view;
-    }
+    void SetMoltenVkView(void *view) { _view = view; }
 #endif
 
-  private:
+   private:
 #ifdef VK_USE_PLATFORM_XCB_KHR
     void HandleXcbEvent(xcb_generic_event_t *xcb_event);
 #endif

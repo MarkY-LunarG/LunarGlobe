@@ -51,14 +51,12 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-struct vktexgravity_vs_uniform
-{
+struct vktexgravity_vs_uniform {
     // Must start with MVP
     float mvp[4][4];
     float position[12 * 3][4];
     float attr[12 * 3][4];
 };
-
 
 //--------------------------------------------------------------------------------------
 // Mesh and VertexFormat Data
@@ -153,26 +151,25 @@ static const float g_uv_buffer_data[] = {
 };
 // clang-format on
 
-class CubeApp : public GravityApp
-{
-  public:
+class CubeApp : public GravityApp {
+   public:
     CubeApp();
     ~CubeApp();
 
-  protected:
+   protected:
     virtual bool Setup();
     virtual void CleanupCommandObjects(bool is_resize);
     virtual bool Draw();
 
-  private:
+   private:
     bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
-    virtual void HandleEvent(GravityEvent& event);
+    virtual void HandleEvent(GravityEvent &event);
 
     bool _uses_staging_texture;
     mat4x4 _projection_matrix;
     mat4x4 _view_matrix;
     mat4x4 _model_matrix;
-    GravityTexture* _texture;
+    GravityTexture *_texture;
     VkDescriptorSetLayout _vk_desc_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkPipelineCache _vk_pipeline_cache;
@@ -183,8 +180,7 @@ class CubeApp : public GravityApp
     float _spin_increment;
 };
 
-CubeApp::CubeApp()
-{
+CubeApp::CubeApp() {
     _uses_staging_texture = false;
     _vk_desc_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
@@ -204,20 +200,18 @@ CubeApp::CubeApp()
     vec3 up = {0.0f, 1.0f, 0.0};
 
     mat4x4_perspective(_projection_matrix, (float)degreesToRadians(45.0f), 1.0f, 0.1f, 100.0f);
-    _projection_matrix[1][1] *= -1; // Flip projection matrix from GL to Vulkan orientation.
+    _projection_matrix[1][1] *= -1;  // Flip projection matrix from GL to Vulkan orientation.
 
     mat4x4_look_at(_view_matrix, eye, origin, up);
     mat4x4_identity(_model_matrix);
 }
 
-CubeApp::~CubeApp()
-{
+CubeApp::~CubeApp() {
     _gravity_resource_mgr->FreeAllTextures();
     _gravity_resource_mgr->FreeAllShaders();
 }
 
-bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index)
-{
+bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
     GravityLogger &logger = GravityLogger::getInstance();
     VkCommandBuffer cmd_buf;
     VkFramebuffer frame_buf;
@@ -290,18 +284,15 @@ bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index)
     return true;
 }
 
-
-bool CubeApp::Setup()
-{
+bool CubeApp::Setup() {
     GravityLogger &logger = GravityLogger::getInstance();
 
-    if (!GravityApp::PreSetup())
-    {
+    if (!GravityApp::PreSetup()) {
         return false;
     }
 
     if (!_is_minimized) {
-        GravityTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
+        GravityTexture *LoadTexture(const std::string &texture_name, VkCommandBuffer command_buffer);
 
         _texture = _gravity_resource_mgr->LoadTexture("lunarg.ppm", _vk_cmd_buffer);
         if (nullptr == _texture) {
@@ -317,8 +308,7 @@ bool CubeApp::Setup()
         mat4x4_mul(MVP, VP, _model_matrix);
         memcpy(data.mvp, MVP, sizeof(MVP));
 
-        for (unsigned int i = 0; i < 12 * 3; i++)
-        {
+        for (unsigned int i = 0; i < 12 * 3; i++) {
             data.position[i][0] = g_vertex_buffer_data[i * 3];
             data.position[i][1] = g_vertex_buffer_data[i * 3 + 1];
             data.position[i][2] = g_vertex_buffer_data[i * 3 + 2];
@@ -329,13 +319,12 @@ bool CubeApp::Setup()
             data.attr[i][3] = 0;
         }
 
-        VkBufferCreateInfo buffer_create_info  = {};
+        VkBufferCreateInfo buffer_create_info = {};
         buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
         buffer_create_info.size = sizeof(data);
 
-        for (unsigned int i = 0; i < _swapchain_count; i++)
-        {
+        for (unsigned int i = 0; i < _swapchain_count; i++) {
             if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, nullptr, &_swapchain_resources[i].uniform_buffer)) {
                 std::string error_message = "Failed to create buffer for swapchain image ";
                 error_message += std::to_string(i);
@@ -352,8 +341,9 @@ bool CubeApp::Setup()
             memory_alloc_info.allocationSize = memory_requirements.size;
             memory_alloc_info.memoryTypeIndex = 0;
 
-            if (!SelectMemoryTypeUsingRequirements(memory_requirements, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT), memory_alloc_info.memoryTypeIndex))
-            {
+            if (!SelectMemoryTypeUsingRequirements(memory_requirements,
+                                                   (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                                                   memory_alloc_info.memoryTypeIndex)) {
                 logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
                 return false;
             }
@@ -363,7 +353,8 @@ bool CubeApp::Setup()
                 return false;
             }
 
-            if (VK_SUCCESS != vkMapMemory(_vk_device, _swapchain_resources[i].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData)) {
+            if (VK_SUCCESS !=
+                vkMapMemory(_vk_device, _swapchain_resources[i].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData)) {
                 logger.LogFatalError("Failed to map memory for buffer");
                 return false;
             }
@@ -372,8 +363,8 @@ bool CubeApp::Setup()
 
             vkUnmapMemory(_vk_device, _swapchain_resources[i].uniform_memory);
 
-            if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _swapchain_resources[i].uniform_buffer,
-                                    _swapchain_resources[i].uniform_memory, 0)) {
+            if (VK_SUCCESS !=
+                vkBindBufferMemory(_vk_device, _swapchain_resources[i].uniform_buffer, _swapchain_resources[i].uniform_memory, 0)) {
                 logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
                 return false;
             }
@@ -534,7 +525,7 @@ bool CubeApp::Setup()
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GravityShader* cube_shader = _gravity_resource_mgr->LoadShader("lit_texture");
+        GravityShader *cube_shader = _gravity_resource_mgr->LoadShader("lit_texture");
         std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
         cube_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
 
@@ -556,7 +547,8 @@ bool CubeApp::Setup()
         gfx_pipeline_create_info.renderPass = _vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &dynamicState;
 
-        if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, _vk_pipeline_cache, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
+        if (VK_SUCCESS !=
+            vkCreateGraphicsPipelines(_vk_device, _vk_pipeline_cache, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
             logger.LogFatalError("Failed to create graphics pipeline");
             return false;
         }
@@ -609,8 +601,7 @@ bool CubeApp::Setup()
         writes[1].descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         writes[1].pImageInfo = &descriptor_image_info;
 
-        for (unsigned int i = 0; i < _swapchain_count; i++)
-        {
+        for (unsigned int i = 0; i < _swapchain_count; i++) {
             if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &alloc_info, &_swapchain_resources[i].descriptor_set)) {
                 logger.LogFatalError("Failed to allocate descriptor set");
                 return false;
@@ -622,8 +613,7 @@ bool CubeApp::Setup()
         }
 
         _gravity_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
-        for (uint32_t i = 0; i < _swapchain_count; i++)
-        {
+        for (uint32_t i = 0; i < _swapchain_count; i++) {
             if (!BuildDrawCmdBuffer(i)) {
                 return false;
             }
@@ -631,8 +621,7 @@ bool CubeApp::Setup()
     }
     _current_buffer = 0;
 
-    if (!GravityApp::PostSetup())
-    {
+    if (!GravityApp::PostSetup()) {
         return false;
     }
 
@@ -643,10 +632,8 @@ bool CubeApp::Setup()
     return true;
 }
 
-void CubeApp::CleanupCommandObjects(bool is_resize)
-{
-    if (!_is_minimized)
-    {
+void CubeApp::CleanupCommandObjects(bool is_resize) {
+    if (!_is_minimized) {
         _gravity_resource_mgr->FreeAllTextures();
         vkDestroyDescriptorPool(_vk_device, _vk_desc_pool, NULL);
 
@@ -659,8 +646,7 @@ void CubeApp::CleanupCommandObjects(bool is_resize)
     GravityApp::CleanupCommandObjects(is_resize);
 }
 
-bool CubeApp::Draw()
-{
+bool CubeApp::Draw() {
     GravityLogger &logger = GravityLogger::getInstance();
     _gravity_submit_mgr->AcquireNextImageIndex(_current_buffer);
 
@@ -675,8 +661,8 @@ bool CubeApp::Draw()
     mat4x4_rotate(_model_matrix, Model, 0.0f, 1.0f, 0.0f, (float)degreesToRadians(_spin_angle));
     mat4x4_mul(MVP, VP, _model_matrix);
 
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0,
-                      (void **)&pData)) {
+    if (VK_SUCCESS !=
+        vkMapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData)) {
         logger.LogFatalError("Failed to map uniform buffer memory");
         return false;
     }
@@ -687,36 +673,32 @@ bool CubeApp::Draw()
     return true;
 }
 
-void CubeApp::HandleEvent(GravityEvent& event) {
-    switch (event.Type())
-    {
-    case GRAVITY_EVENT_KEY_RELEASE:
-        switch (event._data.key)
-        {
-        case GRAVITY_KEYNAME_ARROW_LEFT:
-            _spin_angle -= _spin_increment;
+void CubeApp::HandleEvent(GravityEvent &event) {
+    switch (event.Type()) {
+        case GRAVITY_EVENT_KEY_RELEASE:
+            switch (event._data.key) {
+                case GRAVITY_KEYNAME_ARROW_LEFT:
+                    _spin_angle -= _spin_increment;
+                    break;
+                case GRAVITY_KEYNAME_ARROW_RIGHT:
+                    _spin_angle += _spin_increment;
+                    break;
+            }
             break;
-        case GRAVITY_KEYNAME_ARROW_RIGHT:
-            _spin_angle += _spin_increment;
+        default:
             break;
-        }
-        break;
-    default:
-        break;
     }
     GravityApp::HandleEvent(event);
 }
 
 static CubeApp *g_app = nullptr;
 
-GRAVITY_APP_MAIN()
-{
+GRAVITY_APP_MAIN() {
     GravityInitStruct init_struct = {};
 
 #if 0
     GRAVITY_APP_MAIN_BEGIN(init_struct)
 #else
-
 
 #endif
     init_struct.app_name = "Gravity App 1 - Cube";

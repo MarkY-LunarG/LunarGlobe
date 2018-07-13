@@ -25,15 +25,13 @@
 
 #include "gravity_window.hpp"
 
-struct GravityVersion
-{
+struct GravityVersion {
     uint8_t major;
     uint8_t minor;
     uint8_t patch;
 };
 
-struct GravityInitStruct
-{
+struct GravityInitStruct {
     std::string app_name;
     std::vector<std::string> command_line_args;
     GravityVersion version;
@@ -50,8 +48,7 @@ struct GravityInitStruct
     VkFormat secondary_swapchain_format;
 };
 
-struct GravityDepthBuffer
-{
+struct GravityDepthBuffer {
     VkFormat vk_format;
     VkImage vk_image;
     VkMemoryAllocateInfo vk_mem_alloc_info;
@@ -62,9 +59,8 @@ struct GravityDepthBuffer
 class GravityResourceManager;
 class GravitySubmitManager;
 
-class GravityApp
-{
-  public:
+class GravityApp {
+   public:
     GravityApp();
     ~GravityApp();
 
@@ -76,7 +72,9 @@ class GravityApp
     virtual void Exit();
     bool Prepared() { return _prepared; }
     virtual bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type) const;
-    void GetVkInfo(VkInstance& instance, VkPhysicalDevice& phys_device, VkDevice& device) const { instance = _vk_instance, phys_device = _vk_phys_device, device = _vk_device; }
+    void GetVkInfo(VkInstance &instance, VkPhysicalDevice &phys_device, VkDevice &device) const {
+        instance = _vk_instance, phys_device = _vk_phys_device, device = _vk_device;
+    }
     bool UsesStagingBuffer() const { return _uses_staging_buffer; }
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
@@ -84,15 +82,15 @@ class GravityApp
     void SetFocused(bool focused) { _focused = focused; }
 #endif
 
-  protected:
+   protected:
     virtual bool Setup() = 0;
     bool PreSetup();
     bool PostSetup();
     bool ProcessEvents();
-    virtual void HandleEvent(GravityEvent& event);
-    bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_image_layout,
-                                      VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                      VkPipelineStageFlags dest_stages);
+    virtual void HandleEvent(GravityEvent &event);
+    bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
+                                 VkImageLayout old_image_layout, VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask,
+                                 VkPipelineStageFlags src_stages, VkPipelineStageFlags dest_stages);
 
     std::string _name;
     GravityVersion _app_version;

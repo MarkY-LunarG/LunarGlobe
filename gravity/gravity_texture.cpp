@@ -35,25 +35,25 @@ static bool LoadFile(const std::string& filename, uint32_t& width, uint32_t& hei
     filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #elif defined(__ANDROID__)
 #include <lunarg.ppm.h>
-    char *cPtr;
-    cPtr = (char *)lunarg_ppm;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3)) {
+    char* cPtr;
+    cPtr = (char*)lunarg_ppm;
+    if ((unsigned char*)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3)) {
         return false;
     }
     while (strncmp(cPtr++, "\n", 1))
         ;
     sscanf(cPtr, "%u %u", &width, &height);
     texture_data.resize(width * height * 4);
-    uint8_t *rgba_data = texture_data.data()();
+    uint8_t* rgba_data = texture_data.data()();
     while (strncmp(cPtr++, "\n", 1))
         ;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4)) {
+    if ((unsigned char*)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4)) {
         return false;
     }
     while (strncmp(cPtr++, "\n", 1))
         ;
 
-    uint8_t *row_ptr = rgba_data;
+    uint8_t* row_ptr = rgba_data;
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             memcpy(row_ptr, cPtr, 3);
@@ -109,9 +109,9 @@ static bool LoadFile(const std::string& filename, uint32_t& width, uint32_t& hei
 }
 
 static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                             VkImageLayout old_image_layout, VkImageLayout new_image_layout,
-                                             VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                             VkPipelineStageFlags dest_stages) {
+                                    VkImageLayout old_image_layout, VkImageLayout new_image_layout,
+                                    VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
+                                    VkPipelineStageFlags dest_stages) {
     GravityLogger& logger = GravityLogger::getInstance();
     if (VK_NULL_HANDLE == new_image_layout) {
         logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
@@ -334,10 +334,10 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
         image_copy.extent.depth = 1;
         vkCmdCopyImage(command_buffer, staging_texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, texture_data.vk_image,
                        VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
-        if (!TransitionVkImageLayout(command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     texture_data.vk_image_layout, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT))
-        {
+        if (!TransitionVkImageLayout(command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
+                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture_data.vk_image_layout,
+                                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
             logger.LogError("Failed to transition resulting texture to shader readable after staging copy");
             return nullptr;
         }
@@ -384,15 +384,13 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityApp* app, VkCommandBuf
     image_view_create_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
     image_view_create_info.flags = 0;
 
-    if (VK_SUCCESS != vkCreateSampler(vk_device, &sampler_create_info, nullptr, &texture_data.vk_sampler))
-    {
+    if (VK_SUCCESS != vkCreateSampler(vk_device, &sampler_create_info, nullptr, &texture_data.vk_sampler)) {
         logger.LogError("Failed creating texture sampler for primary texture");
         return nullptr;
     }
 
     image_view_create_info.image = texture_data.vk_image;
-    if (VK_SUCCESS != vkCreateImageView(vk_device, &image_view_create_info, nullptr, &texture_data.vk_image_view))
-    {
+    if (VK_SUCCESS != vkCreateImageView(vk_device, &image_view_create_info, nullptr, &texture_data.vk_image_view)) {
         logger.LogError("Failed creating texture image view for primary texture");
         return nullptr;
     }
