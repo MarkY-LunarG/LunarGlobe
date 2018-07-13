@@ -165,6 +165,8 @@ class CubeApp : public GravityApp {
     bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
     virtual void HandleEvent(GravityEvent &event);
 
+    std::vector<SwapchainImageResources> _swapchain_resources;
+
     bool _uses_staging_texture;
     mat4x4 _projection_matrix;
     mat4x4 _view_matrix;
@@ -174,6 +176,7 @@ class CubeApp : public GravityApp {
     VkPipelineLayout _vk_pipeline_layout;
     VkPipelineCache _vk_pipeline_cache;
     VkPipeline _vk_pipeline;
+    VkRenderPass _vk_render_pass;
     VkDescriptorPool _vk_desc_pool;
 
     float _spin_angle;
@@ -287,14 +290,18 @@ bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
 bool CubeApp::Setup() {
     GravityLogger &logger = GravityLogger::getInstance();
 
-    if (!GravityApp::PreSetup()) {
+    VkCommandPool vk_setup_command_pool;
+    VkCommandBuffer vk_setup_command_buffer;
+    if (!GravityApp::PreSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
+
+    _swapchain_resources.resize(_swapchain_count);
 
     if (!_is_minimized) {
         GravityTexture *LoadTexture(const std::string &texture_name, VkCommandBuffer command_buffer);
 
-        _texture = _gravity_resource_mgr->LoadTexture("lunarg.ppm", _vk_cmd_buffer);
+        _texture = _gravity_resource_mgr->LoadTexture("lunarg.ppm", vk_setup_command_buffer);
         if (nullptr == _texture) {
             logger.LogError("Failed loading lunarg.ppm texture");
             return false;
@@ -610,7 +617,7 @@ bool CubeApp::Setup() {
     }
     _current_buffer = 0;
 
-    if (!GravityApp::PostSetup()) {
+    if (!GravityApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
 
@@ -631,6 +638,10 @@ void CubeApp::CleanupCommandObjects(bool is_resize) {
         vkDestroyRenderPass(_vk_device, _vk_render_pass, NULL);
         vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, NULL);
         vkDestroyDescriptorSetLayout(_vk_device, _vk_desc_set_layout, NULL);
+        for (uint32_t i = 0; i < _swapchain_count; i++) {
+            _gravity_resource_mgr->FreeDeviceMemory(_swapchain_resources[i].uniform_memory);
+            vkDestroyBuffer(_vk_device, _swapchain_resources[i].uniform_buffer, nullptr);
+        }
     }
     GravityApp::CleanupCommandObjects(is_resize);
 }

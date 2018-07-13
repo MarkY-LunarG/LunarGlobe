@@ -83,8 +83,8 @@ class GravityApp {
 
    protected:
     virtual bool Setup() = 0;
-    bool PreSetup();
-    bool PostSetup();
+    bool PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
+    bool PostSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
     bool ProcessEvents();
     virtual void HandleEvent(GravityEvent &event);
     bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
@@ -101,7 +101,6 @@ class GravityApp {
     uint32_t _height;
     bool _prepared;
     bool _uses_staging_buffer;
-    bool _uses_staging_texture;
     bool _was_minimized;
     bool _is_minimized;
     bool _focused;
@@ -117,12 +116,10 @@ class GravityApp {
     VkDevice _vk_device;
     VkPresentModeKHR _vk_present_mode;
     uint32_t _swapchain_count;
-    std::vector<SwapchainImageResources> _swapchain_resources;
     VkFormat _vk_swapchain_format;
-    VkCommandPool _vk_cmd_pool;
-    VkCommandBuffer _vk_cmd_buffer;
+    VkCommandPool _vk_setup_command_pool;
+    VkCommandBuffer _vk_setup_command_buffer;
     GravityDepthBuffer _depth_buffer;
-    VkRenderPass _vk_render_pass;
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     ANativeWindow *_android_native_window;
 #endif

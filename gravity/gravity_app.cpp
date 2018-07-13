@@ -56,8 +56,8 @@ GravityApp::GravityApp() {
     _vk_phys_device = VK_NULL_HANDLE;
     _vk_device = VK_NULL_HANDLE;
     _vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    _vk_cmd_pool = VK_NULL_HANDLE;
-    _vk_cmd_buffer = VK_NULL_HANDLE;
+    _vk_setup_command_pool = VK_NULL_HANDLE;
+    _vk_setup_command_buffer = VK_NULL_HANDLE;
 }
 
 GravityApp::~GravityApp() {
@@ -285,9 +285,6 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
         return false;
     }
 
-    _swapchain_count = _gravity_submit_mgr->NumSwapchainImages();
-    _swapchain_resources.resize(_swapchain_count);
-
     if (!Setup()) {
         return false;
     }
@@ -295,19 +292,20 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     return true;
 }
 
-bool GravityApp::PreSetup() {
+bool GravityApp::PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer) {
     GravityLogger &logger = GravityLogger::getInstance();
 
     _gravity_submit_mgr->CreateSwapchain();
+    _swapchain_count = _gravity_submit_mgr->NumSwapchainImages();
     _vk_swapchain_format = _gravity_submit_mgr->GetSwapchainVkFormat();
 
-    if (_vk_cmd_pool == VK_NULL_HANDLE) {
+    if (_vk_setup_command_pool == VK_NULL_HANDLE) {
         VkCommandPoolCreateInfo cmd_pool_info = {};
         cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmd_pool_info.pNext = nullptr;
         cmd_pool_info.queueFamilyIndex = _gravity_submit_mgr->GetGraphicsQueueIndex();
         cmd_pool_info.flags = 0;
-        if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_info, nullptr, &_vk_cmd_pool)) {
+        if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_info, nullptr, &_vk_setup_command_pool)) {
             logger.LogFatalError("Failed creating device command pool");
             return false;
         }
@@ -316,10 +314,10 @@ bool GravityApp::PreSetup() {
     VkCommandBufferAllocateInfo cmd = {};
     cmd.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
     cmd.pNext = nullptr;
-    cmd.commandPool = _vk_cmd_pool;
+    cmd.commandPool = _vk_setup_command_pool;
     cmd.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
     cmd.commandBufferCount = 1;
-    if (VK_SUCCESS != vkAllocateCommandBuffers(_vk_device, &cmd, &_vk_cmd_buffer)) {
+    if (VK_SUCCESS != vkAllocateCommandBuffers(_vk_device, &cmd, &_vk_setup_command_buffer)) {
         logger.LogFatalError("Failed creating primary device command buffer");
         return false;
     }
@@ -328,7 +326,7 @@ bool GravityApp::PreSetup() {
     cmd_buf_info.pNext = nullptr;
     cmd_buf_info.flags = 0;
     cmd_buf_info.pInheritanceInfo = nullptr;
-    if (VK_SUCCESS != vkBeginCommandBuffer(_vk_cmd_buffer, &cmd_buf_info)) {
+    if (VK_SUCCESS != vkBeginCommandBuffer(_vk_setup_command_buffer, &cmd_buf_info)) {
         logger.LogFatalError("Failed beginning primary device command buffer");
         return false;
     }
@@ -388,15 +386,19 @@ bool GravityApp::PreSetup() {
             return false;
         }
     }
+    vk_setup_command_pool = _vk_setup_command_pool;
+    vk_setup_command_buffer = _vk_setup_command_buffer;
     return true;
 }
 
-bool GravityApp::PostSetup() {
+bool GravityApp::PostSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer) {
     GravityLogger &logger = GravityLogger::getInstance();
+    vk_setup_command_pool = VK_NULL_HANDLE;
+    vk_setup_command_buffer = VK_NULL_HANDLE;
 
     if (!_is_minimized) {
         // Flush all the initialization command buffer items
-        if (VK_SUCCESS != vkEndCommandBuffer(_vk_cmd_buffer)) {
+        if (VK_SUCCESS != vkEndCommandBuffer(_vk_setup_command_buffer)) {
             logger.LogFatalError("Failed ending primary device command buffer");
             return false;
         }
@@ -412,11 +414,13 @@ bool GravityApp::PostSetup() {
         }
 
         std::vector<VkCommandBuffer> command_buffers;
-        command_buffers.push_back(_vk_cmd_buffer);
+        command_buffers.push_back(_vk_setup_command_buffer);
         _gravity_submit_mgr->Submit(command_buffers, vk_fence, true);
-        vkFreeCommandBuffers(_vk_device, _vk_cmd_pool, 1, &_vk_cmd_buffer);
+        vkFreeCommandBuffers(_vk_device, _vk_setup_command_pool, 1, &_vk_setup_command_buffer);
         vkDestroyFence(_vk_device, vk_fence, nullptr);
-        _vk_cmd_buffer = VK_NULL_HANDLE;
+        _vk_setup_command_buffer = VK_NULL_HANDLE;
+        vkDestroyCommandPool(_vk_device, _vk_setup_command_pool, nullptr);
+        _vk_setup_command_pool = VK_NULL_HANDLE;
 
         _current_buffer = 0;
         _prepared = true;
@@ -452,12 +456,6 @@ void GravityApp::CleanupCommandObjects(bool is_resize) {
         } else {
             _gravity_submit_mgr->DestroySwapchain();
         }
-        for (uint32_t i = 0; i < _swapchain_count; i++) {
-            _gravity_resource_mgr->FreeDeviceMemory(_swapchain_resources[i].uniform_memory);
-            vkDestroyBuffer(_vk_device, _swapchain_resources[i].uniform_buffer, nullptr);
-        }
-        vkDestroyCommandPool(_vk_device, _vk_cmd_pool, nullptr);
-        _vk_cmd_pool = VK_NULL_HANDLE;
 
         if (!is_resize) {
             vkDeviceWaitIdle(_vk_device);
