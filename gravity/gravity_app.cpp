@@ -19,6 +19,8 @@
  */
 
 #include "gravity_event.hpp"
+#include "gravity_submit_manager.hpp"
+#include "gravity_resource_manager.hpp"
 #include "gravity_app.hpp"
 #include "gravity_logger.hpp"
 
@@ -34,6 +36,8 @@ GravityApp::GravityApp()
     _engine_version.major = GRAVITY_APP_ENGINE_MAJOR;
     _engine_version.minor = GRAVITY_APP_ENGINE_MINOR;
     _engine_version.patch = GRAVITY_APP_ENGINE_PATCH;
+    _gravity_resource_mgr = nullptr;
+    _gravity_submit_mgr = nullptr;
     _gravity_window = nullptr;
     _width = 100;
     _height = 100;
@@ -59,10 +63,17 @@ GravityApp::GravityApp()
 
 GravityApp::~GravityApp()
 {
-    if (nullptr != _gravity_window)
-    {
+    if (nullptr != _gravity_window) {
         delete _gravity_window;
         _gravity_window = nullptr;
+    }
+    if (nullptr != _gravity_resource_mgr) {
+        delete _gravity_resource_mgr;
+        _gravity_resource_mgr = nullptr;
+    }
+    if (nullptr != _gravity_submit_mgr) {
+        delete _gravity_submit_mgr;
+        _gravity_submit_mgr = nullptr;
     }
 }
 
@@ -78,6 +89,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
     _app_version.major = init_struct.version.major;
     _app_version.minor = init_struct.version.minor;
     _app_version.patch = init_struct.version.patch;
+    _resource_directory = "resources";
 
     // Handle command-line arguments
     size_t max_arg = init_struct.command_line_args.size();
@@ -110,6 +122,11 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
             }
             ++cur_arg;
         }
+        else if (init_struct.command_line_args[cur_arg] == "--resource_dir" && !_exit_on_frame && not_last_argument)
+        {
+            _resource_directory = init_struct.command_line_args[cur_arg + 1];
+            ++cur_arg;
+        }
         else if (init_struct.command_line_args[cur_arg] == "--suppress_popups")
         {
             logger.EnablePopups(false);
@@ -132,7 +149,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
 #else
         std::string usage_message = "Usage:\n  ";
         usage_message += _name;
-        usage_message += "\t[--use_staging] [--validate] [--break]\n"
+        usage_message += "\t[--resource_dir <directory] [--use_staging] [--validate] [--break]\n"
                          "\t[--c <framecount>] [--suppress_popups] [--display_timing]\n"
                          "\t[--present_mode <present mode enum>]\n"
                          "\t <present_mode_enum>\tVK_PRESENT_MODE_IMMEDIATE_KHR = ";
@@ -255,6 +272,13 @@ bool GravityApp::Init(GravityInitStruct &init_struct)
     _gravity_window->SetAndroidNativeWindow(_android_native_window);
 #endif
     _gravity_window->CreatePlatformWindow(_vk_instance, _vk_phys_device, init_struct.width, init_struct.height);
+
+    _gravity_resource_mgr = new GravityResourceManager(this, _resource_directory);
+    if (nullptr == _gravity_resource_mgr)
+    {
+        logger.LogFatalError("Failed to create resource manager!");
+        return false;
+    }
 
     _gravity_submit_mgr = new GravitySubmitManager(this, _gravity_window, _vk_instance, _vk_phys_device);
     if (nullptr == _gravity_submit_mgr)
@@ -475,7 +499,7 @@ bool GravityApp::PostSetup()
     return true;
 }
 
-bool GravityApp::SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type)
+bool GravityApp::SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type) const
 {
     uint32_t type_bits = requirements.memoryTypeBits;
     // Search memtypes to find first index with those properties

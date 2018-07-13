@@ -159,8 +159,6 @@ if(WIN32)
             string(REGEX REPLACE "/MD" "/MT" ${configuration} "${${configuration}}")
         endif()
     endforeach()
-
-   file(COPY gravity.vcxproj.user DESTINATION ${CMAKE_BINARY_DIR}/gravity)
 endif()
 
 add_custom_command(
@@ -194,6 +192,35 @@ include_directories(
     ${GRAVITY_INCLUDE_DIRS}
     )
 
+file(GLOB RESOURCES
+  "${PROJECT_SOURCE_DIR}/resources/*"
+)
+file(COPY ${RESOURCES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
+
+# Define macro used for building shader SPIR-V output
+macro(generate_gravity_spv input output)
+    add_custom_command(
+        OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${output}
+        COMMAND ${GLSLANG_VALIDATOR} -s -V -o ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${output} ${PROJECT_SOURCE_DIR}/resources/shaders/source/${input}
+        DEPENDS ${GLSLANG_VALIDATOR} ${PROJECT_SOURCE_DIR}/resources/shaders/source/${input}
+        COMMENT "Converting ${PROJECT_SOURCE_DIR}/resources/shaders/source/${input} to ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${output}"
+    )
+endmacro()
+
+set(GRAVITY_SHADER_PREFIXES
+    lit_texture
+   )
+
+foreach (shader_prefix ${GRAVITY_SHADER_PREFIXES})
+    generate_gravity_spv(${shader_prefix}_glsl.vert ${shader_prefix}-vs.spv)
+    generate_gravity_spv(${shader_prefix}_glsl.frag ${shader_prefix}-fs.spv)
+    set(SHADER_FILES
+        ${SHADER_FILES}
+        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${shader_prefix}-vs.spv
+        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${shader_prefix}-fs.spv
+       )
+endforeach(shader_prefix)
+
 ######################################################################################
 # gravity
 
@@ -208,7 +235,7 @@ set(GRAVITY_SOURCE_FILES
 if(APPLE)
 elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
-        add_executable(gravity_cube ${GRAVITY_SOURCE_FILES})
+        add_executable(gravity_cube ${GRAVITY_SOURCE_FILES} ${SHADER_FILES})
         target_link_libraries(gravity_cube ${LIBVK} gravity)
     endif()
 else()
@@ -218,7 +245,7 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_executable(gravity_cube WIN32 ${GRAVITY_SOURCE_FILES})
+    add_executable(gravity_cube WIN32 ${GRAVITY_SOURCE_FILES} ${SHADER_FILES})
     target_link_libraries(gravity_cube ${LIBVK} gravity)
 endif()
 

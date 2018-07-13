@@ -24,7 +24,6 @@
 #include <vector>
 
 #include "gravity_window.hpp"
-#include "gravity_submit_manager.hpp"
 
 struct GravityVersion
 {
@@ -60,19 +59,8 @@ struct GravityDepthBuffer
     VkImageView vk_image_view;
 };
 
-struct GravityTexture
-{
-    uint32_t width;
-    uint32_t height;
-    VkFormat vk_format;
-    VkSampler vk_sampler;
-    VkImage vk_image;
-    VkImageLayout vk_image_layout;
-    VkMemoryAllocateInfo vk_mem_alloc_info;
-    VkDeviceMemory vk_device_memory;
-    VkImageView vk_image_view;
-    std::vector<uint8_t> raw_data;
-};
+class GravityResourceManager;
+class GravitySubmitManager;
 
 class GravityApp
 {
@@ -87,6 +75,9 @@ class GravityApp
     virtual void CleanupCommandObjects(bool is_resize);
     virtual void Exit();
     bool Prepared() { return _prepared; }
+    virtual bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type) const;
+    void GetVkInfo(VkInstance& instance, VkPhysicalDevice& phys_device, VkDevice& device) const { instance = _vk_instance, phys_device = _vk_phys_device, device = _vk_device; }
+    bool UsesStagingBuffer() const { return _uses_staging_buffer; }
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     void SetAndroidNativeWindow(ANativeWindow *android_native_window) { _android_native_window = android_native_window; }
@@ -99,7 +90,6 @@ class GravityApp
     bool PostSetup();
     bool ProcessEvents();
     virtual void HandleEvent(GravityEvent& event);
-    virtual bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t &type);
     bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask, VkImageLayout old_image_layout,
                                       VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
                                       VkPipelineStageFlags dest_stages);
@@ -108,6 +98,7 @@ class GravityApp
     GravityVersion _app_version;
     GravityVersion _engine_version;
     GravityWindow *_gravity_window;
+    GravityResourceManager *_gravity_resource_mgr;
     GravitySubmitManager *_gravity_submit_mgr;
     uint32_t _width;
     uint32_t _height;
@@ -139,4 +130,5 @@ class GravityApp
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     ANativeWindow *_android_native_window;
 #endif
+    std::string _resource_directory;
 };

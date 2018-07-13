@@ -28,8 +28,6 @@
 #include <csignal>
 #include <assert.h>
 
-#include "gravity_vulkan_headers.hpp"
-
 #include "object_type_string_helper.h"
 #include "gravity_logger.hpp"
 #include "gravity_event.hpp"
@@ -509,6 +507,9 @@ void GravityLogger::LogError(std::string message) {
 #endif
     }
 #endif
+    if (_enable_break_on_error) {
+        assert(false);
+    }
 }
 
 void GravityLogger::LogFatalError(std::string message) {

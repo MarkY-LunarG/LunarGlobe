@@ -27,7 +27,7 @@
 #include <mutex>
 #include <unordered_map>
 
-#include <vulkan/vulkan.h>
+#include "gravity_vulkan_headers.hpp"
 
 enum GravityLogLevel {
     GRAVITY_LOG_DISABLE = 0,

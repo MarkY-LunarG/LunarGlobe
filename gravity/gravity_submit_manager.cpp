@@ -22,8 +22,8 @@
 
 #include "gravity_event.hpp"
 #include "gravity_logger.hpp"
-#include "gravity_app.hpp"
 #include "gravity_submit_manager.hpp"
+#include "gravity_app.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 

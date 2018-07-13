@@ -155,8 +155,6 @@ if(WIN32)
             string(REGEX REPLACE "/MD" "/MT" ${configuration} "${${configuration}}")
         endif()
     endforeach()
-
-   file(COPY gravity.vcxproj.user DESTINATION ${CMAKE_BINARY_DIR}/gravity)
 endif()
 
 include_directories(${CMAKE_CURRENT_BINARY_DIR} ${CMAKE_CURRENT_SOURCE_DIR})
@@ -189,6 +187,12 @@ set(GRAVITY_SOURCE_FILES
     gravity_event.cpp
     gravity_window.hpp
     gravity_window.cpp
+    gravity_resource_manager.hpp
+    gravity_resource_manager.cpp
+    gravity_shader.hpp
+    gravity_shader.cpp
+    gravity_texture.hpp
+    gravity_texture.cpp
     gravity_submit_manager.hpp
     gravity_submit_manager.cpp
 )

@@ -43,6 +43,9 @@
 #include "gravity/gravity_event.hpp"
 #include "gravity/gravity_window.hpp"
 #include "gravity/gravity_submit_manager.hpp"
+#include "gravity/gravity_shader.hpp"
+#include "gravity/gravity_texture.hpp"
+#include "gravity/gravity_resource_manager.hpp"
 #include "gravity/gravity_app.hpp"
 #include "gravity/gravity_main.hpp"
 
@@ -163,25 +166,17 @@ class CubeApp : public GravityApp
 
   private:
     bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
-    bool LoadTextures();
-    bool LoadTextureFromFile(const std::string &filename, VkImageTiling tiling, VkImageUsageFlags usage_flags,
-                             GravityTexture &texture);
-    bool LoadTextureFromFile(const std::string &filename, GravityTexture &target_texture,
-                             bool &uses_staging, GravityTexture &staging_texture);
     virtual void HandleEvent(GravityEvent& event);
 
     bool _uses_staging_texture;
     mat4x4 _projection_matrix;
     mat4x4 _view_matrix;
     mat4x4 _model_matrix;
-    std::vector<GravityTexture> _textures;
-    GravityTexture _staging_texture;
+    GravityTexture* _texture;
     VkDescriptorSetLayout _vk_desc_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkPipelineCache _vk_pipeline_cache;
     VkPipeline _vk_pipeline;
-    VkShaderModule _vk_vert_shader_module;
-    VkShaderModule _vk_frag_shader_module;
     VkDescriptorPool _vk_desc_pool;
 
     float _spin_angle;
@@ -195,8 +190,6 @@ CubeApp::CubeApp()
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_pipeline_cache = VK_NULL_HANDLE;
     _vk_pipeline = VK_NULL_HANDLE;
-    _vk_vert_shader_module = VK_NULL_HANDLE;
-    _vk_frag_shader_module = VK_NULL_HANDLE;
     _vk_desc_pool = VK_NULL_HANDLE;
 
 #if defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
@@ -219,6 +212,8 @@ CubeApp::CubeApp()
 
 CubeApp::~CubeApp()
 {
+    _gravity_resource_mgr->FreeAllTextures();
+    _gravity_resource_mgr->FreeAllShaders();
 }
 
 bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index)
@@ -306,7 +301,13 @@ bool CubeApp::Setup()
     }
 
     if (!_is_minimized) {
-        LoadTextures();
+        GravityTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
+
+        _texture = _gravity_resource_mgr->LoadTexture("lunarg.ppm", _vk_cmd_buffer);
+        if (nullptr == _texture) {
+            logger.LogError("Failed loading lunarg.ppm texture");
+            return false;
+        }
 
         uint8_t *pData;
         mat4x4 MVP, VP;
@@ -533,46 +534,11 @@ bool CubeApp::Setup()
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        const uint32_t vs_code[] = {
-#include "gravity_cube.vert.inc"
-        };
-        const uint32_t fs_code[] = {
-#include "gravity_cube.frag.inc"
-        };
-
-        VkShaderModuleCreateInfo moduleCreateInfo;
-        moduleCreateInfo.sType = VK_STRUCTURE_TYPE_SHADER_MODULE_CREATE_INFO;
-        moduleCreateInfo.pNext = NULL;
-        moduleCreateInfo.flags = 0;
-        moduleCreateInfo.codeSize = sizeof(vs_code);
-        moduleCreateInfo.pCode = vs_code;
-        if (VK_SUCCESS != vkCreateShaderModule(_vk_device, &moduleCreateInfo, nullptr, &_vk_vert_shader_module)) {
-            logger.LogFatalError("Failed to create vertex shader module");
-            return false;
-        }
-        moduleCreateInfo.codeSize = sizeof(fs_code);
-        moduleCreateInfo.pCode = fs_code;
-        if (VK_SUCCESS != vkCreateShaderModule(_vk_device, &moduleCreateInfo, nullptr, &_vk_frag_shader_module)) {
-            logger.LogFatalError("Failed to create fragment shader module");
-            return false;
-        }
-
-        // Two stages: vs and fs
-        VkPipelineShaderStageCreateInfo shaderStages[2];
-        memset(&shaderStages, 0, 2 * sizeof(VkPipelineShaderStageCreateInfo));
-
-        shaderStages[0].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStages[0].stage = VK_SHADER_STAGE_VERTEX_BIT;
-        shaderStages[0].module = _vk_vert_shader_module;
-        shaderStages[0].pName = "main";
-
-        shaderStages[1].sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
-        shaderStages[1].stage = VK_SHADER_STAGE_FRAGMENT_BIT;
-        shaderStages[1].module = _vk_frag_shader_module;
-        shaderStages[1].pName = "main";
+        GravityShader* cube_shader = _gravity_resource_mgr->LoadShader("lit_texture");
+        std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
+        cube_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
 
         pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-
         if (VK_SUCCESS != vkCreatePipelineCache(_vk_device, &pipeline_cache_create_info, nullptr, &_vk_pipeline_cache)) {
             logger.LogFatalError("Failed to create pipeline cache");
             return false;
@@ -585,8 +551,8 @@ bool CubeApp::Setup()
         gfx_pipeline_create_info.pMultisampleState = &pipeline_multisample_state_create_info;
         gfx_pipeline_create_info.pViewportState = &pipeline_viewport_state_create_info;
         gfx_pipeline_create_info.pDepthStencilState = &pipeline_depth_stencil_state_create_info;
-        gfx_pipeline_create_info.stageCount = ARRAY_SIZE(shaderStages);
-        gfx_pipeline_create_info.pStages = shaderStages;
+        gfx_pipeline_create_info.stageCount = pipeline_shader_stage_create_info.size();
+        gfx_pipeline_create_info.pStages = pipeline_shader_stage_create_info.data();
         gfx_pipeline_create_info.renderPass = _vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &dynamicState;
 
@@ -595,8 +561,7 @@ bool CubeApp::Setup()
             return false;
         }
 
-        vkDestroyShaderModule(_vk_device, _vk_frag_shader_module, nullptr);
-        vkDestroyShaderModule(_vk_device, _vk_vert_shader_module, nullptr);
+        _gravity_resource_mgr->FreeShader(cube_shader);
 
         VkDescriptorPoolSize type_counts[2] = {{}, {}};
         type_counts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -629,8 +594,8 @@ bool CubeApp::Setup()
         buffer_info.offset = 0;
         buffer_info.range = sizeof(struct vktexgravity_vs_uniform);
 
-        descriptor_image_info.sampler = _textures[0].vk_sampler;
-        descriptor_image_info.imageView = _textures[0].vk_image_view;
+        descriptor_image_info.sampler = _texture->GetVkSampler();
+        descriptor_image_info.imageView = _texture->GetVkImageView();
         descriptor_image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
 
         writes[0].sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
@@ -671,14 +636,8 @@ bool CubeApp::Setup()
         return false;
     }
 
-    if (_uses_staging_texture &&
-        VK_NULL_HANDLE != _staging_texture.vk_device_memory &&
-        VK_NULL_HANDLE != _staging_texture.vk_image)
-    {
-        vkFreeMemory(_vk_device, _staging_texture.vk_device_memory, NULL);
-        vkDestroyImage(_vk_device, _staging_texture.vk_image, NULL);
-        _staging_texture = {};
-        _uses_staging_texture = false;
+    if (_texture->UsesStagingTexture()) {
+        _texture->DeleteStagingTexture();
     }
 
     return true;
@@ -688,23 +647,7 @@ void CubeApp::CleanupCommandObjects(bool is_resize)
 {
     if (!_is_minimized)
     {
-        for (auto texture : _textures)
-        {
-            vkDestroySampler(_vk_device, texture.vk_sampler, nullptr);
-            vkDestroyImageView(_vk_device, texture.vk_image_view, nullptr);
-            vkDestroyImage(_vk_device, texture.vk_image, nullptr);
-            vkFreeMemory(_vk_device, texture.vk_device_memory, nullptr);
-        }
-        _textures.clear();
-        if (_uses_staging_texture &&
-            VK_NULL_HANDLE != _staging_texture.vk_device_memory &&
-            VK_NULL_HANDLE != _staging_texture.vk_image)
-        {
-            vkFreeMemory(_vk_device, _staging_texture.vk_device_memory, NULL);
-            vkDestroyImage(_vk_device, _staging_texture.vk_image, NULL);
-            _staging_texture = {};
-            _uses_staging_texture = false;
-        }
+        _gravity_resource_mgr->FreeAllTextures();
         vkDestroyDescriptorPool(_vk_device, _vk_desc_pool, NULL);
 
         vkDestroyPipeline(_vk_device, _vk_pipeline, NULL);
@@ -714,340 +657,6 @@ void CubeApp::CleanupCommandObjects(bool is_resize)
         vkDestroyDescriptorSetLayout(_vk_device, _vk_desc_set_layout, NULL);
     }
     GravityApp::CleanupCommandObjects(is_resize);
-}
-
-bool CubeApp::LoadTextureFromFile(const std::string &filename, GravityTexture &gravity_texture,
-                                  bool &uses_staging, GravityTexture &staging_texture)
-{
-    GravityLogger &logger = GravityLogger::getInstance();
-
-    VkFormatProperties vk_format_props;
-    vkGetPhysicalDeviceFormatProperties(_vk_phys_device, gravity_texture.vk_format, &vk_format_props);
-
-    VkImageUsageFlags loading_texture_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
-    GravityTexture *target_texture = &gravity_texture;
-    uses_staging = false;
-    if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !_uses_staging_buffer)
-    {
-        loading_texture_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        target_texture = &staging_texture;
-        uses_staging = true;
-    }
-
-    // Textures loaded from files are treated as RGBA with 8-bit components
-    target_texture->vk_format = VK_FORMAT_R8G8B8A8_UNORM;
-
-#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-    filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename)].UTF8String;
-#endif
-
-#ifdef __ANDROID__
-#include <lunarg.ppm.h>
-    char *cPtr;
-    cPtr = (char *)lunarg_ppm;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3))
-    {
-        return false;
-    }
-    while (strncmp(cPtr++, "\n", 1))
-        ;
-    sscanf(cPtr, "%u %u", &target_texture->width, &target_texture->height);
-    target_texture->raw_data.resize(target_texture->width * target_texture->height * 4);
-    uint8_t *rgba_data = target_texture->raw_data.data();
-    while (strncmp(cPtr++, "\n", 1))
-        ;
-    if ((unsigned char *)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4))
-    {
-        return false;
-    }
-    while (strncmp(cPtr++, "\n", 1))
-        ;
-
-    uint8_t *row_ptr = rgba_data;
-    for (int y = 0; y < target_texture->height; y++)
-    {
-        for (int x = 0; x < target_texture->width; x++)
-        {
-            memcpy(row_ptr, cPtr, 3);
-            row_ptr[3] = 255;
-            row_ptr += 4;
-            cPtr += 3;
-        }
-    }
-#else
-    FILE *fPtr = fopen(filename.c_str(), "rb");
-    char header[256], *cPtr, *tmp;
-
-    if (!fPtr)
-        return false;
-
-    cPtr = fgets(header, 256, fPtr); // P6
-    if (cPtr == NULL || strncmp(header, "P6\n", 3))
-    {
-        fclose(fPtr);
-        return false;
-    }
-
-    do
-    {
-        cPtr = fgets(header, 256, fPtr);
-        if (cPtr == NULL)
-        {
-            fclose(fPtr);
-            return false;
-        }
-    } while (!strncmp(header, "#", 1));
-
-    sscanf(header, "%u %u", &target_texture->width, &target_texture->height);
-    target_texture->raw_data.resize(target_texture->width * target_texture->height * 4);
-    uint8_t *rgba_data = target_texture->raw_data.data();
-    tmp = fgets(header, 256, fPtr); // Format
-    (void)tmp;
-    if (cPtr == NULL || strncmp(header, "255\n", 3))
-    {
-        fclose(fPtr);
-        return false;
-    }
-
-    uint8_t *row_ptr = rgba_data;
-    for (uint32_t y = 0; y < target_texture->height; y++)
-    {
-        for (uint32_t x = 0; x < target_texture->width; x++)
-        {
-            size_t s = fread(row_ptr, 3, 1, fPtr);
-            (void)s;
-            row_ptr[3] = 255;
-            row_ptr += 4;
-        }
-    }
-    fclose(fPtr);
-#endif
-
-    VkImageCreateInfo image_create_info = {};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.pNext = nullptr;
-    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = target_texture->vk_format;
-    image_create_info.extent.width = target_texture->width;
-    image_create_info.extent.height = target_texture->height;
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 1;
-    image_create_info.arrayLayers = 1;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
-    image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-    image_create_info.usage = loading_texture_usage_flags;
-    image_create_info.flags = 0;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    if (VK_SUCCESS != vkCreateImage(_vk_device, &image_create_info, NULL, &target_texture->vk_image))
-    {
-        std::string error_message = "Failed to load texture from file \"";
-        error_message += filename;
-        error_message += "\"";
-        logger.LogFatalError(error_message);
-        return false;
-    }
-
-    VkMemoryRequirements texture_mem_reqs = {};
-    vkGetImageMemoryRequirements(_vk_device, target_texture->vk_image, &texture_mem_reqs);
-    target_texture->vk_mem_alloc_info = {};
-    target_texture->vk_mem_alloc_info.sType = VK_STRUCTURE_TYPE_MEMORY_ALLOCATE_INFO;
-    target_texture->vk_mem_alloc_info.pNext = nullptr;
-    target_texture->vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
-    if (!SelectMemoryTypeUsingRequirements(texture_mem_reqs, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT), target_texture->vk_mem_alloc_info.memoryTypeIndex))
-    {
-        logger.LogFatalError("Failed to find memory type supporting necessary texture requirements");
-        return false;
-    }
-
-    if (VK_SUCCESS != vkAllocateMemory(_vk_device, &target_texture->vk_mem_alloc_info, nullptr, &target_texture->vk_device_memory))
-    {
-        logger.LogFatalError("Failed to allocate memory for texture image");
-        return false;
-    }
-
-    if (VK_SUCCESS != vkBindImageMemory(_vk_device, target_texture->vk_image, target_texture->vk_device_memory, 0))
-    {
-        logger.LogFatalError("Failed to binding memory to texture image");
-        return false;
-    }
-
-    VkImageSubresource image_subresource = {};
-    image_subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_subresource.mipLevel = 0;
-    image_subresource.arrayLayer = 0;
-    VkSubresourceLayout vk_subresource_layout;
-
-    vkGetImageSubresourceLayout(_vk_device, target_texture->vk_image, &image_subresource, &vk_subresource_layout);
-
-    void *data;
-    if (VK_SUCCESS != vkMapMemory(_vk_device, target_texture->vk_device_memory, 0, target_texture->vk_mem_alloc_info.allocationSize, 0, &data))
-    {
-        logger.LogFatalError("Failed to map memory for copying over texture image");
-        return false;
-    }
-    uint8_t *data_ptr = reinterpret_cast<uint8_t *>(data);
-    row_ptr = target_texture->raw_data.data();
-    uint32_t from_size = target_texture->width * 4;
-    uint32_t to_size = target_texture->width * 4;
-    for (uint32_t y = 0; y < target_texture->height; y++)
-    {
-        memcpy(data_ptr, row_ptr, from_size);
-        row_ptr += from_size;
-        data_ptr += vk_subresource_layout.rowPitch;
-    }
-    vkUnmapMemory(_vk_device, target_texture->vk_device_memory);
-
-    target_texture->raw_data.clear();
-    target_texture->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // If we need to place this in tiled memory, we need to use a staging texture.
-    if (uses_staging)
-    {
-        if (!TransitionVkImageLayout(_vk_cmd_buffer, staging_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                     VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, static_cast<VkAccessFlagBits>(0),
-                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT))
-        {
-            logger.LogFatalError("Failed to transition staging image to transfer format");
-            return false;
-        }
-
-        gravity_texture.width = staging_texture.width;
-        gravity_texture.height = staging_texture.height;
-        gravity_texture.vk_format = staging_texture.vk_format;
-        gravity_texture.vk_mem_alloc_info = staging_texture.vk_mem_alloc_info;
-        image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
-        if (VK_SUCCESS != vkCreateImage(_vk_device, &image_create_info, NULL, &gravity_texture.vk_image))
-        {
-            std::string error_message = "Failed to setup optimized tiled texture target for \"";
-            error_message += filename;
-            error_message += "\"";
-            logger.LogFatalError(error_message);
-            return false;
-        }
-        vkGetImageMemoryRequirements(_vk_device, gravity_texture.vk_image, &texture_mem_reqs);
-        target_texture->vk_mem_alloc_info.allocationSize = texture_mem_reqs.size;
-        if (!SelectMemoryTypeUsingRequirements(texture_mem_reqs, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT, gravity_texture.vk_mem_alloc_info.memoryTypeIndex))
-        {
-            logger.LogFatalError("Failed to find memory type supporting necessary tiled texture requirements");
-            return false;
-        }
-
-        if (VK_SUCCESS != vkAllocateMemory(_vk_device, &gravity_texture.vk_mem_alloc_info, nullptr, &gravity_texture.vk_device_memory))
-        {
-            logger.LogFatalError("Failed to allocate memory for tiled texture image");
-            return false;
-        }
-
-        if (VK_SUCCESS != vkBindImageMemory(_vk_device, gravity_texture.vk_image, gravity_texture.vk_device_memory, 0))
-        {
-            logger.LogFatalError("Failed to binding memory to tiled texture image");
-            return false;
-        }
-
-        gravity_texture.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-        if (!TransitionVkImageLayout(_vk_cmd_buffer, gravity_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, static_cast<VkAccessFlagBits>(0),
-                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT))
-        {
-            logger.LogFatalError("Failed to transition resulting image to accept staging content");
-            return false;
-        }
-    }
-    else
-    {
-        if (!TransitionVkImageLayout(_vk_cmd_buffer, gravity_texture.vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_PREINITIALIZED,
-                                     gravity_texture.vk_image_layout, static_cast<VkAccessFlagBits>(0),
-                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT))
-        {
-            logger.LogFatalError("Failed to transition texture image to shader readable format");
-            return false;
-        }
-    }
-
-    return true;
-}
-
-bool CubeApp::LoadTextures()
-{
-    GravityLogger &logger = GravityLogger::getInstance();
-
-    _textures.resize(1);
-    if (!LoadTextureFromFile("lunarg.ppm", _textures[0], _uses_staging_texture, _staging_texture))
-    {
-        logger.LogFatalError("Failed to load textures");
-        return false;
-    }
-
-    if (_uses_staging_buffer)
-    {
-        VkImageCopy copy_region = {};
-        copy_region.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        copy_region.srcOffset = {0, 0, 0};
-        copy_region.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        copy_region.dstOffset = {0, 0, 0};
-        copy_region.extent.width = _staging_texture.width;
-        copy_region.extent.height = _staging_texture.height;
-        copy_region.extent.depth = 1;
-        vkCmdCopyImage(_vk_cmd_buffer, _staging_texture.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL, _textures[0].vk_image,
-                       VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &copy_region);
-        if (!TransitionVkImageLayout(_vk_cmd_buffer, _textures[0].vk_image, VK_IMAGE_ASPECT_COLOR_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     _textures[0].vk_image_layout, VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT))
-        {
-            logger.LogFatalError("Failed to transition resulting texture to shader readable after staging copy");
-            return false;
-        }
-    }
-
-    VkSamplerCreateInfo sampler_create_info = {};
-    sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
-    sampler_create_info.pNext = nullptr;
-    sampler_create_info.magFilter = VK_FILTER_NEAREST;
-    sampler_create_info.minFilter = VK_FILTER_NEAREST;
-    sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_NEAREST;
-    sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
-    sampler_create_info.mipLodBias = 0.0f;
-    sampler_create_info.anisotropyEnable = VK_FALSE;
-    sampler_create_info.maxAnisotropy = 1;
-    sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
-    sampler_create_info.minLod = 0.0f;
-    sampler_create_info.maxLod = 0.0f;
-    sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
-    sampler_create_info.unnormalizedCoordinates = VK_FALSE;
-
-    VkImageViewCreateInfo image_view_create_info = {};
-    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
-    image_view_create_info.pNext = nullptr;
-    image_view_create_info.image = VK_NULL_HANDLE;
-    image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
-    image_view_create_info.format = _textures[0].vk_format;
-    image_view_create_info.components = {
-        VK_COMPONENT_SWIZZLE_R,
-        VK_COMPONENT_SWIZZLE_G,
-        VK_COMPONENT_SWIZZLE_B,
-        VK_COMPONENT_SWIZZLE_A,
-    };
-    image_view_create_info.subresourceRange = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 1, 0, 1};
-    image_view_create_info.flags = 0;
-
-    if (VK_SUCCESS != vkCreateSampler(_vk_device, &sampler_create_info, nullptr, &_textures[0].vk_sampler))
-    {
-        logger.LogFatalError("Failed creating texture sampler for primary texture");
-        return false;
-    }
-
-    image_view_create_info.image = _textures[0].vk_image;
-    if (VK_SUCCESS != vkCreateImageView(_vk_device, &image_view_create_info, nullptr, &_textures[0].vk_image_view))
-    {
-        logger.LogFatalError("Failed creating texture image view for primary texture");
-        return false;
-    }
-
-    return true;
 }
 
 bool CubeApp::Draw()
