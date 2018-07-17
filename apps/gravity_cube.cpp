@@ -209,10 +209,7 @@ CubeApp::CubeApp() {
     mat4x4_identity(_model_matrix);
 }
 
-CubeApp::~CubeApp() {
-    _gravity_resource_mgr->FreeAllTextures();
-    _gravity_resource_mgr->FreeAllShaders();
-}
+CubeApp::~CubeApp() {}
 
 bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
     GravityLogger &logger = GravityLogger::getInstance();
@@ -521,7 +518,12 @@ bool CubeApp::Setup() {
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GravityShader *cube_shader = _gravity_resource_mgr->LoadShader("lit_texture");
+        GravityShader *cube_shader = _gravity_resource_mgr->LoadShader("position_lit_texture");
+        if (nullptr == cube_shader) {
+            logger.LogFatalError("Failed to load position and lit texture shader");
+            return false;
+        }
+
         std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
         cube_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
 
@@ -670,7 +672,7 @@ bool CubeApp::Draw() {
     vkUnmapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory);
 
     _gravity_submit_mgr->SubmitAndPresent();
-    return true;
+    return GravityApp::Draw();
 }
 
 void CubeApp::HandleEvent(GravityEvent &event) {
@@ -696,12 +698,8 @@ static CubeApp *g_app = nullptr;
 GRAVITY_APP_MAIN() {
     GravityInitStruct init_struct = {};
 
-#if 0
     GRAVITY_APP_MAIN_BEGIN(init_struct)
-#else
-
-#endif
-    init_struct.app_name = "Gravity App 1 - Cube";
+    init_struct.app_name = "Gravity App - Cube";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;

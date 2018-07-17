@@ -568,7 +568,7 @@ bool GravitySubmitManager::CreateSwapchain()
     cmd_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
     cmd_pool_create_info.pNext = nullptr;
     cmd_pool_create_info.queueFamilyIndex = _graphics_queue_family_index;
-    cmd_pool_create_info.flags = 0;
+    cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
     if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_create_info, NULL, &_vk_command_pool))
     {
         logger.LogFatalError("Failed to create swapchain command pool");

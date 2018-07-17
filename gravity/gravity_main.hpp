@@ -123,7 +123,11 @@ static void demo_main(struct Demo *demo, void *view) {
 
 #define GRAVITY_APP_MAIN() int main(int argc, char **argv)
 
-#define GRAVITY_APP_MAIN_BEGIN(init_struct)
+#define GRAVITY_APP_MAIN_BEGIN(init_struct)                 \
+    init_struct.command_line_args.resize(argc - 1);         \
+    for (int iii = 1; iii < argc; iii++) {                  \
+        init_struct.command_line_args[iii - 1] = argv[iii]; \
+    }
 
 #define GRAVITY_APP_MAIN_END(return_val) return return_val;
 

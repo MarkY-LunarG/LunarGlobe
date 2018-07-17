@@ -930,23 +930,6 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     _native_win_info.vk_instance = instance;
     _native_win_info.vk_physical_device = phys_device;
 
-    VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR fpGetPhysicalDeviceSurfaceCapabilities =
-        reinterpret_cast<PFN_vkGetPhysicalDeviceSurfaceCapabilitiesKHR>(
-            vkGetInstanceProcAddr(instance, "vkGetPhysicalDeviceSurfaceCapabilitiesKHR"));
-    if (nullptr == fpGetPhysicalDeviceSurfaceCapabilities ||
-        VK_SUCCESS != fpGetPhysicalDeviceSurfaceCapabilities(phys_device, vk_surface, &surface_capabilities)) {
-        logger.LogError("Failed to query physical device surface capabilities");
-        return false;
-    }
-
-    // Width/height of surface can be affected by swapchain capabilities of the
-    // physical device.  So adjust them if necessary.
-    if (surface_capabilities.currentExtent.width != 0xFFFFFFFF) {
-        width = surface_capabilities.currentExtent.width;
-        height = surface_capabilities.currentExtent.height;
-    }
-
     logger.LogInfo("Created Platform Window");
     return true;
 }

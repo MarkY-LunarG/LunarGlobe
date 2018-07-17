@@ -116,11 +116,6 @@ else()
     message(FATAL_ERROR "Unsupported Platform!")
 endif()
 
-file(GLOB TEXTURES
-  "${PROJECT_SOURCE_DIR}/gravity/*.ppm"
-  )
-file(COPY ${TEXTURES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
-
 set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS}")
 set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS}")
 
@@ -181,6 +176,7 @@ include_directories(
 file(GLOB RESOURCES
   "${PROJECT_SOURCE_DIR}/resources/*"
 )
+file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resources)
 file(COPY ${RESOURCES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
 # Define macro used for building shader SPIR-V output
@@ -193,19 +189,27 @@ macro(generate_gravity_spv input output)
     )
 endmacro()
 
-set(GRAVITY_SHADER_PREFIXES
-    lit_texture
-   )
-
-foreach (shader_prefix ${GRAVITY_SHADER_PREFIXES})
-    generate_gravity_spv(${shader_prefix}_glsl.vert ${shader_prefix}-vs.spv)
-    generate_gravity_spv(${shader_prefix}_glsl.frag ${shader_prefix}-fs.spv)
+file(GLOB VERTEX_SHADER_FILES "${PROJECT_SOURCE_DIR}/resources/shaders/source/*.vert")
+foreach(CUR_VERTEX_SHADER_FILE ${VERTEX_SHADER_FILES})
+    get_filename_component(VERTEX_SHADER_GLSL ${CUR_VERTEX_SHADER_FILE} NAME_WE)
+    STRING(REPLACE "_glsl" "-vs" VERTEX_SHADER_SPIRV ${VERTEX_SHADER_GLSL} )
+    generate_gravity_spv(${VERTEX_SHADER_GLSL}.vert ${VERTEX_SHADER_SPIRV}.spv)
     set(SHADER_FILES
         ${SHADER_FILES}
-        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${shader_prefix}-vs.spv
-        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${shader_prefix}-fs.spv
+        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${VERTEX_SHADER_SPIRV}.spv
        )
-endforeach(shader_prefix)
+endforeach(CUR_VERTEX_SHADER_FILE)
+
+file(GLOB FRAGMENT_SHADER_FILES "${PROJECT_SOURCE_DIR}/resources/shaders/source/*.frag")
+foreach(CUR_FRAGMENT_SHADER_FILE ${FRAGMENT_SHADER_FILES})
+    get_filename_component(FRAGMENT_SHADER_GLSL ${CUR_FRAGMENT_SHADER_FILE} NAME_WE)
+    STRING(REPLACE "_glsl" "-fs" FRAGMENT_SHADER_SPIRV ${FRAGMENT_SHADER_GLSL} )
+    generate_gravity_spv(${FRAGMENT_SHADER_GLSL}.frag ${FRAGMENT_SHADER_SPIRV}.spv)
+    set(SHADER_FILES
+        ${SHADER_FILES}
+        ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${FRAGMENT_SHADER_SPIRV}.spv
+       )
+endforeach(CUR_FRAGMENT_SHADER_FILE)
 
 ######################################################################################
 # gravity
@@ -215,6 +219,9 @@ elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
         add_executable(gravity_cube gravity_cube.cpp ${SHADER_FILES})
         target_link_libraries(gravity_cube ${LIBVK} gravity)
+
+        add_executable(gravity_triangle gravity_triangle.cpp ${SHADER_FILES})
+        target_link_libraries(gravity_triangle ${LIBVK} gravity)
     endif()
 else()
     if (CMAKE_CL_64)
@@ -225,5 +232,8 @@ else()
 
     add_executable(gravity_cube WIN32 gravity_cube.cpp ${SHADER_FILES})
     target_link_libraries(gravity_cube ${LIBVK} gravity)
+
+    add_executable(gravity_triangle WIN32 gravity_triangle.cpp ${SHADER_FILES})
+    target_link_libraries(gravity_triangle ${LIBVK} gravity)
 endif()
 

@@ -28,8 +28,14 @@ thus as copyrighted by LunarG starting in 2018.
 
 ## History
 
-The majority of LunarGravity code is based on the original
+LunarGravity started out as a remodelling of the
 [LunarG Cube demo source](https://github.com/KhronosGroup/Vulkan-Tools/tree/master/cube).
-However, that code was very monolithic and wasn't flexible enough for my design.
+It is now split into a library and applications.  The "gravity_cube"
+application is very similar in behavior to the original LunarG Cube demo.
 
+## Applications
+
+The current list of applications are:
+ * gravity_cube - A version of the LunarG Cube demo running on this framework
+ * gravity_triangle - A simple indexed vertex buffer render of a triangle
 

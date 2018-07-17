@@ -66,6 +66,8 @@ GravityApp::~GravityApp() {
         _gravity_window = nullptr;
     }
     if (nullptr != _gravity_resource_mgr) {
+        _gravity_resource_mgr->FreeAllTextures();
+        _gravity_resource_mgr->FreeAllShaders();
         delete _gravity_resource_mgr;
         _gravity_resource_mgr = nullptr;
     }
@@ -107,7 +109,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
                 _exit_on_frame = true;
             }
             ++cur_arg;
-        } else if (init_struct.command_line_args[cur_arg] == "--resource_dir" && !_exit_on_frame && not_last_argument) {
+        } else if (init_struct.command_line_args[cur_arg] == "--resource_dir" && not_last_argument) {
             _resource_directory = init_struct.command_line_args[cur_arg + 1];
             ++cur_arg;
         } else if (init_struct.command_line_args[cur_arg] == "--suppress_popups") {
@@ -292,7 +294,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     return true;
 }
 
-bool GravityApp::PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer) {
+bool GravityApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
     GravityLogger &logger = GravityLogger::getInstance();
 
     _gravity_submit_mgr->CreateSwapchain();
@@ -304,7 +306,7 @@ bool GravityApp::PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer&
         cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmd_pool_info.pNext = nullptr;
         cmd_pool_info.queueFamilyIndex = _gravity_submit_mgr->GetGraphicsQueueIndex();
-        cmd_pool_info.flags = 0;
+        cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_info, nullptr, &_vk_setup_command_pool)) {
             logger.LogFatalError("Failed creating device command pool");
             return false;
@@ -391,7 +393,7 @@ bool GravityApp::PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer&
     return true;
 }
 
-bool GravityApp::PostSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer) {
+bool GravityApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
     GravityLogger &logger = GravityLogger::getInstance();
     vk_setup_command_pool = VK_NULL_HANDLE;
     vk_setup_command_buffer = VK_NULL_HANDLE;
