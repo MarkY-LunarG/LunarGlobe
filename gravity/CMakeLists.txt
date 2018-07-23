@@ -211,5 +211,5 @@ else()
     endif()
 
     add_library(gravity ${GRAVITY_SOURCE_FILES})
-    target_link_libraries(gravity ${LIBVK})
+    target_link_libraries(gravity ${LIBVK} Shcore.lib)
 endif()

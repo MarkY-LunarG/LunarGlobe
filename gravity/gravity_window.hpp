@@ -88,6 +88,7 @@ class GravityWindow {
     bool DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface);
 
     const NativeWindowInfo &GetNativeWinInfo() const { return _native_win_info; }
+    bool IsValid() { return _window_created; }
     bool IsFullScreen() { return _is_fullscreen; }
     uint32_t Width() const { return _width; }
     uint32_t Height() const { return _height; }
@@ -121,6 +122,7 @@ class GravityWindow {
     uint32_t _width;
     uint32_t _height;
     bool _is_fullscreen;
+    bool _window_created;
     NativeWindowInfo _native_win_info;
     VkSurfaceKHR _vk_surface;
 };

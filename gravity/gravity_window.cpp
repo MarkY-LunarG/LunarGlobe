@@ -27,6 +27,9 @@
 #include "gravity_logger.hpp"
 #include "gravity_event.hpp"
 #include "gravity_window.hpp"
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+#include "shellscalingapi.h"
+#endif
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
@@ -47,7 +50,7 @@ static const wl_registry_listener registry_listener = {registry_handle_global, r
 #endif
 
 GravityWindow::GravityWindow(GravityApp *app, const std::string &name)
-    : _associated_app(app), _name(name), _is_fullscreen(false), _vk_surface(VK_NULL_HANDLE) {
+    : _associated_app(app), _name(name), _is_fullscreen(false), _window_created(false), _vk_surface(VK_NULL_HANDLE) {
 #ifdef VK_USE_PLATFORM_XCB_KHR
     const xcb_setup_t *setup;
     xcb_screen_iterator_t iter;
@@ -381,9 +384,14 @@ bool GravityWindow::DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface)
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 
 // MS-Windows event handling function:
-LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+static LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     GravityEventType gravity_event_type = GRAVITY_EVENT_NONE;
     switch (uMsg) {
+        case WM_CREATE: {
+            CREATESTRUCT *cs = reinterpret_cast<CREATESTRUCT *>(lParam);
+            GravityWindow *gravity_window = reinterpret_cast<GravityWindow *>(cs->lpCreateParams);
+            SetWindowLongPtr(hWnd, 0, (LONG_PTR)gravity_window);
+        } break;
         case WM_CLOSE:
             GravityEventList::getInstance().InsertEvent(GravityEvent(GRAVITY_EVENT_QUIT));
             break;
@@ -396,26 +404,18 @@ LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
         }
         case WM_GETMINMAXINFO:  // set window's minimum size
         {
-            GravityWindow *gravity_window = reinterpret_cast<GravityWindow *>(lParam);
-            const NativeWindowInfo native_win_info = gravity_window->GetNativeWinInfo();
-            ((MINMAXINFO *)lParam)->ptMinTrackSize = native_win_info.minsize;
-            return 0;
-        }
-        case WM_KEYDOWN: {
-            FILE *fp = fopen("C:\\dev\\vulkan\\mark.txt", "at");
-            if (fp) {
-                fprintf(fp, "window->keydown (%d)\n", (uint32_t)(lParam)&0xf);
-                fclose(fp);
+            GravityWindow *gravity_window = reinterpret_cast<GravityWindow *>(GetWindowLongPtr(hWnd, 0));
+            if (nullptr != gravity_window) {
+                const NativeWindowInfo native_win_info = gravity_window->GetNativeWinInfo();
+                ((MINMAXINFO *)lParam)->ptMinTrackSize = native_win_info.minsize;
             }
+        }
+            return 0;
+        case WM_KEYDOWN: {
             gravity_event_type = GRAVITY_EVENT_KEY_PRESS;
             break;
         }
         case WM_KEYUP: {
-            FILE *fp = fopen("C:\\dev\\vulkan\\mark.txt", "at");
-            if (fp) {
-                fprintf(fp, "window->keyup (%d)\n", (uint32_t)(lParam)&0xf);
-                fclose(fp);
-            }
             gravity_event_type = GRAVITY_EVENT_KEY_RELEASE;
             break;
         }
@@ -461,9 +461,8 @@ LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM l
             } break;
         }
         return 0;
-    } else {
-        return (DefWindowProc(hWnd, uMsg, wParam, lParam));
     }
+    return (DefWindowProc(hWnd, uMsg, wParam, lParam));
 }
 
 #endif
@@ -806,32 +805,65 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     _height = height;
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-    WNDCLASSEX win_class;
+    int windows_error = GetLastError();
+    DWORD windows_extended_style = {};
+    DWORD windows_style = {};
+    WNDCLASSEX win_class_ex = {};
+    if (NULL == _native_win_info.instance_handle) {
+        _native_win_info.instance_handle = GetModuleHandle(NULL);
+    }
 
     // Initialize the window class structure:
-    win_class.cbSize = sizeof(WNDCLASSEX);
-    win_class.style = CS_HREDRAW | CS_VREDRAW;
-    win_class.lpfnWndProc = GravityWindowProc;
-    win_class.cbClsExtra = 0;
-    win_class.cbWndExtra = 0;
-    win_class.hInstance = _native_win_info.instance_handle;
-    win_class.hIcon = LoadIcon(NULL, IDI_APPLICATION);
-    win_class.hCursor = LoadCursor(NULL, IDC_ARROW);
-    win_class.hbrBackground = (HBRUSH)GetStockObject(WHITE_BRUSH);
-    win_class.lpszMenuName = NULL;
-    win_class.lpszClassName = _name.c_str();
-    win_class.hIconSm = LoadIcon(NULL, IDI_WINLOGO);
+    win_class_ex.cbSize = sizeof(WNDCLASSEX);
+    win_class_ex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
+    win_class_ex.lpfnWndProc = GravityWindowProc;
+    win_class_ex.cbClsExtra = 0;
+    win_class_ex.cbWndExtra = 0;
+    win_class_ex.hInstance = _native_win_info.instance_handle;
+    win_class_ex.hIcon = LoadIcon(NULL, IDI_APPLICATION);
+    win_class_ex.hIconSm = LoadIcon(NULL, IDI_WINLOGO);
+    win_class_ex.hCursor = LoadCursor(NULL, IDC_ARROW);
+    win_class_ex.hbrBackground = NULL;
+    win_class_ex.lpszMenuName = NULL;
+    win_class_ex.lpszClassName = _name.c_str();
     // Register window class:
-    if (!RegisterClassEx(&win_class)) {
+    if (!RegisterClassEx(&win_class_ex)) {
         logger.LogFatalError("Unexpected error trying to start the application!");
         exit(1);
     }
+    windows_error = GetLastError();
+    if (_is_fullscreen) {
+        DEVMODE dev_mode = {};
+        dev_mode.dmSize = sizeof(DEVMODE);
+        dev_mode.dmPelsWidth = width;
+        dev_mode.dmPelsHeight = height;
+        dev_mode.dmBitsPerPel = 32;
+        dev_mode.dmFields = DM_BITSPERPEL | DM_PELSWIDTH | DM_PELSHEIGHT;
+        if (DISP_CHANGE_SUCCESSFUL != ChangeDisplaySettings(&dev_mode, CDS_FULLSCREEN)) {
+            _is_fullscreen = false;
+        } else {
+            windows_extended_style = WS_EX_APPWINDOW;
+            windows_style = WS_POPUP | WS_VISIBLE;
+            ShowCursor(FALSE);
+        }
+    }
+    if (!_is_fullscreen) {
+        windows_extended_style = WS_EX_APPWINDOW | WS_EX_WINDOWEDGE;
+        windows_style = WS_OVERLAPPEDWINDOW | WS_VISIBLE;
+    }
+
     // Create window with the registered class:
     RECT wr = {0, 0, static_cast<LONG>(width), static_cast<LONG>(height)};
-    AdjustWindowRect(&wr, WS_OVERLAPPEDWINDOW, FALSE);
+    if (!AdjustWindowRectEx(&wr, windows_style, FALSE, windows_extended_style)) {
+        logger.LogFatalError("Cannot adjust window size!");
+        exit(1);
+    }
+    windows_error = GetLastError();
+    SetProcessDpiAwareness(PROCESS_DPI_AWARENESS::PROCESS_SYSTEM_DPI_AWARE);
     _native_win_info.window_handle =
-        CreateWindowEx(0, _name.c_str(), _name.c_str(), WS_OVERLAPPEDWINDOW | WS_VISIBLE | WS_SYSMENU, 100, 100, wr.right - wr.left,
+        CreateWindowEx(windows_extended_style, _name.c_str(), _name.c_str(), windows_style, 0, 0, wr.right - wr.left,
                        wr.bottom - wr.top, NULL, NULL, _native_win_info.instance_handle, this);
+    windows_error = GetLastError();
     if (!_native_win_info.window_handle) {
         logger.LogFatalError("Cannot create a window in which to draw!");
         exit(1);
@@ -921,6 +953,7 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     wl_shell_surface_set_title(_native_win_info.shell_surface, _name.c_str());
 
 #endif
+    _window_created = true;
 
     VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
     if (!CreateVkSurface(instance, phys_device, vk_surface)) {
@@ -934,4 +967,13 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     return true;
 }
 
-bool GravityWindow::DestroyPlatformWindow() { return true; }
+bool GravityWindow::DestroyPlatformWindow() {
+#if defined(VK_USE_PLATFORM_WIN32_KHR)
+    if (_is_fullscreen) {
+        ChangeDisplaySettings(NULL, 0);
+        ShowCursor(TRUE);
+    }
+#endif
+    _window_created = false;
+    return true;
+}

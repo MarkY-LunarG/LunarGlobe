@@ -45,7 +45,8 @@
             }                                                                                            \
             free(argv);                                                                                  \
         }                                                                                                \
-    }
+    }                                                                                                    \
+    init_struct.windows_instance = hInstance;
 
 #define GRAVITY_APP_MAIN_END(return_val) return return_val;
 

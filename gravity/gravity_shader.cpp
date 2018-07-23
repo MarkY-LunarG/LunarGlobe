@@ -71,7 +71,6 @@ GravityShader* GravityShader::LoadFromFile(VkDevice vk_device, const std::string
         std::string line;
         std::stringstream strstream;
         size_t shader_spv_size;
-        char* shader_spv_content;
         infile = new std::ifstream(full_shader_name.c_str(), std::ifstream::in | std::ios::binary);
         if (nullptr == infile || infile->fail()) {
             continue;

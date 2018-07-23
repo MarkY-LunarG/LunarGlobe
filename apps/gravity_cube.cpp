@@ -540,7 +540,7 @@ bool CubeApp::Setup() {
         gfx_pipeline_create_info.pMultisampleState = &pipeline_multisample_state_create_info;
         gfx_pipeline_create_info.pViewportState = &pipeline_viewport_state_create_info;
         gfx_pipeline_create_info.pDepthStencilState = &pipeline_depth_stencil_state_create_info;
-        gfx_pipeline_create_info.stageCount = pipeline_shader_stage_create_info.size();
+        gfx_pipeline_create_info.stageCount = static_cast<uint32_t>(pipeline_shader_stage_create_info.size());
         gfx_pipeline_create_info.pStages = pipeline_shader_stage_create_info.data();
         gfx_pipeline_create_info.renderPass = _vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &dynamicState;

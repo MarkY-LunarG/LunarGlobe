@@ -291,13 +291,18 @@ bool GravityLogger::ReleaseCreateInstanceItems(void **next) {
             if (next_ptr->sType == VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT) {
                 VkDebugUtilsMessengerCreateInfoEXT *dbg_messenger_create_info =
                     reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT *>(next_ptr);
-                delete dbg_messenger_create_info;
-                if (nullptr != prev_next) {
+                if (*next == next_ptr) {
+                    *next = next_ptr->pNext;
+                    next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(*next);
+                } else if (nullptr != prev_next) {
                     prev_next->pNext = next_ptr->pNext;
                 }
+                delete dbg_messenger_create_info;
             }
             prev_next = next_ptr;
-            next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(next_ptr->pNext);
+            if (nullptr != next_ptr) {
+                next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(next_ptr->pNext);
+            }
         }
         return true;
     } catch (...) {
