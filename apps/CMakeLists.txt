@@ -222,6 +222,9 @@ elseif(NOT WIN32)
 
         add_executable(gravity_triangle gravity_triangle.cpp ${SHADER_FILES})
         target_link_libraries(gravity_triangle ${LIBVK} gravity)
+
+        add_executable(gravity_spin gravity_spin.cpp ${SHADER_FILES})
+        target_link_libraries(gravity_spin ${LIBVK} gravity)
     endif()
 else()
     if (CMAKE_CL_64)
@@ -235,5 +238,8 @@ else()
 
     add_executable(gravity_triangle WIN32 gravity_triangle.cpp ${SHADER_FILES})
     target_link_libraries(gravity_triangle ${LIBVK} gravity)
+
+    add_executable(gravity_spin WIN32 gravity_spin.cpp ${SHADER_FILES})
+    target_link_libraries(gravity_spin ${LIBVK} gravity)
 endif()
 
