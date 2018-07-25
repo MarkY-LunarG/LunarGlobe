@@ -28,81 +28,51 @@
 #include "gravity_resource_manager.hpp"
 #include "gravity_app.hpp"
 
-static bool LoadFile(const std::string& filename, uint32_t& width, uint32_t& height, VkFormat& vk_format,
-                     std::vector<uint8_t>& texture_data) {
-    vk_format = VK_FORMAT_R8G8B8A8_UNORM;
-#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-    filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
-#elif defined(__ANDROID__)
-#include <lunarg.ppm.h>
-    char* cPtr;
-    cPtr = (char*)lunarg_ppm;
-    if ((unsigned char*)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "P6\n", 3)) {
-        return false;
-    }
-    while (strncmp(cPtr++, "\n", 1))
-        ;
-    sscanf(cPtr, "%u %u", &width, &height);
-    texture_data.resize(width * height * 4);
-    uint8_t* rgba_data = texture_data.data()();
-    while (strncmp(cPtr++, "\n", 1))
-        ;
-    if ((unsigned char*)cPtr >= (lunarg_ppm + lunarg_ppm_len) || strncmp(cPtr, "255\n", 4)) {
-        return false;
-    }
-    while (strncmp(cPtr++, "\n", 1))
-        ;
+ #define STB_IMAGE_IMPLEMENTATION
+ #include "stb_image.h"
 
-    uint8_t* row_ptr = rgba_data;
-    for (int y = 0; y < height; y++) {
-        for (int x = 0; x < width; x++) {
-            memcpy(row_ptr, cPtr, 3);
-            row_ptr[3] = 255;
-            row_ptr += 4;
-            cPtr += 3;
-        }
-    }
+static bool LoadFile(const std::string& filename, GravityTextureData& texture_data) {
+#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
+    //filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
+#error("Unsupported platform")
+#elif defined(__ANDROID__)
 #else
     FILE* fPtr = fopen(filename.c_str(), "rb");
-    char header[256], *cPtr, *tmp;
-
-    if (!fPtr) {
+    if (nullptr == fPtr) {
         return false;
     }
-
-    cPtr = fgets(header, 256, fPtr);  // P6
-    if (cPtr == NULL || strncmp(header, "P6\n", 3)) {
-        fclose(fPtr);
-        return false;
-    }
-
-    do {
-        cPtr = fgets(header, 256, fPtr);
-        if (cPtr == NULL) {
-            fclose(fPtr);
-            return false;
+    int32_t int_width = 0;
+    int32_t int_height = 0;
+    int32_t num_channels = 0;
+    uint8_t* image_data = stbi_load_from_file(fPtr, &int_width, &int_height, &num_channels, 0);
+    if (nullptr == image_data || int_width <= 0 || int_height <= 0 || num_channels <= 0) {
+        if (nullptr != image_data) {
+            stbi_image_free(image_data);
         }
-    } while (!strncmp(header, "#", 1));
-
-    sscanf(header, "%u %u", &width, &height);
-    texture_data.resize(width * height * 4);
-    uint8_t* rgba_data = texture_data.data();
-    tmp = fgets(header, 256, fPtr);  // Format
-    (void)tmp;
-    if (cPtr == NULL || strncmp(header, "255\n", 3)) {
-        fclose(fPtr);
         return false;
     }
-
-    uint8_t* row_ptr = rgba_data;
-    for (uint32_t y = 0; y < height; y++) {
-        for (uint32_t x = 0; x < width; x++) {
-            size_t s = fread(row_ptr, 3, 1, fPtr);
-            (void)s;
-            row_ptr[3] = 255;
-            row_ptr += 4;
-        }
+    texture_data.width = static_cast<uint32_t>(int_width);
+    texture_data.height = static_cast<uint32_t>(int_height);
+    texture_data.num_components = static_cast<uint32_t>(num_channels);
+    texture_data.raw_data.resize(int_width * int_height * num_channels);
+    switch (num_channels) {
+        case 1:
+            texture_data.vk_format = VK_FORMAT_R8_UNORM;
+            break;
+        case 2:
+            texture_data.vk_format = VK_FORMAT_R8G8_UNORM;
+            break;
+        case 3:
+            texture_data.vk_format = VK_FORMAT_R8G8B8_UNORM;
+            break;
+        case 4:
+            texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+            break;
+        default:
+            break;
     }
+    memcpy(texture_data.raw_data.data(), image_data, int_width * int_height * num_channels * sizeof(uint8_t));
+    stbi_image_free(image_data);
     fclose(fPtr);
 #endif
     return true;
@@ -173,7 +143,7 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resou
     std::string texture_file_name = directory;
     texture_file_name += texture_name;
 
-    if (!LoadFile(texture_file_name, texture_data.width, texture_data.height, texture_data.vk_format, texture_data.raw_data)) {
+    if (!LoadFile(texture_file_name, texture_data)) {
         std::string error_message = "Failed to load texture for file \"";
         error_message += texture_file_name;
         error_message += "\"";
@@ -244,8 +214,8 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resou
     }
     uint8_t* data_ptr = reinterpret_cast<uint8_t*>(data);
     uint8_t* row_ptr = target_texture_data->raw_data.data();
-    uint32_t from_size = target_texture_data->width * 4;
-    uint32_t to_size = target_texture_data->width * 4;
+    uint32_t from_size = target_texture_data->width * texture_data.num_components;
+    uint32_t to_size = target_texture_data->width * texture_data.num_components;
     for (uint32_t y = 0; y < target_texture_data->height; y++) {
         memcpy(data_ptr, row_ptr, from_size);
         row_ptr += from_size;

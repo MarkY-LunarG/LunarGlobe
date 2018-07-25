@@ -28,6 +28,7 @@
 struct GravityTextureData {
     uint32_t width;
     uint32_t height;
+    uint32_t num_components;
     VkFormat vk_format;
     VkSampler vk_sampler;
     VkImage vk_image;

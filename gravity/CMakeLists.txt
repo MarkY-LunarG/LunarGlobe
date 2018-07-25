@@ -172,6 +172,7 @@ endif()
 
 include_directories(
     ${GRAVITY_INCLUDE_DIRS}
+    ${PROJECT_SOURCE_DIR}/submodules/stb
     )
 
 ######################################################################################
