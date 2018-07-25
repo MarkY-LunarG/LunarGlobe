@@ -35,7 +35,11 @@ application is very similar in behavior to the original LunarG Cube demo.
 
 ## Applications
 
-The current list of applications are:
- * gravity_cube - A version of the LunarG Cube demo running on this framework
- * gravity_triangle - A simple indexed vertex buffer render of a triangle
+There are several applications currently supported.  The full list can be found in the
+[Applications Listing](./apps/README.md).
+
+## Building
+
+Instructions for building this repositor can be found in the [Build.md](./BUILD.md)
+file.
 
