@@ -17,6 +17,10 @@ website https://www.apache.org/licenses/.
 
 Feel free to use it and release it as allowed under the license.
 
+Several other projects have been included using Git Submodules.
+These projects may have their own licenses.
+Information on these licenses can be found in
+[COPYRIGHT.txt](COPYRIGHT.txt).
 
 ## Notice of Copyright
 
