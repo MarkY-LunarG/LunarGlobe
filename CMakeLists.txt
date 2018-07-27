@@ -5,7 +5,7 @@ set(CMAKE_MODULE_PATH ${CMAKE_MODULE_PATH} "${CMAKE_CURRENT_SOURCE_DIR}/cmake")
 # This must come before the project command.
 set(CMAKE_OSX_DEPLOYMENT_TARGET "10.12" CACHE STRING "Minimum OS X deployment version")
 
-project (LunarGravity)
+project (LunarGlobe)
 
 find_package(Vulkan)
 
@@ -25,5 +25,5 @@ endif()
 # Header file for CMake settings
 include_directories("${PROJECT_SOURCE_DIR}/submodules/Vulkan-Headers/include")
 
-add_subdirectory(gravity)
+add_subdirectory(globe)
 add_subdirectory(apps)

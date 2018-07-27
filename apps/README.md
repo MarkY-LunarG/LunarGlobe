@@ -1,18 +1,18 @@
-# Gravity Applications
+# LunarGlobe Applications
 
-## Gravity Triangle
+## Triangle
 
-<img src="screenshots/gravity_triangle.png" height="256px">
+<img src="screenshots/01_first_triangle.png" height="256px">
 
 This is the "beginning to use Vulkan" example.  Or, more
-realistically, "beginning to use Gravity" example.
+realistically, "beginning to use LunarGlobe" example.
 
 It renders an indexed colored triangle with the MVP matrix
 passed in via a uniform buffer.
 
-## Gravity Spin
+## Dynamic Uniform Buffer 
 
-<img src="screenshots/gravity_spin.png" height="256px">
+<img src="screenshots/02_dynamic_uniform_buffer.png" height="256px">
 
 Building on top of the above triangle example, I added
 the ability to spin the triangle around the Y-axis.
@@ -22,10 +22,10 @@ to an updated matrix.
 
 Also, this is the first example to use GLM.
 
-## Gravity Cube
+## LunarGlobe Cube
 
-<img src="screenshots/gravity_cube.png" height="256px">
+<img src="screenshots/globe_cube.png" height="256px">
 
 This is a translation of the
 [LunarG Cube demo](https://github.com/KhronosGroup/Vulkan-Tools/blob/master/cube/cube.c)
-ported into the Lunar Gravity framework.
+ported into the LunarGlobe framework.

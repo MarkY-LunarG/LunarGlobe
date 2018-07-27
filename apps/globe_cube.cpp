@@ -37,21 +37,21 @@
 #include <signal.h>
 
 #include "inttypes.h"
-#include "gravity/linmath.h"
-#include "gravity/object_type_string_helper.h"
-#include "gravity/gravity_logger.hpp"
-#include "gravity/gravity_event.hpp"
-#include "gravity/gravity_window.hpp"
-#include "gravity/gravity_submit_manager.hpp"
-#include "gravity/gravity_shader.hpp"
-#include "gravity/gravity_texture.hpp"
-#include "gravity/gravity_resource_manager.hpp"
-#include "gravity/gravity_app.hpp"
-#include "gravity/gravity_main.hpp"
+#include "globe/linmath.h"
+#include "globe/object_type_string_helper.h"
+#include "globe/globe_logger.hpp"
+#include "globe/globe_event.hpp"
+#include "globe/globe_window.hpp"
+#include "globe/globe_submit_manager.hpp"
+#include "globe/globe_shader.hpp"
+#include "globe/globe_texture.hpp"
+#include "globe/globe_resource_manager.hpp"
+#include "globe/globe_app.hpp"
+#include "globe/globe_main.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-struct vktexgravity_vs_uniform {
+struct vktexglobe_vs_uniform {
     // Must start with MVP
     float mvp[4][4];
     float position[12 * 3][4];
@@ -151,7 +151,7 @@ static const float g_uv_buffer_data[] = {
 };
 // clang-format on
 
-class CubeApp : public GravityApp {
+class CubeApp : public GlobeApp {
    public:
     CubeApp();
     ~CubeApp();
@@ -163,7 +163,7 @@ class CubeApp : public GravityApp {
 
    private:
     bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
-    virtual void HandleEvent(GravityEvent &event);
+    virtual void HandleEvent(GlobeEvent &event);
 
     std::vector<SwapchainImageResources> _swapchain_resources;
 
@@ -171,7 +171,7 @@ class CubeApp : public GravityApp {
     mat4x4 _projection_matrix;
     mat4x4 _view_matrix;
     mat4x4 _model_matrix;
-    GravityTexture *_texture;
+    GlobeTexture *_texture;
     VkDescriptorSetLayout _vk_desc_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkPipelineCache _vk_pipeline_cache;
@@ -212,11 +212,11 @@ CubeApp::CubeApp() {
 CubeApp::~CubeApp() {}
 
 bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     VkCommandBuffer cmd_buf;
     VkFramebuffer frame_buf;
-    _gravity_submit_mgr->GetRenderCommandBuffer(framebuffer_index, cmd_buf);
-    _gravity_submit_mgr->GetFramebuffer(framebuffer_index, frame_buf);
+    _globe_submit_mgr->GetRenderCommandBuffer(framebuffer_index, cmd_buf);
+    _globe_submit_mgr->GetFramebuffer(framebuffer_index, frame_buf);
 
     VkCommandBufferBeginInfo cmd_buf_info = {};
     VkClearValue clear_values[2] = {{}, {}};
@@ -274,7 +274,7 @@ bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
     // COLOR_ATTACHMENT_OPTIMAL to PRESENT_SRC_KHR
     vkCmdEndRenderPass(cmd_buf);
 
-    _gravity_submit_mgr->InsertPresentCommandsToBuffer(cmd_buf);
+    _globe_submit_mgr->InsertPresentCommandsToBuffer(cmd_buf);
     if (VK_SUCCESS != vkEndCommandBuffer(cmd_buf)) {
         std::string error_message = "Failed to end command buffer for draw commands for framebuffer ";
         error_message += std::to_string(framebuffer_index);
@@ -285,20 +285,20 @@ bool CubeApp::BuildDrawCmdBuffer(uint32_t framebuffer_index) {
 }
 
 bool CubeApp::Setup() {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
     VkCommandBuffer vk_setup_command_buffer;
-    if (!GravityApp::PreSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
+    if (!GlobeApp::PreSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
 
     _swapchain_resources.resize(_swapchain_count);
 
     if (!_is_minimized) {
-        GravityTexture *LoadTexture(const std::string &texture_name, VkCommandBuffer command_buffer);
+        GlobeTexture *LoadTexture(const std::string &texture_name, VkCommandBuffer command_buffer);
 
-        _texture = _gravity_resource_mgr->LoadTexture("lunarg.ppm", vk_setup_command_buffer);
+        _texture = _globe_resource_mgr->LoadTexture("lunarg.ppm", vk_setup_command_buffer);
         if (nullptr == _texture) {
             logger.LogError("Failed loading lunarg.ppm texture");
             return false;
@@ -306,7 +306,7 @@ bool CubeApp::Setup() {
 
         uint8_t *pData;
         mat4x4 MVP, VP;
-        struct vktexgravity_vs_uniform data;
+        struct vktexglobe_vs_uniform data;
 
         mat4x4_mul(VP, _projection_matrix, _view_matrix);
         mat4x4_mul(MVP, VP, _model_matrix);
@@ -336,7 +336,7 @@ bool CubeApp::Setup() {
                 return false;
             }
 
-            if (!_gravity_resource_mgr->AllocateDeviceBufferMemory(
+            if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                     _swapchain_resources[i].uniform_buffer,
                     (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                     _swapchain_resources[i].uniform_memory, _swapchain_resources[i].vk_allocated_size)) {
@@ -409,7 +409,7 @@ bool CubeApp::Setup() {
         VkAttachmentReference depth_reference = {};
         VkSubpassDescription subpass = {};
         VkRenderPassCreateInfo rp_info = {};
-        attachments[0].format = _gravity_submit_mgr->GetSwapchainVkFormat();
+        attachments[0].format = _globe_submit_mgr->GetSwapchainVkFormat();
         attachments[0].flags = 0;
         attachments[0].samples = VK_SAMPLE_COUNT_1_BIT;
         attachments[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -518,7 +518,7 @@ bool CubeApp::Setup() {
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GravityShader *cube_shader = _gravity_resource_mgr->LoadShader("position_lit_texture");
+        GlobeShader *cube_shader = _globe_resource_mgr->LoadShader("position_lit_texture");
         if (nullptr == cube_shader) {
             logger.LogFatalError("Failed to load position and lit texture shader");
             return false;
@@ -551,7 +551,7 @@ bool CubeApp::Setup() {
             return false;
         }
 
-        _gravity_resource_mgr->FreeShader(cube_shader);
+        _globe_resource_mgr->FreeShader(cube_shader);
 
         VkDescriptorPoolSize type_counts[2] = {{}, {}};
         type_counts[0].type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
@@ -582,7 +582,7 @@ bool CubeApp::Setup() {
 
         VkDescriptorBufferInfo buffer_info;
         buffer_info.offset = 0;
-        buffer_info.range = sizeof(struct vktexgravity_vs_uniform);
+        buffer_info.range = sizeof(struct vktexglobe_vs_uniform);
 
         descriptor_image_info.sampler = _texture->GetVkSampler();
         descriptor_image_info.imageView = _texture->GetVkImageView();
@@ -610,7 +610,7 @@ bool CubeApp::Setup() {
             vkUpdateDescriptorSets(_vk_device, 2, writes, 0, nullptr);
         }
 
-        _gravity_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
+        _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
         for (uint32_t i = 0; i < _swapchain_count; i++) {
             if (!BuildDrawCmdBuffer(i)) {
                 return false;
@@ -619,7 +619,7 @@ bool CubeApp::Setup() {
     }
     _current_buffer = 0;
 
-    if (!GravityApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
+    if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
 
@@ -632,7 +632,7 @@ bool CubeApp::Setup() {
 
 void CubeApp::CleanupCommandObjects(bool is_resize) {
     if (!_is_minimized) {
-        _gravity_resource_mgr->FreeAllTextures();
+        _globe_resource_mgr->FreeAllTextures();
         vkDestroyDescriptorPool(_vk_device, _vk_desc_pool, NULL);
 
         vkDestroyPipeline(_vk_device, _vk_pipeline, NULL);
@@ -641,16 +641,16 @@ void CubeApp::CleanupCommandObjects(bool is_resize) {
         vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, NULL);
         vkDestroyDescriptorSetLayout(_vk_device, _vk_desc_set_layout, NULL);
         for (uint32_t i = 0; i < _swapchain_count; i++) {
-            _gravity_resource_mgr->FreeDeviceMemory(_swapchain_resources[i].uniform_memory);
+            _globe_resource_mgr->FreeDeviceMemory(_swapchain_resources[i].uniform_memory);
             vkDestroyBuffer(_vk_device, _swapchain_resources[i].uniform_buffer, nullptr);
         }
     }
-    GravityApp::CleanupCommandObjects(is_resize);
+    GlobeApp::CleanupCommandObjects(is_resize);
 }
 
 bool CubeApp::Draw() {
-    GravityLogger &logger = GravityLogger::getInstance();
-    _gravity_submit_mgr->AcquireNextImageIndex(_current_buffer);
+    GlobeLogger &logger = GlobeLogger::getInstance();
+    _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
 
     mat4x4 MVP, Model, VP;
     int matrixSize = sizeof(MVP);
@@ -671,18 +671,18 @@ bool CubeApp::Draw() {
     memcpy(pData, (const void *)&MVP[0][0], matrixSize);
     vkUnmapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory);
 
-    _gravity_submit_mgr->SubmitAndPresent();
-    return GravityApp::Draw();
+    _globe_submit_mgr->SubmitAndPresent();
+    return GlobeApp::Draw();
 }
 
-void CubeApp::HandleEvent(GravityEvent &event) {
+void CubeApp::HandleEvent(GlobeEvent &event) {
     switch (event.Type()) {
-        case GRAVITY_EVENT_KEY_RELEASE:
+        case GLOBE_EVENT_KEY_RELEASE:
             switch (event._data.key) {
-                case GRAVITY_KEYNAME_ARROW_LEFT:
+                case GLOBE_KEYNAME_ARROW_LEFT:
                     _spin_angle -= _spin_increment;
                     break;
-                case GRAVITY_KEYNAME_ARROW_RIGHT:
+                case GLOBE_KEYNAME_ARROW_RIGHT:
                     _spin_angle += _spin_increment;
                     break;
             }
@@ -690,16 +690,16 @@ void CubeApp::HandleEvent(GravityEvent &event) {
         default:
             break;
     }
-    GravityApp::HandleEvent(event);
+    GlobeApp::HandleEvent(event);
 }
 
 static CubeApp *g_app = nullptr;
 
-GRAVITY_APP_MAIN() {
-    GravityInitStruct init_struct = {};
+GLOBE_APP_MAIN() {
+    GlobeInitStruct init_struct = {};
 
-    GRAVITY_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Gravity App - Cube";
+    GLOBE_APP_MAIN_BEGIN(init_struct)
+    init_struct.app_name = "Globe App - Cube";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -714,5 +714,5 @@ GRAVITY_APP_MAIN() {
     g_app->Run();
     g_app->Exit();
 
-    GRAVITY_APP_MAIN_END(0)
+    GLOBE_APP_MAIN_END(0)
 }

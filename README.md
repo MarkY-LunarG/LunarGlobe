@@ -1,6 +1,6 @@
-# LunarGravity
+# LunarGlobe
 
-LunarGravity is a personal development tree that is a work in progress.
+LunarGlobe is a personal development tree that is a work in progress.
 My intent is to design a modular interface that I can use to develop
 more complicated Vulkan applications.
 Overall, I'd like to eventually create a "demoscene" style application
@@ -32,9 +32,9 @@ thus as copyrighted by LunarG starting in 2018.
 
 ## History
 
-LunarGravity started out as a remodelling of the
+LunarGlobe started out as a remodelling of the
 [LunarG Cube demo source](https://github.com/KhronosGroup/Vulkan-Tools/tree/master/cube).
-It is now split into a library and applications.  The "gravity_cube"
+It is now split into a library and applications.  The "globe_cube"
 application is very similar in behavior to the original LunarG Cube demo.
 
 ## Applications

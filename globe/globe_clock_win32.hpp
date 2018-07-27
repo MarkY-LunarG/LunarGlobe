@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravityclockwin32.hpp
+ * LunarGlobe - globeclockwin32.hpp
  *
  * Copyright (C) 2017 LunarG, Inc.
  *
@@ -22,12 +22,12 @@
 
 #include <time.h>
 
-#include "gravityclock.hpp"
+#include "globeclock.hpp"
 
-class GravityClockWin32 : public GravityClock {
+class GlobeClockWin32 : public GlobeClock {
    public:
-    GravityClockWin32() : GravityClock() {}
-    virtual ~GravityClockWin32(){};
+    GlobeClockWin32() : GlobeClock() {}
+    virtual ~GlobeClockWin32(){};
 
     virtual void Start() {
         QueryPerformanceFrequency(&m_frequency);

@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -25,19 +25,19 @@
 
 #include "vulkan/vulkan_core.h"
 
-class GravityTexture;
-class GravityShader;
+class GlobeTexture;
+class GlobeShader;
 
-class GravityResourceManager {
+class GlobeResourceManager {
    public:
-    GravityResourceManager(const GravityApp* app, const std::string& directory);
-    ~GravityResourceManager();
+    GlobeResourceManager(const GlobeApp* app, const std::string& directory);
+    ~GlobeResourceManager();
 
-    GravityTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
-    void FreeTexture(GravityTexture* texture);
+    GlobeTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
+    void FreeTexture(GlobeTexture* texture);
     void FreeAllTextures();
-    GravityShader* LoadShader(const std::string& shader_prefix);
-    void FreeShader(GravityShader* shader);
+    GlobeShader* LoadShader(const std::string& shader_prefix);
+    void FreeShader(GlobeShader* shader);
     void FreeAllShaders();
 
     bool AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
@@ -58,6 +58,6 @@ class GravityResourceManager {
     VkPhysicalDeviceMemoryProperties _vk_physical_device_memory_properties;
     bool _uses_staging_buffer;
     std::string _base_directory;
-    std::vector<GravityTexture*> _textures;
-    std::vector<GravityShader*> _shaders;
+    std::vector<GlobeTexture*> _textures;
+    std::vector<GlobeShader*> _shaders;
 };

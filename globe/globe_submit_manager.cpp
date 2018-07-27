@@ -20,14 +20,14 @@
 
 #include "gettime.h"
 
-#include "gravity_event.hpp"
-#include "gravity_logger.hpp"
-#include "gravity_submit_manager.hpp"
-#include "gravity_app.hpp"
+#include "globe_event.hpp"
+#include "globe_logger.hpp"
+#include "globe_submit_manager.hpp"
+#include "globe_app.hpp"
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-GravitySubmitManager::GravitySubmitManager(GravityApp *app, GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device)
+GlobeSubmitManager::GlobeSubmitManager(GlobeApp *app, GlobeWindow *window, VkInstance instance, VkPhysicalDevice phys_device)
 {
     _app = app;
     _window = window;
@@ -45,11 +45,11 @@ GravitySubmitManager::GravitySubmitManager(GravityApp *app, GravityWindow *windo
     _found_google_display_timing_extension = false;
 }
 
-GravitySubmitManager::~GravitySubmitManager() {}
+GlobeSubmitManager::~GlobeSubmitManager() {}
 
-bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next)
+bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next)
 {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     uint32_t extension_count = 0;
 
     // Determine the number of instance extensions supported
@@ -212,15 +212,15 @@ bool GravitySubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_c
     return found_swapchain_extension;
 }
 
-bool GravitySubmitManager::ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next)
+bool GlobeSubmitManager::ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next)
 {
     delete[] device_create_info.pQueueCreateInfos;
     return true;
 }
 
-bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_format, VkFormat secondary_format)
+bool GlobeSubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_format, VkFormat secondary_format)
 {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     // Get the list of VkFormat's that are supported:
     std::vector<VkSurfaceFormatKHR> possible_surface_formats;
@@ -272,10 +272,10 @@ bool GravitySubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_forma
     return true;
 }
 
-bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_images, VkPresentModeKHR present_mode,
+bool GlobeSubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_images, VkPresentModeKHR present_mode,
                                                VkFormat prefered_format, VkFormat secondary_format)
 {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     _vk_device = device;
 
@@ -407,9 +407,9 @@ bool GravitySubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_imag
     return true;
 }
 
-bool GravitySubmitManager::CreateSwapchain()
+bool GlobeSubmitManager::CreateSwapchain()
 {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     VkResult result = VK_SUCCESS;
     VkSwapchainKHR old_vk_swapchain = _vk_swapchain;
     uint32_t index = 0;
@@ -651,7 +651,7 @@ bool GravitySubmitManager::CreateSwapchain()
     return true;
 }
 
-bool GravitySubmitManager::DetachSwapchain()
+bool GlobeSubmitManager::DetachSwapchain()
 {
     uint32_t index;
 
@@ -684,7 +684,7 @@ bool GravitySubmitManager::DetachSwapchain()
     return true;
 }
 
-bool GravitySubmitManager::Resize()
+bool GlobeSubmitManager::Resize()
 {
     if (!DetachSwapchain())
     {
@@ -695,7 +695,7 @@ bool GravitySubmitManager::Resize()
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
     if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities))
     {
-        GravityLogger::getInstance().LogError("Failed to query physical device surface capabilities");
+        GlobeLogger::getInstance().LogError("Failed to query physical device surface capabilities");
         return false;
     }
     // Width/height of surface can be affected by swapchain capabilities of the
@@ -708,7 +708,7 @@ bool GravitySubmitManager::Resize()
     return true;
 }
 
-bool GravitySubmitManager::DestroySwapchain()
+bool GlobeSubmitManager::DestroySwapchain()
 {
     // Wait for fences from present operations
     for (uint32_t i = 0; i < _num_images; i++)
@@ -722,9 +722,9 @@ bool GravitySubmitManager::DestroySwapchain()
     return true;
 }
 
-bool GravitySubmitManager::AcquireNextImageIndex(uint32_t &index)
+bool GlobeSubmitManager::AcquireNextImageIndex(uint32_t &index)
 {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     VkResult result = VK_INCOMPLETE;
 
     // Ensure no more than FRAME_LAG renderings are outstanding
@@ -802,7 +802,7 @@ static bool CanPresentEarlier(uint64_t earliest, uint64_t actual, uint64_t margi
     }
     return false;
 }
-bool GravitySubmitManager::AdjustPresentTiming()
+bool GlobeSubmitManager::AdjustPresentTiming()
 {
     if (_found_google_display_timing_extension)
     {
@@ -812,7 +812,7 @@ bool GravitySubmitManager::AdjustPresentTiming()
 
         if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, nullptr))
         {
-            GravityLogger::getInstance().LogFatalError(
+            GlobeLogger::getInstance().LogFatalError(
                 "AdjustPresentTiming failed determining number of past present timings available.");
             return false;
         }
@@ -822,7 +822,7 @@ bool GravitySubmitManager::AdjustPresentTiming()
             past_presentations_timings.resize(count);
             if (VK_SUCCESS != _GetPastPresentationTiming(_vk_device, _vk_swapchain, &count, past_presentations_timings.data()))
             {
-                GravityLogger::getInstance().LogFatalError(
+                GlobeLogger::getInstance().LogFatalError(
                     "AdjustPresentTiming failed determining past present timings available.");
                 return false;
             }
@@ -954,16 +954,16 @@ bool GravitySubmitManager::AdjustPresentTiming()
         std::string error_msg = "AdjustPresentTiming() called in swapchain manager, but ";
         error_msg += VK_GOOGLE_DISPLAY_TIMING_EXTENSION_NAME;
         error_msg += " extension is not present or enabled.  Ignoring using this functionality.";
-        GravityLogger::getInstance().LogWarning(error_msg);
+        GlobeLogger::getInstance().LogWarning(error_msg);
     }
     return true;
 }
 
-bool GravitySubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &command_buffer)
+bool GlobeSubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &command_buffer)
 {
     if (_vk_render_command_buffers.size() <= _cur_image)
     {
-        GravityLogger::getInstance().LogFatalError(
+        GlobeLogger::getInstance().LogFatalError(
             "GetCurrentRenderCommandBuffer() attempting to access swapchain render command buffer that does not exist");
         return false;
     }
@@ -971,11 +971,11 @@ bool GravitySubmitManager::GetCurrentRenderCommandBuffer(VkCommandBuffer &comman
     return true;
 }
 
-bool GravitySubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffer &command_buffer)
+bool GlobeSubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffer &command_buffer)
 {
     if (_vk_render_command_buffers.size() <= index)
     {
-        GravityLogger::getInstance().LogFatalError(
+        GlobeLogger::getInstance().LogFatalError(
             "GetRenderCommandBuffer() attempting to access swapchain render command buffer that does not exist");
         return false;
     }
@@ -983,11 +983,11 @@ bool GravitySubmitManager::GetRenderCommandBuffer(uint32_t index, VkCommandBuffe
     return true;
 }
 
-bool GravitySubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer)
+bool GlobeSubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer)
 {
     if (_vk_framebuffers.size() <= _cur_image)
     {
-        GravityLogger::getInstance().LogFatalError(
+        GlobeLogger::getInstance().LogFatalError(
             "GetCurrentFramebuffer() attempting to access swapchain framebuffer that does not exist");
         return false;
     }
@@ -995,11 +995,11 @@ bool GravitySubmitManager::GetCurrentFramebuffer(VkFramebuffer &framebuffer)
     return true;
 }
 
-bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebuffer)
+bool GlobeSubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebuffer)
 {
     if (_vk_framebuffers.size() <= index)
     {
-        GravityLogger::getInstance().LogFatalError(
+        GlobeLogger::getInstance().LogFatalError(
             "GetFramebuffer() attempting to access swapchain framebuffer that does not exist");
         return false;
     }
@@ -1007,7 +1007,7 @@ bool GravitySubmitManager::GetFramebuffer(uint32_t index, VkFramebuffer &framebu
     return true;
 }
 
-bool GravitySubmitManager::AttachRenderPassAndDepthBuffer(VkRenderPass render_pass, VkImageView depth_image_view)
+bool GlobeSubmitManager::AttachRenderPassAndDepthBuffer(VkRenderPass render_pass, VkImageView depth_image_view)
 {
     VkImageView attached_image_views[2];
     attached_image_views[1] = depth_image_view;
@@ -1028,14 +1028,14 @@ bool GravitySubmitManager::AttachRenderPassAndDepthBuffer(VkRenderPass render_pa
         {
             std::string error_msg = "Failed to create framebuffer for swapchain index ";
             error_msg += std::to_string(i);
-            GravityLogger::getInstance().LogFatalError(error_msg);
+            GlobeLogger::getInstance().LogFatalError(error_msg);
             return false;
         }
     }
     return true;
 }
 
-bool GravitySubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_buffer)
+bool GlobeSubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_buffer)
 {
     if (UsesSeparatePresentQueue())
     {
@@ -1061,7 +1061,7 @@ bool GravitySubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command
     return true;
 }
 
-bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait)
+bool GlobeSubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait)
 {
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
@@ -1076,7 +1076,7 @@ bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, 
 
     if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, fence))
     {
-        GravityLogger::getInstance().LogError("GravitySubmitManager::Submit failed to submit to graphics queue");
+        GlobeLogger::getInstance().LogError("GlobeSubmitManager::Submit failed to submit to graphics queue");
         return false;
     }
 
@@ -1084,15 +1084,15 @@ bool GravitySubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, 
     {
         if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &fence, VK_TRUE, UINT64_MAX))
         {
-            GravityLogger::getInstance().LogError(
-                "GravitySubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
+            GlobeLogger::getInstance().LogError(
+                "GlobeSubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
             return false;
         }
     }
     return true;
 }
 
-bool GravitySubmitManager::SubmitAndPresent()
+bool GlobeSubmitManager::SubmitAndPresent()
 {
     if (_found_google_display_timing_extension)
     {
@@ -1124,7 +1124,7 @@ bool GravitySubmitManager::SubmitAndPresent()
     submit_info.pCommandBuffers = &_vk_render_command_buffers[_cur_image];
     if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, _vk_fences[_cur_wait_index]))
     {
-        GravityLogger::getInstance().LogFatalError("SubmitAndPresent(): Render vkQueueSubmit failed.");
+        GlobeLogger::getInstance().LogFatalError("SubmitAndPresent(): Render vkQueueSubmit failed.");
         return false;
     }
 
@@ -1138,7 +1138,7 @@ bool GravitySubmitManager::SubmitAndPresent()
         submit_info.pCommandBuffers = &_vk_present_command_buffers[_cur_image];
         if (VK_SUCCESS != vkQueueSubmit(_present_queue, 1, &submit_info, VK_NULL_HANDLE))
         {
-            GravityLogger::getInstance().LogFatalError("SubmitAndPresent(): Present vkQueueSubmit failed.");
+            GlobeLogger::getInstance().LogFatalError("SubmitAndPresent(): Present vkQueueSubmit failed.");
             return false;
         }
     }
@@ -1212,7 +1212,7 @@ bool GravitySubmitManager::SubmitAndPresent()
     }
     else if (VK_SUCCESS != result)
     {
-        GravityLogger::getInstance().LogFatalError("vkQueuePresentKHR failed.");
+        GlobeLogger::getInstance().LogFatalError("vkQueuePresentKHR failed.");
         return false;
     }
     ++_cur_wait_index;

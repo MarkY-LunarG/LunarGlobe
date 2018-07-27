@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -25,33 +25,33 @@
 
 #include "vulkan/vulkan_core.h"
 
-enum GravityShaderStageId {
-    GRAVITY_SHADER_STAGE_ID_VERTEX = 0,
-    GRAVITY_SHADER_STAGE_ID_TESSELLATION_CONTROL,
-    GRAVITY_SHADER_STAGE_ID_TESSELLATION_EVALUATION,
-    GRAVITY_SHADER_STAGE_ID_GEOMETRY,
-    GRAVITY_SHADER_STAGE_ID_FRAGMENT,
-    GRAVITY_SHADER_STAGE_ID_COMPUTE,
-    GRAVITY_SHADER_STAGE_ID_NUM_STAGES
+enum GlobeShaderStageId {
+    GLOBE_SHADER_STAGE_ID_VERTEX = 0,
+    GLOBE_SHADER_STAGE_ID_TESSELLATION_CONTROL,
+    GLOBE_SHADER_STAGE_ID_TESSELLATION_EVALUATION,
+    GLOBE_SHADER_STAGE_ID_GEOMETRY,
+    GLOBE_SHADER_STAGE_ID_FRAGMENT,
+    GLOBE_SHADER_STAGE_ID_COMPUTE,
+    GLOBE_SHADER_STAGE_ID_NUM_STAGES
 };
 
-struct GravityShaderStageInitData {
+struct GlobeShaderStageInitData {
     bool valid;
     std::vector<uint32_t> spirv_content;
 };
 
-struct GravityShaderStage {
+struct GlobeShaderStage {
     bool                  valid;
     VkShaderStageFlagBits vk_shader_flag;
     VkShaderModule        vk_shader_module;
 };
 
-class GravityShader {
+class GlobeShader {
   public:
-    static GravityShader* LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory);
+    static GlobeShader* LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory);
 
-    GravityShader(VkDevice vk_device, const std::string& shader_name, const GravityShaderStageInitData shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES]);
-    ~GravityShader();
+    GlobeShader(VkDevice vk_device, const std::string& shader_name, const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES]);
+    ~GlobeShader();
 
     bool IsValid() { return _initialized; }
     bool GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo> &pipeline_stages) const;
@@ -60,5 +60,5 @@ class GravityShader {
     bool _initialized;
     VkDevice _vk_device;
     std::string _shader_name;
-    GravityShaderStage _shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES];
+    GlobeShaderStage _shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES];
 };

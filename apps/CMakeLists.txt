@@ -1,4 +1,4 @@
-set(GRAVITY_INCLUDE_DIRS
+set(GLOBE_INCLUDE_DIRS
   ${PROJECT_SOURCE_DIR}
 )
 
@@ -25,7 +25,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     option(BUILD_WSI_XLIB_SUPPORT "Build Xlib WSI support" ON)
     option(BUILD_WSI_WAYLAND_SUPPORT "Build Wayland WSI support" ON)
     option(BUILD_WSI_MIR_SUPPORT "Build Mir WSI support" OFF)
-    set(GRAVITY_WSI_SELECTION "XCB" CACHE STRING "Select WSI target for gravity (XCB, XLIB, WAYLAND, MIR, DISPLAY)")
+    set(GLOBE_WSI_SELECTION "XCB" CACHE STRING "Select WSI target for globe (XCB, XLIB, WAYLAND, MIR, DISPLAY)")
 
     if (BUILD_WSI_XCB_SUPPORT)
         find_package(XCB REQUIRED)
@@ -52,7 +52,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(DisplayServer Win32)
     if (NOT MSVC_VERSION LESS 1900)
         # Enable control flow guard
-        message(STATUS "Building gravity with control flow guard")
+        message(STATUS "Building globe with control flow guard")
         add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/guard:cf>")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /guard:cf")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /guard:cf")
@@ -60,53 +60,53 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_definitions(-DVK_USE_PLATFORM_ANDROID_KHR)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if (NOT GRAVITY_WSI_SELECTION)
-        set(GRAVITY_WSI_SELECTION "XCB")
+    if (NOT GLOBE_WSI_SELECTION)
+        set(GLOBE_WSI_SELECTION "XCB")
     endif()
 
-    if (GRAVITY_WSI_SELECTION STREQUAL "XCB")
+    if (GLOBE_WSI_SELECTION STREQUAL "XCB")
         if (NOT BUILD_WSI_XCB_SUPPORT)
-            message( FATAL_ERROR "Selected XCB for gravity build but not building Xcb support" )
+            message( FATAL_ERROR "Selected XCB for globe build but not building Xcb support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${XCB_INCLUDE_DIRS}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${XCB_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_XCB_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "XLIB")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "XLIB")
         if (NOT BUILD_WSI_XLIB_SUPPORT)
-            message( FATAL_ERROR "Selected XLIB for gravity build but not building Xlib support" )
+            message( FATAL_ERROR "Selected XLIB for globe build but not building Xlib support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${X11_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${X11_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_XLIB_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "WAYLAND")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "WAYLAND")
         if (NOT BUILD_WSI_WAYLAND_SUPPORT)
-            message( FATAL_ERROR "Selected Wayland for gravity build but not building Wayland support" )
+            message( FATAL_ERROR "Selected Wayland for globe build but not building Wayland support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${WAYLAND_CLIENT_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${WAYLAND_CLIENT_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_WAYLAND_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "MIR")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "MIR")
         if (NOT BUILD_WSI_MIR_SUPPORT)
-            message( FATAL_ERROR "Selected MIR for gravity build but not building Mir support" )
+            message( FATAL_ERROR "Selected MIR for globe build but not building Mir support" )
         endif()
         add_definitions(-DVK_USE_PLATFORM_MIR_KHR)
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${MIR_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "DISPLAY")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "DISPLAY")
         add_definitions(-DVK_USE_PLATFORM_DISPLAY_KHR)
     else()
-        message( FATAL_ERROR "Unrecognized value for GRAVITY_WSI_SELECTION: ${GRAVITY_WSI_SELECTION}" )
+        message( FATAL_ERROR "Unrecognized value for GLOBE_WSI_SELECTION: ${GLOBE_WSI_SELECTION}" )
      endif()
 
     link_libraries(${API_LOWERCASE} m)
@@ -170,7 +170,7 @@ if(APPLE)
 endif()
 
 include_directories(
-    ${GRAVITY_INCLUDE_DIRS}
+    ${GLOBE_INCLUDE_DIRS}
     )
 
 file(GLOB RESOURCES
@@ -180,7 +180,7 @@ file(MAKE_DIRECTORY ${CMAKE_CURRENT_BINARY_DIR}/resources)
 file(COPY ${RESOURCES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR}/resources)
 
 # Define macro used for building shader SPIR-V output
-macro(generate_gravity_spv input output)
+macro(generate_globe_spv input output)
     add_custom_command(
         OUTPUT ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${output}
         COMMAND ${GLSLANG_VALIDATOR} -s -V -o ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${output} ${PROJECT_SOURCE_DIR}/resources/shaders/source/${input}
@@ -193,7 +193,7 @@ file(GLOB VERTEX_SHADER_FILES "${PROJECT_SOURCE_DIR}/resources/shaders/source/*.
 foreach(CUR_VERTEX_SHADER_FILE ${VERTEX_SHADER_FILES})
     get_filename_component(VERTEX_SHADER_GLSL ${CUR_VERTEX_SHADER_FILE} NAME_WE)
     STRING(REPLACE "_glsl" "-vs" VERTEX_SHADER_SPIRV ${VERTEX_SHADER_GLSL} )
-    generate_gravity_spv(${VERTEX_SHADER_GLSL}.vert ${VERTEX_SHADER_SPIRV}.spv)
+    generate_globe_spv(${VERTEX_SHADER_GLSL}.vert ${VERTEX_SHADER_SPIRV}.spv)
     set(SHADER_FILES
         ${SHADER_FILES}
         ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${VERTEX_SHADER_SPIRV}.spv
@@ -204,7 +204,7 @@ file(GLOB FRAGMENT_SHADER_FILES "${PROJECT_SOURCE_DIR}/resources/shaders/source/
 foreach(CUR_FRAGMENT_SHADER_FILE ${FRAGMENT_SHADER_FILES})
     get_filename_component(FRAGMENT_SHADER_GLSL ${CUR_FRAGMENT_SHADER_FILE} NAME_WE)
     STRING(REPLACE "_glsl" "-fs" FRAGMENT_SHADER_SPIRV ${FRAGMENT_SHADER_GLSL} )
-    generate_gravity_spv(${FRAGMENT_SHADER_GLSL}.frag ${FRAGMENT_SHADER_SPIRV}.spv)
+    generate_globe_spv(${FRAGMENT_SHADER_GLSL}.frag ${FRAGMENT_SHADER_SPIRV}.spv)
     set(SHADER_FILES
         ${SHADER_FILES}
         ${CMAKE_CURRENT_BINARY_DIR}/resources/shaders/${FRAGMENT_SHADER_SPIRV}.spv
@@ -212,19 +212,19 @@ foreach(CUR_FRAGMENT_SHADER_FILE ${FRAGMENT_SHADER_FILES})
 endforeach(CUR_FRAGMENT_SHADER_FILE)
 
 ######################################################################################
-# gravity
+# globe
 
 if(APPLE)
 elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
-        add_executable(gravity_cube gravity_cube.cpp ${SHADER_FILES})
-        target_link_libraries(gravity_cube ${LIBVK} gravity)
+        add_executable(globe_cube globe_cube.cpp ${SHADER_FILES})
+        target_link_libraries(globe_cube ${LIBVK} globe)
 
-        add_executable(gravity_triangle gravity_triangle.cpp ${SHADER_FILES})
-        target_link_libraries(gravity_triangle ${LIBVK} gravity)
+        add_executable(01_first_triangle 01_first_triangle.cpp ${SHADER_FILES})
+        target_link_libraries(01_first_triangle ${LIBVK} globe)
 
-        add_executable(gravity_spin gravity_spin.cpp ${SHADER_FILES})
-        target_link_libraries(gravity_spin ${LIBVK} gravity)
+        add_executable(02_dynamic_uniform_buffer 02_dynamic_uniform_buffer.cpp ${SHADER_FILES})
+        target_link_libraries(02_dynamic_uniform_buffer ${LIBVK} globe)
     endif()
 else()
     if (CMAKE_CL_64)
@@ -233,13 +233,13 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_executable(gravity_cube WIN32 gravity_cube.cpp ${SHADER_FILES})
-    target_link_libraries(gravity_cube ${LIBVK} gravity)
+    add_executable(globe_cube WIN32 globe_cube.cpp ${SHADER_FILES})
+    target_link_libraries(globe_cube ${LIBVK} globe)
 
-    add_executable(gravity_triangle WIN32 gravity_triangle.cpp ${SHADER_FILES})
-    target_link_libraries(gravity_triangle ${LIBVK} gravity)
+    add_executable(01_first_triangle WIN32 01_first_triangle.cpp ${SHADER_FILES})
+    target_link_libraries(01_first_triangle ${LIBVK} globe)
 
-    add_executable(gravity_spin WIN32 gravity_spin.cpp ${SHADER_FILES})
-    target_link_libraries(gravity_spin ${LIBVK} gravity)
+    add_executable(02_dynamic_uniform_buffer WIN32 02_dynamic_uniform_buffer.cpp ${SHADER_FILES})
+    target_link_libraries(02_dynamic_uniform_buffer ${LIBVK} globe)
 endif()
 

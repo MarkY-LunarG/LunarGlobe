@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravityclock.hpp
+ * LunarGlobe - globeclock.hpp
  *
  * Copyright (C) 2017 LunarG, Inc.
  *
@@ -20,10 +20,10 @@
 
 #pragma once
 
-class GravityClock {
+class GlobeClock {
    public:
-    GravityClock() { m_paused = true; }
-    virtual ~GravityClock() {}
+    GlobeClock() { m_paused = true; }
+    virtual ~GlobeClock() {}
 
     virtual void Start() = 0;
     virtual void StartGameTime() = 0;

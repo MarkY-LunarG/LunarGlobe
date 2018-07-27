@@ -24,9 +24,9 @@
 #include <wayland-server-protocol.h>
 #endif
 
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
-#include "gravity_window.hpp"
+#include "globe_logger.hpp"
+#include "globe_event.hpp"
+#include "globe_window.hpp"
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 #include "shellscalingapi.h"
 #endif
@@ -37,7 +37,7 @@
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
 
 static void registry_handle_global(void *data, wl_registry *registry, uint32_t id, const char *interface, uint32_t version) {
-    GravityWindow *window = reinterpret_cast<GravityWindow *>(data);
+    GlobeWindow *window = reinterpret_cast<GlobeWindow *>(data);
     window->HandleGlobalRegistration(data, registry, id, interface, version);
 }
 static void registry_handle_global_remove(void *data, wl_registry *registry, uint32_t name) {
@@ -49,7 +49,7 @@ static const wl_registry_listener registry_listener = {registry_handle_global, r
 
 #endif
 
-GravityWindow::GravityWindow(GravityApp *app, const std::string &name)
+GlobeWindow::GlobeWindow(GlobeApp *app, const std::string &name)
     : _associated_app(app), _name(name), _is_fullscreen(false), _window_created(false), _vk_surface(VK_NULL_HANDLE) {
 #ifdef VK_USE_PLATFORM_XCB_KHR
     const xcb_setup_t *setup;
@@ -58,13 +58,13 @@ GravityWindow::GravityWindow(GravityApp *app, const std::string &name)
 
     const char *display_envar = getenv("DISPLAY");
     if (display_envar == NULL || display_envar[0] == '\0') {
-        GravityLogger::getInstance().LogFatalError("Environment variable DISPLAY requires a valid value.\nExiting ...");
+        GlobeLogger::getInstance().LogFatalError("Environment variable DISPLAY requires a valid value.\nExiting ...");
         exit(1);
     }
 
     _native_win_info.connection = xcb_connect(NULL, &scr);
     if (xcb_connection_has_error(_native_win_info.connection) > 0) {
-        GravityLogger::getInstance().LogFatalError("Cannot find XCB Connection!\nExiting ...");
+        GlobeLogger::getInstance().LogFatalError("Cannot find XCB Connection!\nExiting ...");
         exit(1);
     }
 
@@ -82,7 +82,7 @@ GravityWindow::GravityWindow(GravityApp *app, const std::string &name)
     _native_win_info.display = wl_display_connect(NULL);
 
     if (_native_win_info.display == NULL) {
-        GravityLogger::getInstance().LogFatalError("Cannot find Wayland connection.\nExiting ...");
+        GlobeLogger::getInstance().LogFatalError("Cannot find Wayland connection.\nExiting ...");
         exit(1);
     }
 
@@ -92,7 +92,7 @@ GravityWindow::GravityWindow(GravityApp *app, const std::string &name)
 #endif
 }
 
-GravityWindow::~GravityWindow() {
+GlobeWindow::~GlobeWindow() {
     DestroyVkSurface(_native_win_info.vk_instance, _vk_surface);
 
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
@@ -115,9 +115,9 @@ GravityWindow::~GravityWindow() {
 #endif
 }
 
-bool GravityWindow::PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
+bool GlobeWindow::PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
                                                void **next) {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     uint32_t extension_count = 0;
 
     // Determine the number of instance extensions supported
@@ -233,9 +233,9 @@ bool GravityWindow::PrepareCreateInstanceItems(std::vector<std::string> &layers,
     return found_surface_ext && found_platform_surface_ext;
 }
 
-bool GravityWindow::ReleaseCreateInstanceItems(void **next) { return true; }
+bool GlobeWindow::ReleaseCreateInstanceItems(void **next) { return true; }
 
-bool GravityWindow::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
+bool GlobeWindow::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
                                                      std::vector<std::string> &extensions) {
     uint32_t extension_count = 0;
 
@@ -259,11 +259,11 @@ bool GravityWindow::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &phy
     return true;
 }
 
-bool GravityWindow::CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) {
-    GravityLogger &logger = GravityLogger::getInstance();
+bool GlobeWindow::CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     if (_vk_surface != VK_NULL_HANDLE) {
-        logger.LogInfo("GravityWindow::CreateVkSurface but surface already created.  Using existing one.");
+        logger.LogInfo("GlobeWindow::CreateVkSurface but surface already created.  Using existing one.");
         surface = _vk_surface;
         return true;
     }
@@ -369,11 +369,11 @@ bool GravityWindow::CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_d
     return true;
 }
 
-bool GravityWindow::DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface) {
+bool GlobeWindow::DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface) {
     PFN_vkDestroySurfaceKHR fpDestroySurface =
         reinterpret_cast<PFN_vkDestroySurfaceKHR>(vkGetInstanceProcAddr(instance, "vkDestroySurfaceKHR"));
     if (nullptr == fpDestroySurface) {
-        GravityLogger::getInstance().LogError("Failed to destroy VkSurfaceKHR");
+        GlobeLogger::getInstance().LogError("Failed to destroy VkSurfaceKHR");
         return false;
     }
     fpDestroySurface(instance, _vk_surface, nullptr);
@@ -384,79 +384,79 @@ bool GravityWindow::DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface)
 #ifdef VK_USE_PLATFORM_WIN32_KHR
 
 // MS-Windows event handling function:
-static LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
-    GravityEventType gravity_event_type = GRAVITY_EVENT_NONE;
+static LRESULT CALLBACK GlobeWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
+    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
     switch (uMsg) {
         case WM_CREATE: {
             CREATESTRUCT *cs = reinterpret_cast<CREATESTRUCT *>(lParam);
-            GravityWindow *gravity_window = reinterpret_cast<GravityWindow *>(cs->lpCreateParams);
-            SetWindowLongPtr(hWnd, 0, (LONG_PTR)gravity_window);
+            GlobeWindow *globe_window = reinterpret_cast<GlobeWindow *>(cs->lpCreateParams);
+            SetWindowLongPtr(hWnd, 0, (LONG_PTR)globe_window);
         } break;
         case WM_CLOSE:
-            GravityEventList::getInstance().InsertEvent(GravityEvent(GRAVITY_EVENT_QUIT));
+            GlobeEventList::getInstance().InsertEvent(GlobeEvent(GLOBE_EVENT_QUIT));
             break;
         case WM_PAINT: {
             // The validation callback calls MessageBox which can generate paint
             // events - don't make more Vulkan calls if we got here from the
             // callback
-            GravityEventList::getInstance().InsertEvent(GravityEvent(GRAVITY_EVENT_WINDOW_DRAW));
+            GlobeEventList::getInstance().InsertEvent(GlobeEvent(GLOBE_EVENT_WINDOW_DRAW));
             break;
         }
         case WM_GETMINMAXINFO:  // set window's minimum size
         {
-            GravityWindow *gravity_window = reinterpret_cast<GravityWindow *>(GetWindowLongPtr(hWnd, 0));
-            if (nullptr != gravity_window) {
-                const NativeWindowInfo native_win_info = gravity_window->GetNativeWinInfo();
+            GlobeWindow *globe_window = reinterpret_cast<GlobeWindow *>(GetWindowLongPtr(hWnd, 0));
+            if (nullptr != globe_window) {
+                const NativeWindowInfo native_win_info = globe_window->GetNativeWinInfo();
                 ((MINMAXINFO *)lParam)->ptMinTrackSize = native_win_info.minsize;
             }
         }
             return 0;
         case WM_KEYDOWN: {
-            gravity_event_type = GRAVITY_EVENT_KEY_PRESS;
+            globe_event_type = GLOBE_EVENT_KEY_PRESS;
             break;
         }
         case WM_KEYUP: {
-            gravity_event_type = GRAVITY_EVENT_KEY_RELEASE;
+            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
             break;
         }
         case WM_SIZE: {
             // Resize the application to the new window size.
-            GravityEvent *event = new GravityEvent(GRAVITY_EVENT_WINDOW_RESIZE);
+            GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_WINDOW_RESIZE);
             uint32_t width = lParam & 0xffff;
             uint32_t height = (lParam & 0xffff0000) >> 16;
             event->_data.resize.width = width;
             event->_data.resize.height = height;
-            GravityEventList::getInstance().InsertEvent(*event);
+            GlobeEventList::getInstance().InsertEvent(*event);
             delete event;
             break;
         }
         default:
             break;
     }
-    if (gravity_event_type == GRAVITY_EVENT_KEY_RELEASE) {
+    if (globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
         switch (wParam) {
             case VK_ESCAPE: {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ESCAPE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ESCAPE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case VK_LEFT: {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_LEFT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case VK_RIGHT: {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_RIGHT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case VK_SPACE: {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_SPACE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_SPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
         }
@@ -468,33 +468,33 @@ static LRESULT CALLBACK GravityWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, L
 #endif
 #ifdef VK_USE_PLATFORM_XLIB_KHR
 
-void GravityWindow::HandleXlibEvent() {
+void GlobeWindow::HandleXlibEvent() {
     XEvent xlib_event;
-    GravityEventType gravity_event_type = GRAVITY_EVENT_NONE;
+    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
     XNextEvent(_native_win_info.display, &xlib_event);
     switch (xlib_event.type) {
         case ClientMessage:
             if ((Atom)xlib_event.xclient.data.l[0] == _native_win_info.xlib_wm_delete_window) {
-                GravityEvent event(GRAVITY_EVENT_QUIT);
-                GravityEventList::getInstance().InsertEvent(event);
+                GlobeEvent event(GLOBE_EVENT_QUIT);
+                GlobeEventList::getInstance().InsertEvent(event);
             }
             break;
         case KeyPress:
-            gravity_event_type = GRAVITY_EVENT_KEY_PRESS;
+            globe_event_type = GLOBE_EVENT_KEY_PRESS;
             break;
         case KeyRelease:
-            gravity_event_type = GRAVITY_EVENT_KEY_RELEASE;
+            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
             break;
         case ConfigureNotify: {
             uint32_t xlib_width = static_cast<uint32_t>(xlib_event.xconfigure.width);
             uint32_t xlib_height = static_cast<uint32_t>(xlib_event.xconfigure.height);
             if ((_width != xlib_width) || (_height != xlib_height)) {
-                GravityEvent *event = new GravityEvent(GRAVITY_EVENT_WINDOW_RESIZE);
+                GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_WINDOW_RESIZE);
                 _width = xlib_width;
                 _height = xlib_height;
                 event->_data.resize.width = _width;
                 event->_data.resize.height = _height;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             }
             break;
@@ -502,41 +502,41 @@ void GravityWindow::HandleXlibEvent() {
         default:
             break;
     }
-    if (gravity_event_type == GRAVITY_EVENT_KEY_PRESS || gravity_event_type == GRAVITY_EVENT_KEY_RELEASE) {
+    if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
         switch (xlib_event.xkey.keycode) {
             case 0x9:  // Escape
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ESCAPE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ESCAPE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x71:  // left arrow key
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_LEFT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x72:  // right arrow key
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_RIGHT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x41:  // space bar
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_SPACE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_SPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
         }
     }
 }
 
-void GravityWindow::HandleAllXlibEvents() {
+void GlobeWindow::HandleAllXlibEvents() {
     while (XPending(_native_win_info.display) > 0) {
         HandleXlibEvent();
     }
@@ -545,8 +545,8 @@ void GravityWindow::HandleAllXlibEvents() {
 #endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
 
-void GravityWindow::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
-    GravityEventType gravity_event_type = GRAVITY_EVENT_NONE;
+void GlobeWindow::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
+    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
     int key_id = 0;
     uint8_t event_code = xcb_event->response_type & 0x7f;
     switch (event_code) {
@@ -555,83 +555,83 @@ void GravityWindow::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
             break;
         case XCB_CLIENT_MESSAGE:
             if ((*(xcb_client_message_event_t *)xcb_event).data.data32[0] == (*_native_win_info.atom_wm_delete_window).atom) {
-                GravityEvent *event = new GravityEvent(GRAVITY_EVENT_QUIT);
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_QUIT);
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             }
             break;
         case XCB_KEY_PRESS: {
             const xcb_key_press_event_t *key = (const xcb_key_press_event_t *)xcb_event;
             key_id = key->detail;
-            gravity_event_type = GRAVITY_EVENT_KEY_PRESS;
+            globe_event_type = GLOBE_EVENT_KEY_PRESS;
         } break;
         case XCB_KEY_RELEASE: {
             const xcb_key_release_event_t *key = (const xcb_key_release_event_t *)xcb_event;
             key_id = key->detail;
-            gravity_event_type = GRAVITY_EVENT_KEY_RELEASE;
+            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
         } break;
         case XCB_CONFIGURE_NOTIFY: {
             const xcb_configure_notify_event_t *cfg = (const xcb_configure_notify_event_t *)xcb_event;
             if ((_width != cfg->width) || (_height != cfg->height)) {
-                GravityEvent *event = new GravityEvent(GRAVITY_EVENT_WINDOW_RESIZE);
+                GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_WINDOW_RESIZE);
                 _width = cfg->width;
                 _height = cfg->height;
                 event->_data.resize.width = _width;
                 event->_data.resize.height = _height;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             }
         } break;
         default:
             break;
     }
-    if (gravity_event_type == GRAVITY_EVENT_KEY_PRESS || gravity_event_type == GRAVITY_EVENT_KEY_RELEASE) {
+    if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
         switch (key_id) {
             case 0x9:  // Escape
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ESCAPE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ESCAPE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x71:  // left arrow key
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_LEFT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x72:  // right arrow key
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_ARROW_RIGHT;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
             case 0x41:  // space bar
             {
-                GravityEvent *event = new GravityEvent(gravity_event_type);
-                event->_data.key = GRAVITY_KEYNAME_SPACE;
-                GravityEventList::getInstance().InsertEvent(*event);
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_SPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
         }
     }
 }
 
-void GravityWindow::HandlePausedXcbEvent() {
+void GlobeWindow::HandlePausedXcbEvent() {
     xcb_generic_event_t *event = xcb_wait_for_event(_native_win_info.connection);
     HandleXcbEvent(event);
     free(event);
 }
 
-void GravityWindow::HandleActiveXcbEvent() {
+void GlobeWindow::HandleActiveXcbEvent() {
     xcb_generic_event_t *event = xcb_poll_for_event(_native_win_info.connection);
     HandleXcbEvent(event);
     free(event);
 }
 
-void GravityWindow::HandleAllXcbEvents() {
+void GlobeWindow::HandleAllXcbEvents() {
     xcb_generic_event_t *event;
     while (nullptr != (event = xcb_poll_for_event(_native_win_info.connection))) {
         HandleXcbEvent(event);
@@ -652,7 +652,7 @@ static void pointer_handle_motion(void *data, wl_pointer *pointer, uint32_t time
 static void pointer_handle_button(void *data, wl_pointer *wl_pointer, uint32_t serial, uint32_t time, uint32_t button,
                                   uint32_t state) {
     if (button == BTN_LEFT && state == WL_POINTER_BUTTON_STATE_PRESSED) {
-        GravityWindow *window = reinterpret_cast<GravityWindow *>(data);
+        GlobeWindow *window = reinterpret_cast<GlobeWindow *>(data);
         window->MoveSurface(serial);
     }
 }
@@ -670,13 +670,13 @@ static void keyboard_handle_enter(void *data, wl_keyboard *keyboard, uint32_t se
 static void keyboard_handle_leave(void *data, wl_keyboard *keyboard, uint32_t serial, wl_surface *surface) {}
 
 static void keyboard_handle_key(void *data, wl_keyboard *keyboard, uint32_t serial, uint32_t time, uint32_t key, uint32_t state) {
-    GravityEventType gravity_event_type = GRAVITY_EVENT_NONE;
+    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
     switch (state) {
         case WL_KEYBOARD_KEY_STATE_PRESSED:
-            gravity_event_type = GRAVITY_EVENT_KEY_PRESS;
+            globe_event_type = GLOBE_EVENT_KEY_PRESS;
             break;
         case WL_KEYBOARD_KEY_STATE_RELEASED:
-            gravity_event_type = GRAVITY_EVENT_KEY_RELEASE;
+            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
             break;
         default:
             return;
@@ -684,30 +684,30 @@ static void keyboard_handle_key(void *data, wl_keyboard *keyboard, uint32_t seri
     switch (key) {
         case KEY_ESC:  // Escape
         {
-            GravityEvent *event = new GravityEvent(gravity_event_type);
-            event->_data.key = GRAVITY_KEYNAME_ESCAPE;
-            GravityEventList::getInstance().InsertEvent(*event);
+            GlobeEvent *event = new GlobeEvent(globe_event_type);
+            event->_data.key = GLOBE_KEYNAME_ESCAPE;
+            GlobeEventList::getInstance().InsertEvent(*event);
             delete event;
         } break;
         case KEY_LEFT:  // left arrow key
         {
-            GravityEvent *event = new GravityEvent(gravity_event_type);
-            event->_data.key = GRAVITY_KEYNAME_ARROW_LEFT;
-            GravityEventList::getInstance().InsertEvent(*event);
+            GlobeEvent *event = new GlobeEvent(globe_event_type);
+            event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+            GlobeEventList::getInstance().InsertEvent(*event);
             delete event;
         } break;
         case KEY_RIGHT:  // right arrow key
         {
-            GravityEvent *event = new GravityEvent(gravity_event_type);
-            event->_data.key = GRAVITY_KEYNAME_ARROW_RIGHT;
-            GravityEventList::getInstance().InsertEvent(*event);
+            GlobeEvent *event = new GlobeEvent(globe_event_type);
+            event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+            GlobeEventList::getInstance().InsertEvent(*event);
             delete event;
         } break;
         case KEY_SPACE:  // space bar
         {
-            GravityEvent *event = new GravityEvent(gravity_event_type);
-            event->_data.key = GRAVITY_KEYNAME_SPACE;
-            GravityEventList::getInstance().InsertEvent(*event);
+            GlobeEvent *event = new GlobeEvent(globe_event_type);
+            event->_data.key = GLOBE_KEYNAME_SPACE;
+            GlobeEventList::getInstance().InsertEvent(*event);
             delete event;
         } break;
     }
@@ -722,7 +722,7 @@ static const wl_keyboard_listener keyboard_listener = {
 
 static void seat_handle_capabilities(void *data, wl_seat *seat, uint32_t caps) {
     // Subscribe to pointer events
-    GravityWindow *window = reinterpret_cast<GravityWindow *>(data);
+    GlobeWindow *window = reinterpret_cast<GlobeWindow *>(data);
     window->HandleSeatCapabilities(data, seat, static_cast<wl_seat_capability>(caps));
 }
 
@@ -730,11 +730,11 @@ static const wl_seat_listener seat_listener = {
     seat_handle_capabilities,
 };
 
-void GravityWindow::MoveSurface(uint32_t serial) {
+void GlobeWindow::MoveSurface(uint32_t serial) {
     wl_shell_surface_move(_native_win_info.shell_surface, _native_win_info.seat, serial);
 }
 
-void GravityWindow::HandleSeatCapabilities(void *data, wl_seat *seat, wl_seat_capability caps) {
+void GlobeWindow::HandleSeatCapabilities(void *data, wl_seat *seat, wl_seat_capability caps) {
     if ((caps & WL_SEAT_CAPABILITY_POINTER) && !_native_win_info.pointer) {
         _native_win_info.pointer = wl_seat_get_pointer(seat);
         wl_pointer_add_listener(_native_win_info.pointer, &pointer_listener, this);
@@ -752,7 +752,7 @@ void GravityWindow::HandleSeatCapabilities(void *data, wl_seat *seat, wl_seat_ca
     }
 }
 
-void GravityWindow::HandleGlobalRegistration(void *data, wl_registry *registry, uint32_t id, const char *interface,
+void GlobeWindow::HandleGlobalRegistration(void *data, wl_registry *registry, uint32_t id, const char *interface,
                                              uint32_t version) {
     (void)version;
     // pickup wayland objects when they appear
@@ -769,11 +769,11 @@ void GravityWindow::HandleGlobalRegistration(void *data, wl_registry *registry, 
     }
 }
 
-void GravityWindow::HandlePausedWaylandEvent() {
+void GlobeWindow::HandlePausedWaylandEvent() {
     wl_display_dispatch(_native_win_info.display);  // block and wait for input
 }
 
-void GravityWindow::HandleActiveWaylandEvents() {
+void GlobeWindow::HandleActiveWaylandEvents() {
     wl_display_dispatch_pending(_native_win_info.display);  // don't block
 }
 
@@ -799,8 +799,8 @@ static const wl_shell_surface_listener shell_surface_listener = {handle_ping, ha
 
 #endif
 
-bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height) {
-    GravityLogger &logger = GravityLogger::getInstance();
+bool GlobeWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
     _width = width;
     _height = height;
 
@@ -816,7 +816,7 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     // Initialize the window class structure:
     win_class_ex.cbSize = sizeof(WNDCLASSEX);
     win_class_ex.style = CS_HREDRAW | CS_VREDRAW | CS_OWNDC;
-    win_class_ex.lpfnWndProc = GravityWindowProc;
+    win_class_ex.lpfnWndProc = GlobeWindowProc;
     win_class_ex.cbClsExtra = 0;
     win_class_ex.cbWndExtra = 0;
     win_class_ex.hInstance = _native_win_info.instance_handle;
@@ -967,7 +967,7 @@ bool GravityWindow::CreatePlatformWindow(VkInstance instance, VkPhysicalDevice p
     return true;
 }
 
-bool GravityWindow::DestroyPlatformWindow() {
+bool GlobeWindow::DestroyPlatformWindow() {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
     if (_is_fullscreen) {
         ChangeDisplaySettings(NULL, 0);

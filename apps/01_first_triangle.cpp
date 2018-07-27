@@ -28,15 +28,15 @@
 #include <signal.h>
 
 #include "inttypes.h"
-#include "gravity/gravity_logger.hpp"
-#include "gravity/gravity_event.hpp"
-#include "gravity/gravity_window.hpp"
-#include "gravity/gravity_submit_manager.hpp"
-#include "gravity/gravity_shader.hpp"
-#include "gravity/gravity_texture.hpp"
-#include "gravity/gravity_resource_manager.hpp"
-#include "gravity/gravity_app.hpp"
-#include "gravity/gravity_main.hpp"
+#include "globe/globe_logger.hpp"
+#include "globe/globe_event.hpp"
+#include "globe/globe_window.hpp"
+#include "globe/globe_submit_manager.hpp"
+#include "globe/globe_shader.hpp"
+#include "globe/globe_texture.hpp"
+#include "globe/globe_resource_manager.hpp"
+#include "globe/globe_app.hpp"
+#include "globe/globe_main.hpp"
 
 struct VulkanBuffer {
     VkBuffer vk_buffer;
@@ -44,7 +44,7 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class TriangleApp : public GravityApp {
+class TriangleApp : public GlobeApp {
    public:
     TriangleApp();
     ~TriangleApp();
@@ -108,9 +108,9 @@ TriangleApp::~TriangleApp() {
         vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
         _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
     }
-    _gravity_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
-    _gravity_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
-    _gravity_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
+    _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
+    _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
+    _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
     if (VK_NULL_HANDLE != _vk_render_pass) {
         vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
         _vk_render_pass = VK_NULL_HANDLE;
@@ -135,11 +135,11 @@ static const float g_triangle_uniform_buffer_data[] = {1.0f, 0.0f, 0.0f, 0.0f, 0
                                                        0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
 
 bool TriangleApp::Setup() {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
     VkCommandBuffer vk_setup_command_buffer;
-    if (!GravityApp::PreSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
+    if (!GlobeApp::PreSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
 
@@ -189,7 +189,7 @@ bool TriangleApp::Setup() {
         depth_attachment_reference.attachment = 1;
         depth_attachment_reference.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
         attachment_descriptions[0] = {};
-        attachment_descriptions[0].format = _gravity_submit_mgr->GetSwapchainVkFormat();
+        attachment_descriptions[0].format = _globe_submit_mgr->GetSwapchainVkFormat();
         attachment_descriptions[0].flags = 0;
         attachment_descriptions[0].samples = VK_SAMPLE_COUNT_1_BIT;
         attachment_descriptions[0].loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
@@ -248,7 +248,7 @@ bool TriangleApp::Setup() {
             logger.LogFatalError("Failed to create vertex buffer");
             return false;
         }
-        if (!_gravity_resource_mgr->AllocateDeviceBufferMemory(
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 _vertex_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 _vertex_buffer.vk_memory, _vertex_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate vertex buffer memory");
@@ -272,7 +272,7 @@ bool TriangleApp::Setup() {
             logger.LogFatalError("Failed to create index buffer");
             return false;
         }
-        if (!_gravity_resource_mgr->AllocateDeviceBufferMemory(
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 _index_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 _index_buffer.vk_memory, _index_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate index buffer memory");
@@ -296,7 +296,7 @@ bool TriangleApp::Setup() {
             logger.LogFatalError("Failed to create uniform buffer");
             return false;
         }
-        if (!_gravity_resource_mgr->AllocateDeviceBufferMemory(
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 _uniform_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 _uniform_buffer.vk_memory, _uniform_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate uniform buffer memory");
@@ -452,7 +452,7 @@ bool TriangleApp::Setup() {
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GravityShader *cube_shader = _gravity_resource_mgr->LoadShader("position_color");
+        GlobeShader *cube_shader = _globe_resource_mgr->LoadShader("position_color");
         if (nullptr == cube_shader) {
             logger.LogFatalError("Failed to load position/color shaders");
             return false;
@@ -480,26 +480,26 @@ bool TriangleApp::Setup() {
             return false;
         }
 
-        _gravity_resource_mgr->FreeShader(cube_shader);
+        _globe_resource_mgr->FreeShader(cube_shader);
     }
 
-    if (!GravityApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
+    if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
-    _gravity_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
+    _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
     _current_buffer = 0;
 
     return true;
 }
 
 bool TriangleApp::Draw() {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
     VkFramebuffer vk_framebuffer;
-    _gravity_submit_mgr->AcquireNextImageIndex(_current_buffer);
-    _gravity_submit_mgr->GetCurrentRenderCommandBuffer(vk_render_command_buffer);
-    _gravity_submit_mgr->GetCurrentFramebuffer(vk_framebuffer);
+    _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
+    _globe_submit_mgr->GetCurrentRenderCommandBuffer(vk_render_command_buffer);
+    _globe_submit_mgr->GetCurrentFramebuffer(vk_framebuffer);
 
     VkCommandBufferBeginInfo command_buffer_begin_info = {};
     VkClearValue clear_values[2];
@@ -561,19 +561,19 @@ bool TriangleApp::Draw() {
         return false;
     }
 
-    _gravity_submit_mgr->InsertPresentCommandsToBuffer(vk_render_command_buffer);
+    _globe_submit_mgr->InsertPresentCommandsToBuffer(vk_render_command_buffer);
 
-    _gravity_submit_mgr->SubmitAndPresent();
+    _globe_submit_mgr->SubmitAndPresent();
 
-    return GravityApp::Draw();
+    return GlobeApp::Draw();
 }
 
 static TriangleApp *g_app = nullptr;
 
-GRAVITY_APP_MAIN() {
-    GravityInitStruct init_struct = {};
-    GRAVITY_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Gravity App - Triangle";
+GLOBE_APP_MAIN() {
+    GlobeInitStruct init_struct = {};
+    GLOBE_APP_MAIN_BEGIN(init_struct)
+    init_struct.app_name = "Globe_Triangle";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -588,5 +588,5 @@ GRAVITY_APP_MAIN() {
     g_app->Run();
     g_app->Exit();
 
-    GRAVITY_APP_MAIN_END(0)
+    GLOBE_APP_MAIN_END(0)
 }

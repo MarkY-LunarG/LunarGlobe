@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -25,9 +25,9 @@
 // Include header required for parsing the command line options.
 #include <shellapi.h>
 
-#define GRAVITY_APP_MAIN() int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
+#define GLOBE_APP_MAIN() int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
 
-#define GRAVITY_APP_MAIN_BEGIN(init_struct)                                                              \
+#define GLOBE_APP_MAIN_BEGIN(init_struct)                                                              \
     int argc;                                                                                            \
     LPWSTR *commandLineArgs = CommandLineToArgvW(GetCommandLineW(), &argc);                              \
     if (NULL == commandLineArgs) {                                                                       \
@@ -48,15 +48,15 @@
     }                                                                                                    \
     init_struct.windows_instance = hInstance;
 
-#define GRAVITY_APP_MAIN_END(return_val) return return_val;
+#define GLOBE_APP_MAIN_END(return_val) return return_val;
 
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
 
 #error("Not supported")
 
 static void demo_main(struct Demo *demo, void *view) {
-    GravityInitStruct init_struct = {};
-    init_struct.app_name = "Gravity App 1 - Cube";
+    GlobeInitStruct init_struct = {};
+    init_struct.app_name = "Globe App 1 - Cube";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -72,7 +72,7 @@ static void demo_main(struct Demo *demo, void *view) {
 
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
 
-#define GRAVITY_APP_MAIN()                                                                                                     \
+#define GLOBE_APP_MAIN()                                                                                                     \
 #include <android/log.h> \
     #include <android_native_app_glue.h> \
     #include "android_util.h" \
@@ -87,7 +87,7 @@ static void demo_main(struct Demo *demo, void *view) {
                         g_app->CleanupCommandObjects(false);                                                                   \
                     }                                                                                                          \
                     const char key[] = "args";                                                                                 \
-                    char *appTag = (char *)"Gravity App";                                                                      \
+                    char *appTag = (char *)"Globe App";                                                                      \
                     int argc = 0;                                                                                              \
                     char **argv = get_args(app, key, appTag, &argc);                                                           \
                     __android_log_print(ANDROID_LOG_INFO, appTag, "argc = %i", argc);                                          \
@@ -110,7 +110,7 @@ static void demo_main(struct Demo *demo, void *view) {
     }                                                                                                                          \
     void android_main(struct android_app *app)
 
-#define GRAVITY_APP_MAIN_BEGIN(init_struct) \
+#define GLOBE_APP_MAIN_BEGIN(init_struct) \
     int vulkanSupport = InitVulkan();       \
     if (vulkanSupport == 0) {               \
         return;                             \
@@ -118,18 +118,18 @@ static void demo_main(struct Demo *demo, void *view) {
     app->onAppCmd = processCommand;         \
     app->onInputEvent = processInput;
 
-#define GRAVITY_APP_MAIN_END(return_val)
+#define GLOBE_APP_MAIN_END(return_val)
 
 #else
 
-#define GRAVITY_APP_MAIN() int main(int argc, char **argv)
+#define GLOBE_APP_MAIN() int main(int argc, char **argv)
 
-#define GRAVITY_APP_MAIN_BEGIN(init_struct)                 \
+#define GLOBE_APP_MAIN_BEGIN(init_struct)                 \
     init_struct.command_line_args.resize(argc - 1);         \
     for (int iii = 1; iii < argc; iii++) {                  \
         init_struct.command_line_args[iii - 1] = argv[iii]; \
     }
 
-#define GRAVITY_APP_MAIN_END(return_val) return return_val;
+#define GLOBE_APP_MAIN_END(return_val) return return_val;
 
 #endif

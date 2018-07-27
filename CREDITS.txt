@@ -1,5 +1,5 @@
 This is a list of people that have contributed to the
-LunarGravity project.
+LunarGlobe project.
 
 Name:        Mark Young
 Email:       marky@lunarg.com

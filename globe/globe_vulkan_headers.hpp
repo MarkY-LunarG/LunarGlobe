@@ -23,7 +23,7 @@
 #include <vulkan/vulkan_core.h>
 
 #if defined(VK_USE_PLATFORM_MIR_KHR)
-#error "Gravity does not have code for Mir at this time"
+#error "Globe does not have code for Mir at this time"
 #endif
 
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
@@ -81,7 +81,7 @@
 
 #include <vulkan/vk_sdk_platform.h>
 
-struct GravityBasicVulkanStruct {
+struct GlobeBasicVulkanStruct {
     VkStructureType sType;
     void *pNext;
 };

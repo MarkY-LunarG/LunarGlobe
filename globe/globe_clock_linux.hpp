@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravityclocklinux.hpp
+ * LunarGlobe - globeclocklinux.hpp
  *
  * Copyright (C) 2017 LunarG, Inc.
  *
@@ -25,12 +25,12 @@
 #include <unistd.h>  // for usleep
 #endif
 
-#include "gravityclock.hpp"
+#include "globeclock.hpp"
 
-class GravityClockLinux : public GravityClock {
+class GlobeClockLinux : public GlobeClock {
    public:
-    GravityClockLinux() : GravityClock() {}
-    virtual ~GravityClockLinux(){};
+    GlobeClockLinux() : GlobeClock() {}
+    virtual ~GlobeClockLinux(){};
 
     virtual void Start() {
         timespec current;

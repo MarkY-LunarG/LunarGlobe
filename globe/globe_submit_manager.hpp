@@ -23,8 +23,8 @@
 #include <vector>
 #include <string>
 
-#include "gravity_vulkan_headers.hpp"
-#include "gravity_window.hpp"
+#include "globe_vulkan_headers.hpp"
+#include "globe_window.hpp"
 
 typedef struct
 {
@@ -34,13 +34,13 @@ typedef struct
     VkDescriptorSet descriptor_set;
 } SwapchainImageResources;
 
-class GravityApp;
+class GlobeApp;
 
-class GravitySubmitManager
+class GlobeSubmitManager
 {
   public:
-    GravitySubmitManager(GravityApp *app, GravityWindow *window, VkInstance instance, VkPhysicalDevice phys_device);
-    ~GravitySubmitManager();
+    GlobeSubmitManager(GlobeApp *app, GlobeWindow *window, VkInstance instance, VkPhysicalDevice phys_device);
+    ~GlobeSubmitManager();
 
     bool PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next);
     bool ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next);
@@ -72,8 +72,8 @@ class GravitySubmitManager
     bool SubmitAndPresent();
 
   private:
-    GravityApp *_app;
-    GravityWindow *_window;
+    GlobeApp *_app;
+    GlobeWindow *_window;
     VkInstance _vk_instance;
     VkPhysicalDevice _vk_physical_device;
     VkDevice _vk_device;

@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -20,18 +20,18 @@
 
 #include <cstring>
 
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
-#include "gravity_submit_manager.hpp"
-#include "gravity_shader.hpp"
-#include "gravity_texture.hpp"
-#include "gravity_resource_manager.hpp"
-#include "gravity_app.hpp"
+#include "globe_logger.hpp"
+#include "globe_event.hpp"
+#include "globe_submit_manager.hpp"
+#include "globe_shader.hpp"
+#include "globe_texture.hpp"
+#include "globe_resource_manager.hpp"
+#include "globe_app.hpp"
 
  #define STB_IMAGE_IMPLEMENTATION
  #include "stb_image.h"
 
-static bool LoadFile(const std::string& filename, GravityTextureData& texture_data) {
+static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
     //filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
@@ -82,7 +82,7 @@ static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkIm
                                     VkImageLayout old_image_layout, VkImageLayout new_image_layout,
                                     VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
                                     VkPipelineStageFlags dest_stages) {
-    GravityLogger& logger = GravityLogger::getInstance();
+    GlobeLogger& logger = GlobeLogger::getInstance();
     if (VK_NULL_HANDLE == new_image_layout) {
         logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
         return false;
@@ -135,11 +135,11 @@ static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkIm
     return true;
 }
 
-GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resource_manager, VkDevice vk_device,
+GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
                                              VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                              const std::string& directory) {
-    GravityLogger& logger = GravityLogger::getInstance();
-    GravityTextureData texture_data = {};
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    GlobeTextureData texture_data = {};
     std::string texture_file_name = directory;
     texture_file_name += texture_name;
 
@@ -154,8 +154,8 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resou
     VkFormatProperties vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
 
     bool uses_staging = false;
-    GravityTextureData staging_texture_data = texture_data;
-    GravityTextureData* target_texture_data = &texture_data;
+    GlobeTextureData staging_texture_data = texture_data;
+    GlobeTextureData* target_texture_data = &texture_data;
     VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
     if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !resource_manager->UseStagingBuffer()) {
         loading_image_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
@@ -342,12 +342,12 @@ GravityTexture* GravityTexture::LoadFromFile(const GravityResourceManager* resou
         return nullptr;
     }
 
-    return new GravityTexture(resource_manager, vk_device, texture_name, &texture_data);
+    return new GlobeTexture(resource_manager, vk_device, texture_name, &texture_data);
 }
 
-GravityTexture::GravityTexture(const GravityResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
-                               GravityTextureData* texture_data)
-    : _gravity_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
+GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
+                               GlobeTextureData* texture_data)
+    : _globe_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
     _width = texture_data->width;
     _height = texture_data->height;
     _vk_format = texture_data->vk_format;
@@ -359,14 +359,14 @@ GravityTexture::GravityTexture(const GravityResourceManager* resource_manager, V
     _vk_image_view = texture_data->vk_image_view;
     if (nullptr != texture_data->staging_texture_data) {
         _uses_staging_texture = true;
-        _staging_texture = new GravityTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
+        _staging_texture = new GlobeTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
     } else {
         _uses_staging_texture = false;
         _staging_texture = nullptr;
     }
 }
 
-GravityTexture::~GravityTexture() {
+GlobeTexture::~GlobeTexture() {
     if (VK_NULL_HANDLE != _vk_sampler) {
         vkDestroySampler(_vk_device, _vk_sampler, nullptr);
         _vk_sampler = VK_NULL_HANDLE;
@@ -376,10 +376,10 @@ GravityTexture::~GravityTexture() {
         _vk_image_view = VK_NULL_HANDLE;
     }
     vkDestroyImage(_vk_device, _vk_image, nullptr);
-    _gravity_resource_mgr->FreeDeviceMemory(_vk_device_memory);
+    _globe_resource_mgr->FreeDeviceMemory(_vk_device_memory);
 }
 
-bool GravityTexture::DeleteStagingTexture() {
+bool GlobeTexture::DeleteStagingTexture() {
     if (_uses_staging_texture) {
         delete _staging_texture;
         _staging_texture = nullptr;

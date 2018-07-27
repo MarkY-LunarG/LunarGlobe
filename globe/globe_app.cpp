@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.cpp
+ * LunarGlobe - globe_app.cpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -18,26 +18,26 @@
  * Author: Mark Young <marky@lunarg.com>
  */
 
-#include "gravity_event.hpp"
-#include "gravity_submit_manager.hpp"
-#include "gravity_resource_manager.hpp"
-#include "gravity_app.hpp"
-#include "gravity_logger.hpp"
+#include "globe_event.hpp"
+#include "globe_submit_manager.hpp"
+#include "globe_resource_manager.hpp"
+#include "globe_app.hpp"
+#include "globe_logger.hpp"
 
-#define GRAVITY_APP_ENGINE_MAJOR 0
-#define GRAVITY_APP_ENGINE_MINOR 0
-#define GRAVITY_APP_ENGINE_PATCH 1
+#define GLOBE_APP_ENGINE_MAJOR 0
+#define GLOBE_APP_ENGINE_MINOR 0
+#define GLOBE_APP_ENGINE_PATCH 1
 
-GravityApp::GravityApp() {
+GlobeApp::GlobeApp() {
     _app_version.major = 0;
     _app_version.minor = 0;
     _app_version.patch = 0;
-    _engine_version.major = GRAVITY_APP_ENGINE_MAJOR;
-    _engine_version.minor = GRAVITY_APP_ENGINE_MINOR;
-    _engine_version.patch = GRAVITY_APP_ENGINE_PATCH;
-    _gravity_resource_mgr = nullptr;
-    _gravity_submit_mgr = nullptr;
-    _gravity_window = nullptr;
+    _engine_version.major = GLOBE_APP_ENGINE_MAJOR;
+    _engine_version.minor = GLOBE_APP_ENGINE_MINOR;
+    _engine_version.patch = GLOBE_APP_ENGINE_PATCH;
+    _globe_resource_mgr = nullptr;
+    _globe_submit_mgr = nullptr;
+    _globe_window = nullptr;
     _width = 100;
     _height = 100;
     _prepared = false;
@@ -60,25 +60,25 @@ GravityApp::GravityApp() {
     _vk_setup_command_buffer = VK_NULL_HANDLE;
 }
 
-GravityApp::~GravityApp() {
-    if (nullptr != _gravity_window) {
-        delete _gravity_window;
-        _gravity_window = nullptr;
+GlobeApp::~GlobeApp() {
+    if (nullptr != _globe_window) {
+        delete _globe_window;
+        _globe_window = nullptr;
     }
-    if (nullptr != _gravity_resource_mgr) {
-        _gravity_resource_mgr->FreeAllTextures();
-        _gravity_resource_mgr->FreeAllShaders();
-        delete _gravity_resource_mgr;
-        _gravity_resource_mgr = nullptr;
+    if (nullptr != _globe_resource_mgr) {
+        _globe_resource_mgr->FreeAllTextures();
+        _globe_resource_mgr->FreeAllShaders();
+        delete _globe_resource_mgr;
+        _globe_resource_mgr = nullptr;
     }
-    if (nullptr != _gravity_submit_mgr) {
-        delete _gravity_submit_mgr;
-        _gravity_submit_mgr = nullptr;
+    if (nullptr != _globe_submit_mgr) {
+        delete _globe_submit_mgr;
+        _globe_submit_mgr = nullptr;
     }
 }
 
-bool GravityApp::Init(GravityInitStruct &init_struct) {
-    GravityLogger &logger = GravityLogger::getInstance();
+bool GlobeApp::Init(GlobeInitStruct &init_struct) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
     std::string::size_type argument_size;
     bool print_usage = false;
 
@@ -124,7 +124,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
 
     if (print_usage) {
 #if defined(ANDROID)
-        GravityLogger::getInstance().LogFatalError("Usage: gravity [--validate]");
+        GlobeLogger::getInstance().LogFatalError("Usage: globe [--validate]");
 #else
         std::string usage_message = "Usage:\n  ";
         usage_message += _name;
@@ -139,15 +139,15 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
         usage_message += "\n\t\t\t\tVK_PRESENT_MODE_FIFO_RELAXED_KHR = ";
         usage_message += std::to_string(VK_PRESENT_MODE_FIFO_RELAXED_KHR);
         usage_message += "\n\n";
-        GravityLogger::getInstance().LogFatalError(usage_message);
+        GlobeLogger::getInstance().LogFatalError(usage_message);
         fflush(stderr);
         return false;
 #endif
     }
 
-    _gravity_window = new GravityWindow(this, _name);
-    if (!GravityEventList::getInstance().Alloc(100)) {
-        GravityLogger::getInstance().LogFatalError("Failed allocating space for events");
+    _globe_window = new GlobeWindow(this, _name);
+    if (!GlobeEventList::getInstance().Alloc(100)) {
+        GlobeLogger::getInstance().LogFatalError("Failed allocating space for events");
     }
 
     std::vector<const char *> enabled_layers;
@@ -156,7 +156,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     std::vector<std::string> instance_layers;
     std::vector<std::string> current_extensions;
     if (logger.PrepareCreateInstanceItems(instance_layers, current_extensions, &next_ptr) &&
-        _gravity_window->PrepareCreateInstanceItems(instance_layers, current_extensions, &next_ptr)) {
+        _globe_window->PrepareCreateInstanceItems(instance_layers, current_extensions, &next_ptr)) {
         enabled_layers.resize(0);
         enabled_extensions.resize(0);
         for (uint32_t i = 0; i < instance_layers.size(); i++) {
@@ -172,7 +172,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     app.pNext = nullptr;
     app.pApplicationName = init_struct.app_name.c_str();
     app.applicationVersion = 0;
-    app.pEngineName = "Gravity Engine";
+    app.pEngineName = "Globe Engine";
     app.engineVersion = 0;
     app.apiVersion = VK_API_VERSION_1_0;
     VkInstanceCreateInfo inst_info = {};
@@ -206,7 +206,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
                 "guide for additional information.");
             return false;
     }
-    if (!logger.ReleaseCreateInstanceItems(&next_ptr) || !_gravity_window->ReleaseCreateInstanceItems(&next_ptr)) {
+    if (!logger.ReleaseCreateInstanceItems(&next_ptr) || !_globe_window->ReleaseCreateInstanceItems(&next_ptr)) {
         logger.LogFatalError("Failed cleaning up after creating instance");
     }
     logger.CreateInstanceDebugInfo(_vk_instance);
@@ -236,16 +236,16 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     vkGetPhysicalDeviceFeatures(_vk_phys_device, &physDevFeatures);
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
-    _gravity_window->SetHInstance(init_struct.windows_instance);
+    _globe_window->SetHInstance(init_struct.windows_instance);
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-    _gravity_window->SetMoltenVkView(init_struct.molten_view);
+    _globe_window->SetMoltenVkView(init_struct.molten_view);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-    _gravity_window->SetAndroidNativeWindow(_android_native_window);
+    _globe_window->SetAndroidNativeWindow(_android_native_window);
 #endif
-    _gravity_window->CreatePlatformWindow(_vk_instance, _vk_phys_device, init_struct.width, init_struct.height);
+    _globe_window->CreatePlatformWindow(_vk_instance, _vk_phys_device, init_struct.width, init_struct.height);
 
-    _gravity_submit_mgr = new GravitySubmitManager(this, _gravity_window, _vk_instance, _vk_phys_device);
-    if (nullptr == _gravity_submit_mgr) {
+    _globe_submit_mgr = new GlobeSubmitManager(this, _globe_window, _vk_instance, _vk_phys_device);
+    if (nullptr == _globe_submit_mgr) {
         logger.LogFatalError("Failed to create swapchain manager!");
         return false;
     }
@@ -253,7 +253,7 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     VkDeviceCreateInfo device_create_info = {};
     current_extensions.resize(0);
     next_ptr = nullptr;
-    if (_gravity_submit_mgr->PrepareCreateDeviceItems(device_create_info, current_extensions, &next_ptr)) {
+    if (_globe_submit_mgr->PrepareCreateDeviceItems(device_create_info, current_extensions, &next_ptr)) {
         enabled_extensions.resize(0);
         for (uint32_t i = 0; i < current_extensions.size(); i++) {
             enabled_extensions.push_back(current_extensions[i].c_str());
@@ -270,18 +270,18 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
         return false;
     }
 
-    if (!_gravity_submit_mgr->ReleaseCreateDeviceItems(device_create_info, &next_ptr)) {
+    if (!_globe_submit_mgr->ReleaseCreateDeviceItems(device_create_info, &next_ptr)) {
         logger.LogFatalError("Failed cleaning up after creating device");
         return false;
     }
 
-    _gravity_resource_mgr = new GravityResourceManager(this, _resource_directory);
-    if (nullptr == _gravity_resource_mgr) {
+    _globe_resource_mgr = new GlobeResourceManager(this, _resource_directory);
+    if (nullptr == _globe_resource_mgr) {
         logger.LogFatalError("Failed to create resource manager!");
         return false;
     }
 
-    if (!_gravity_submit_mgr->PrepareForSwapchain(_vk_device, init_struct.num_swapchain_buffers, init_struct.present_mode,
+    if (!_globe_submit_mgr->PrepareForSwapchain(_vk_device, init_struct.num_swapchain_buffers, init_struct.present_mode,
                                                   init_struct.ideal_swapchain_format, init_struct.secondary_swapchain_format)) {
         logger.LogFatalError("Failed to prepare swapchain");
         return false;
@@ -294,18 +294,18 @@ bool GravityApp::Init(GravityInitStruct &init_struct) {
     return true;
 }
 
-bool GravityApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
-    GravityLogger &logger = GravityLogger::getInstance();
+bool GlobeApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
 
-    _gravity_submit_mgr->CreateSwapchain();
-    _swapchain_count = _gravity_submit_mgr->NumSwapchainImages();
-    _vk_swapchain_format = _gravity_submit_mgr->GetSwapchainVkFormat();
+    _globe_submit_mgr->CreateSwapchain();
+    _swapchain_count = _globe_submit_mgr->NumSwapchainImages();
+    _vk_swapchain_format = _globe_submit_mgr->GetSwapchainVkFormat();
 
     if (_vk_setup_command_pool == VK_NULL_HANDLE) {
         VkCommandPoolCreateInfo cmd_pool_info = {};
         cmd_pool_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
         cmd_pool_info.pNext = nullptr;
-        cmd_pool_info.queueFamilyIndex = _gravity_submit_mgr->GetGraphicsQueueIndex();
+        cmd_pool_info.queueFamilyIndex = _globe_submit_mgr->GetGraphicsQueueIndex();
         cmd_pool_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
         if (VK_SUCCESS != vkCreateCommandPool(_vk_device, &cmd_pool_info, nullptr, &_vk_setup_command_pool)) {
             logger.LogFatalError("Failed creating device command pool");
@@ -371,7 +371,7 @@ bool GravityApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer 
             return false;
         }
 
-        if (!_gravity_resource_mgr->AllocateDeviceImageMemory(_depth_buffer.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+        if (!_globe_resource_mgr->AllocateDeviceImageMemory(_depth_buffer.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                               _depth_buffer.vk_device_memory, _depth_buffer.vk_allocated_size)) {
             logger.LogFatalError("Failed allocating depth buffer image to memory");
             return false;
@@ -393,8 +393,8 @@ bool GravityApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer 
     return true;
 }
 
-bool GravityApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
-    GravityLogger &logger = GravityLogger::getInstance();
+bool GlobeApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
     vk_setup_command_pool = VK_NULL_HANDLE;
     vk_setup_command_buffer = VK_NULL_HANDLE;
 
@@ -417,7 +417,7 @@ bool GravityApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer
 
         std::vector<VkCommandBuffer> command_buffers;
         command_buffers.push_back(_vk_setup_command_buffer);
-        _gravity_submit_mgr->Submit(command_buffers, vk_fence, true);
+        _globe_submit_mgr->Submit(command_buffers, vk_fence, true);
         vkFreeCommandBuffers(_vk_device, _vk_setup_command_pool, 1, &_vk_setup_command_buffer);
         vkDestroyFence(_vk_device, vk_fence, nullptr);
         _vk_setup_command_buffer = VK_NULL_HANDLE;
@@ -430,7 +430,7 @@ bool GravityApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer
     return true;
 }
 
-void GravityApp::Resize() {
+void GlobeApp::Resize() {
     if (_must_exit) {
         return;
     }
@@ -440,23 +440,23 @@ void GravityApp::Resize() {
         // In order to properly resize the window, we must re-create the swapchain
         // AND redo the command buffers, etc.
         CleanupCommandObjects(true);
-        _width = _gravity_submit_mgr->CurrentWidth();
-        _height = _gravity_submit_mgr->CurrentHeight();
+        _width = _globe_submit_mgr->CurrentWidth();
+        _height = _globe_submit_mgr->CurrentHeight();
     }
     Setup();
 }
 
-void GravityApp::CleanupCommandObjects(bool is_resize) {
+void GlobeApp::CleanupCommandObjects(bool is_resize) {
     _prepared = false;
     if (!_is_minimized) {
         vkDestroyImageView(_vk_device, _depth_buffer.vk_image_view, nullptr);
         vkDestroyImage(_vk_device, _depth_buffer.vk_image, nullptr);
-        _gravity_resource_mgr->FreeDeviceMemory(_depth_buffer.vk_device_memory);
+        _globe_resource_mgr->FreeDeviceMemory(_depth_buffer.vk_device_memory);
 
         if (is_resize) {
-            _gravity_submit_mgr->Resize();
+            _globe_submit_mgr->Resize();
         } else {
-            _gravity_submit_mgr->DestroySwapchain();
+            _globe_submit_mgr->DestroySwapchain();
         }
 
         if (!is_resize) {
@@ -465,31 +465,31 @@ void GravityApp::CleanupCommandObjects(bool is_resize) {
     }
 }
 
-bool GravityApp::Run() {
+bool GlobeApp::Run() {
     while (!_must_exit) {
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
         if (_is_paused) {
-            _gravity_window->HandleXlibEvent();
+            _globe_window->HandleXlibEvent();
         }
-        _gravity_window->HandleAllXlibEvents();
+        _globe_window->HandleAllXlibEvents();
 #elif defined(VK_USE_PLATFORM_XCB_KHR)
         if (_is_paused) {
-            _gravity_window->HandlePausedXcbEvent();
+            _globe_window->HandlePausedXcbEvent();
         }
-        _gravity_window->HandleAllXcbEvents();
+        _globe_window->HandleAllXcbEvents();
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
         if (_is_paused) {
-            _gravity_window->HandlePausedWaylandEvent();
+            _globe_window->HandlePausedWaylandEvent();
         } else {
-            _gravity_window->HandleActiveWaylandEvents();
+            _globe_window->HandleActiveWaylandEvents();
         }
 #elif defined(VK_USE_PLATFORM_WIN32_KHR)
         MSG msg = {0};
         PeekMessage(&msg, NULL, 0, 0, PM_REMOVE);
         if (msg.message == WM_QUIT)  // check for a quit message
         {
-            GravityEvent quit_event(GRAVITY_EVENT_QUIT);
-            GravityEventList::getInstance().InsertEvent(quit_event);
+            GlobeEvent quit_event(GLOBE_EVENT_QUIT);
+            GlobeEventList::getInstance().InsertEvent(quit_event);
         } else {
             /* Translate and dispatch to event queue*/
             TranslateMessage(&msg);
@@ -529,38 +529,38 @@ bool GravityApp::Run() {
     return true;
 }
 
-bool GravityApp::Draw() {
+bool GlobeApp::Draw() {
     _current_frame++;
     if (_exit_on_frame && _current_frame == _exit_frame) {
-        GravityEvent quit_event(GRAVITY_EVENT_QUIT);
-        GravityEventList::getInstance().InsertEvent(quit_event);
+        GlobeEvent quit_event(GLOBE_EVENT_QUIT);
+        GlobeEventList::getInstance().InsertEvent(quit_event);
     }
     return true;
 }
 
-void GravityApp::Exit() {
+void GlobeApp::Exit() {
     if (!_is_minimized) {
         vkDeviceWaitIdle(_vk_device);
     }
     CleanupCommandObjects(false);
     vkDeviceWaitIdle(_vk_device);
-    if (_gravity_submit_mgr) {
-        delete _gravity_submit_mgr;
-        _gravity_submit_mgr = nullptr;
+    if (_globe_submit_mgr) {
+        delete _globe_submit_mgr;
+        _globe_submit_mgr = nullptr;
     }
     vkDestroyDevice(_vk_device, nullptr);
-    GravityLogger::getInstance().DestroyInstanceDebugInfo(_vk_instance);
-    delete _gravity_window;
-    _gravity_window = nullptr;
+    GlobeLogger::getInstance().DestroyInstanceDebugInfo(_vk_instance);
+    delete _globe_window;
+    _globe_window = nullptr;
 
     vkDestroyInstance(_vk_instance, nullptr);
 }
 
-bool GravityApp::TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
+bool GlobeApp::TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
                                          VkImageLayout old_image_layout, VkImageLayout new_image_layout,
                                          VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
                                          VkPipelineStageFlags dest_stages) {
-    GravityLogger &logger = GravityLogger::getInstance();
+    GlobeLogger &logger = GlobeLogger::getInstance();
     if (VK_NULL_HANDLE == new_image_layout) {
         logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
         return false;
@@ -613,9 +613,9 @@ bool GravityApp::TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image,
     return true;
 }
 
-bool GravityApp::ProcessEvents() {
-    std::vector<GravityEvent> current_events;
-    if (GravityEventList::getInstance().GetEvents(current_events)) {
+bool GlobeApp::ProcessEvents() {
+    std::vector<GlobeEvent> current_events;
+    if (GlobeEventList::getInstance().GetEvents(current_events)) {
         for (auto &cur_event : current_events) {
             HandleEvent(cur_event);
         }
@@ -623,26 +623,26 @@ bool GravityApp::ProcessEvents() {
     return true;
 }
 
-void GravityApp::HandleEvent(GravityEvent &event) {
+void GlobeApp::HandleEvent(GlobeEvent &event) {
     switch (event.Type()) {
-        case GRAVITY_EVENT_KEY_RELEASE:
+        case GLOBE_EVENT_KEY_RELEASE:
             switch (event._data.key) {
-                case GRAVITY_KEYNAME_ESCAPE:
+                case GLOBE_KEYNAME_ESCAPE:
                     _must_exit = true;
                     break;
-                case GRAVITY_KEYNAME_SPACE:
+                case GLOBE_KEYNAME_SPACE:
                     _is_paused = !_is_paused;
                     break;
                 default:
                     break;
             }
             break;
-        case GRAVITY_EVENT_WINDOW_DRAW:
+        case GLOBE_EVENT_WINDOW_DRAW:
             if (_focused) {
                 Draw();
             }
             break;
-        case GRAVITY_EVENT_WINDOW_RESIZE:
+        case GLOBE_EVENT_WINDOW_RESIZE:
             // Only resize if the data is different
             if (_width != event._data.resize.width || _height != event._data.resize.height) {
                 _was_minimized = _width == 0 || _height == 0;
@@ -652,10 +652,10 @@ void GravityApp::HandleEvent(GravityEvent &event) {
                 _height = event._data.resize.height;
                 Resize();
             } else {
-                GravityLogger::getInstance().LogInfo("Redundant resize call");
+                GlobeLogger::getInstance().LogInfo("Redundant resize call");
             }
             break;
-        case GRAVITY_EVENT_QUIT:
+        case GLOBE_EVENT_QUIT:
             _must_exit = true;
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
             PostQuitMessage(0);

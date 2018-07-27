@@ -34,7 +34,7 @@ https://vulkan.lunarg.com/
 
 To create your local git repository:
 
-    git clone https://github.com/MarkY-LunarG/LunarGravity.git
+    git clone https://github.com/MarkY-LunarG/LunarGlobe.git
 
 ## Building On Windows
 
@@ -54,7 +54,7 @@ Windows 7+ with the following software packages:
 ### Windows Build - Microsoft Visual Studio
 
 1. Open a Developer Command Prompt for VS201x
-2. Change directory to `LunarGravity` -- the root of the cloned git repository
+2. Change directory to `LunarGlobe` -- the root of the cloned git repository
 3. Run `git submodule update --init --recursive` -- this will download in-tree external dependencies
 4. Create a `build` directory, change into that directory, and run cmake
 
@@ -62,9 +62,9 @@ For example, assuming an SDK is installed, for VS2017 (generators for other vers
 
     cmake "Visual Studio 15 2017 Win64" ..
 
-This will create a Windows solution file named `LunarGravity.sln` in the build directory.
+This will create a Windows solution file named `LunarGlobe.sln` in the build directory.
 
-Launch Visual Studio and open the "LunarGravity.sln" solution file in the build folder.
+Launch Visual Studio and open the "LunarGlobe.sln" solution file in the build folder.
 You may select "Debug" or "Release" from the Solution Configurations drop-down list.
 Start a build by selecting the Build->Build Solution menu item.
 This solution copies the loader it built to each program's build directory
@@ -88,7 +88,7 @@ Example debug build
 
 See **Loader and Validation Layer Dependencies** for more information and other options:
 
-1. In a Linux terminal, `cd LunarGravity` -- the root of the cloned git repository
+1. In a Linux terminal, `cd LunarGlobe` -- the root of the cloned git repository
 2. Execute: `git submodule update --init --recursive` -- this will download in-tree external components
 3. Create a `build` directory, change into that directory, and run cmake:
 

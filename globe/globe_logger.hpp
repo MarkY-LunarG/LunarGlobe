@@ -27,14 +27,14 @@
 #include <mutex>
 #include <unordered_map>
 
-#include "gravity_vulkan_headers.hpp"
+#include "globe_vulkan_headers.hpp"
 
-enum GravityLogLevel {
-    GRAVITY_LOG_DISABLE = 0,
-    GRAVITY_LOG_ERROR,
-    GRAVITY_LOG_WARN_ERROR,
-    GRAVITY_LOG_INFO_WARN_ERROR,
-    GRAVITY_LOG_ALL
+enum GlobeLogLevel {
+    GLOBE_LOG_DISABLE = 0,
+    GLOBE_LOG_ERROR,
+    GLOBE_LOG_WARN_ERROR,
+    GLOBE_LOG_INFO_WARN_ERROR,
+    GLOBE_LOG_ALL
 };
 
 struct InstanceDebugInfo {
@@ -48,15 +48,15 @@ struct InstanceDebugInfo {
     VkDebugUtilsMessengerEXT dbg_messenger;
 };
 
-class GravityLogger {
+class GlobeLogger {
    public:
-    static GravityLogger &getInstance() {
-        static GravityLogger instance;  // Guaranteed to be destroyed. Instantiated on first use.
+    static GlobeLogger &getInstance() {
+        static GlobeLogger instance;  // Guaranteed to be destroyed. Instantiated on first use.
         return instance;
     }
 
-    GravityLogger(GravityLogger const &) = delete;
-    void operator=(GravityLogger const &) = delete;
+    GlobeLogger(GlobeLogger const &) = delete;
+    void operator=(GlobeLogger const &) = delete;
 
     // Extension utilities
     bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions, void **next);
@@ -74,8 +74,8 @@ class GravityLogger {
     void EnableValidation(bool enable) { _enable_validation = enable; }
     bool BreakOnError() { return _enable_break_on_error; }
     void EnableBreakOnError(bool enable) { _enable_break_on_error = enable; }
-    GravityLogLevel GetLogLevel() { return _log_level; }
-    void SetLogLevel(GravityLogLevel level) { _log_level = level; }
+    GlobeLogLevel GetLogLevel() { return _log_level; }
+    void SetLogLevel(GlobeLogLevel level) { _log_level = level; }
     void EnablePopups(bool enable) { _enable_popups = enable; }
     bool PopupsEnabled() { return _enable_popups; }
 
@@ -88,8 +88,8 @@ class GravityLogger {
     void LogFatalError(std::string message);
 
    private:
-    GravityLogger();
-    virtual ~GravityLogger();
+    GlobeLogger();
+    virtual ~GlobeLogger();
 
     void LogMessage(const std::string &prefix, const std::string &message);
 
@@ -99,7 +99,7 @@ class GravityLogger {
     bool _output_file;
     bool _enable_popups;
     std::ofstream _file_stream;
-    GravityLogLevel _log_level;
+    GlobeLogLevel _log_level;
     std::unordered_map<VkInstance, InstanceDebugInfo> _instance_debug_info;
     std::mutex _instance_debug_mutex;
 };

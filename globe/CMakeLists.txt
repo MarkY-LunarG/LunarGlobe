@@ -21,7 +21,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     option(BUILD_WSI_XLIB_SUPPORT "Build Xlib WSI support" ON)
     option(BUILD_WSI_WAYLAND_SUPPORT "Build Wayland WSI support" ON)
     option(BUILD_WSI_MIR_SUPPORT "Build Mir WSI support" OFF)
-    set(GRAVITY_WSI_SELECTION "XCB" CACHE STRING "Select WSI target for gravity (XCB, XLIB, WAYLAND, MIR, DISPLAY)")
+    set(GLOBE_WSI_SELECTION "XCB" CACHE STRING "Select WSI target for globe (XCB, XLIB, WAYLAND, MIR, DISPLAY)")
 
     if (BUILD_WSI_XCB_SUPPORT)
         find_package(XCB REQUIRED)
@@ -48,7 +48,7 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
     set(DisplayServer Win32)
     if (NOT MSVC_VERSION LESS 1900)
         # Enable control flow guard
-        message(STATUS "Building gravity with control flow guard")
+        message(STATUS "Building globe with control flow guard")
         add_compile_options("$<$<CXX_COMPILER_ID:MSVC>:/guard:cf>")
         set(CMAKE_SHARED_LINKER_FLAGS "${CMAKE_SHARED_LINKER_FLAGS} /guard:cf")
         set(CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} /guard:cf")
@@ -56,53 +56,53 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Windows")
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Android")
     add_definitions(-DVK_USE_PLATFORM_ANDROID_KHR)
 elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
-    if (NOT GRAVITY_WSI_SELECTION)
-        set(GRAVITY_WSI_SELECTION "XCB")
+    if (NOT GLOBE_WSI_SELECTION)
+        set(GLOBE_WSI_SELECTION "XCB")
     endif()
 
-    if (GRAVITY_WSI_SELECTION STREQUAL "XCB")
+    if (GLOBE_WSI_SELECTION STREQUAL "XCB")
         if (NOT BUILD_WSI_XCB_SUPPORT)
-            message( FATAL_ERROR "Selected XCB for gravity build but not building Xcb support" )
+            message( FATAL_ERROR "Selected XCB for globe build but not building Xcb support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${XCB_INCLUDE_DIRS}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${XCB_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_XCB_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "XLIB")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "XLIB")
         if (NOT BUILD_WSI_XLIB_SUPPORT)
-            message( FATAL_ERROR "Selected XLIB for gravity build but not building Xlib support" )
+            message( FATAL_ERROR "Selected XLIB for globe build but not building Xlib support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${X11_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${X11_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_XLIB_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "WAYLAND")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "WAYLAND")
         if (NOT BUILD_WSI_WAYLAND_SUPPORT)
-            message( FATAL_ERROR "Selected Wayland for gravity build but not building Wayland support" )
+            message( FATAL_ERROR "Selected Wayland for globe build but not building Wayland support" )
         endif()
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${WAYLAND_CLIENT_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
         link_libraries(${WAYLAND_CLIENT_LIBRARIES})
         add_definitions(-DVK_USE_PLATFORM_WAYLAND_KHR)
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "MIR")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "MIR")
         if (NOT BUILD_WSI_MIR_SUPPORT)
-            message( FATAL_ERROR "Selected MIR for gravity build but not building Mir support" )
+            message( FATAL_ERROR "Selected MIR for globe build but not building Mir support" )
         endif()
         add_definitions(-DVK_USE_PLATFORM_MIR_KHR)
-        set(GRAVITY_INCLUDE_DIRS
+        set(GLOBE_INCLUDE_DIRS
             ${MIR_INCLUDE_DIR}
-            ${GRAVITY_INCLUDE_DIRS}
+            ${GLOBE_INCLUDE_DIRS}
         )
-    elseif(GRAVITY_WSI_SELECTION STREQUAL "DISPLAY")
+    elseif(GLOBE_WSI_SELECTION STREQUAL "DISPLAY")
         add_definitions(-DVK_USE_PLATFORM_DISPLAY_KHR)
     else()
-        message( FATAL_ERROR "Unrecognized value for GRAVITY_WSI_SELECTION: ${GRAVITY_WSI_SELECTION}" )
+        message( FATAL_ERROR "Unrecognized value for GLOBE_WSI_SELECTION: ${GLOBE_WSI_SELECTION}" )
      endif()
 
     link_libraries(${API_LOWERCASE} m)
@@ -113,7 +113,7 @@ else()
 endif()
 
 file(GLOB TEXTURES
-  "${PROJECT_SOURCE_DIR}/gravity/*.ppm"
+  "${PROJECT_SOURCE_DIR}/globe/*.ppm"
   )
 file(COPY ${TEXTURES} DESTINATION ${CMAKE_CURRENT_BINARY_DIR})
 
@@ -171,38 +171,38 @@ if(APPLE)
 endif()
 
 include_directories(
-    ${GRAVITY_INCLUDE_DIRS}
+    ${GLOBE_INCLUDE_DIRS}
     ${PROJECT_SOURCE_DIR}/submodules/stb
     )
 
 ######################################################################################
-# gravity
+# globe
 
-set(GRAVITY_SOURCE_FILES
-    gravity_vulkan_headers.hpp
-    gravity_app.hpp
-    gravity_app.cpp
-    gravity_logger.hpp
-    gravity_logger.cpp
-    gravity_event.hpp
-    gravity_event.cpp
-    gravity_window.hpp
-    gravity_window.cpp
-    gravity_resource_manager.hpp
-    gravity_resource_manager.cpp
-    gravity_shader.hpp
-    gravity_shader.cpp
-    gravity_texture.hpp
-    gravity_texture.cpp
-    gravity_submit_manager.hpp
-    gravity_submit_manager.cpp
+set(GLOBE_SOURCE_FILES
+    globe_vulkan_headers.hpp
+    globe_app.hpp
+    globe_app.cpp
+    globe_logger.hpp
+    globe_logger.cpp
+    globe_event.hpp
+    globe_event.cpp
+    globe_window.hpp
+    globe_window.cpp
+    globe_resource_manager.hpp
+    globe_resource_manager.cpp
+    globe_shader.hpp
+    globe_shader.cpp
+    globe_texture.hpp
+    globe_texture.cpp
+    globe_submit_manager.hpp
+    globe_submit_manager.cpp
 )
 
 if(APPLE)
 elseif(NOT WIN32)
     if (${CMAKE_SYSTEM_PROCESSOR} STREQUAL ${CMAKE_HOST_SYSTEM_PROCESSOR})
-        add_library(gravity ${GRAVITY_SOURCE_FILES})
-        target_link_libraries(gravity ${LIBVK})
+        add_library(globe ${GLOBE_SOURCE_FILES})
+        target_link_libraries(globe ${LIBVK})
     endif()
 else()
     if (CMAKE_CL_64)
@@ -211,6 +211,6 @@ else()
         set (LIB_DIR "Win32")
     endif()
 
-    add_library(gravity ${GRAVITY_SOURCE_FILES})
-    target_link_libraries(gravity ${LIBVK} Shcore.lib)
+    add_library(globe ${GLOBE_SOURCE_FILES})
+    target_link_libraries(globe ${LIBVK} Shcore.lib)
 endif()

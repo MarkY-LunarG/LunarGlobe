@@ -24,9 +24,9 @@
 #include <string>
 #include <cmath>
 
-#include "gravity_vulkan_headers.hpp"
+#include "globe_vulkan_headers.hpp"
 
-class GravityApp;
+class GlobeApp;
 
 struct NativeWindowInfo {
 #ifdef VK_USE_PLATFORM_WIN32_KHR
@@ -67,10 +67,10 @@ struct NativeWindowInfo {
     VkPhysicalDevice vk_physical_device;
 };
 
-class GravityWindow {
+class GlobeWindow {
    public:
-    GravityWindow(GravityApp *associated_app, const std::string &name);
-    virtual ~GravityWindow();
+    GlobeWindow(GlobeApp *associated_app, const std::string &name);
+    virtual ~GlobeWindow();
 
 #ifdef VK_USE_PLATFORM_WIN32_KHR
     void SetHInstance(HINSTANCE win_hinstance) { _native_win_info.instance_handle = win_hinstance; }
@@ -117,7 +117,7 @@ class GravityWindow {
     void HandleXcbEvent(xcb_generic_event_t *xcb_event);
 #endif
 
-    GravityApp *_associated_app;
+    GlobeApp *_associated_app;
     std::string _name;
     uint32_t _width;
     uint32_t _height;

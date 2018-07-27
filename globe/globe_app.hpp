@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -23,18 +23,18 @@
 #include <string>
 #include <vector>
 
-#include "gravity_window.hpp"
+#include "globe_window.hpp"
 
-struct GravityVersion {
+struct GlobeVersion {
     uint8_t major;
     uint8_t minor;
     uint8_t patch;
 };
 
-struct GravityInitStruct {
+struct GlobeInitStruct {
     std::string app_name;
     std::vector<std::string> command_line_args;
-    GravityVersion version;
+    GlobeVersion version;
     uint32_t width;
     uint32_t height;
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
@@ -48,7 +48,7 @@ struct GravityInitStruct {
     VkFormat secondary_swapchain_format;
 };
 
-struct GravityDepthBuffer {
+struct GlobeDepthBuffer {
     VkFormat vk_format;
     VkImage vk_image;
     VkDeviceMemory vk_device_memory;
@@ -56,15 +56,15 @@ struct GravityDepthBuffer {
     VkImageView vk_image_view;
 };
 
-class GravityResourceManager;
-class GravitySubmitManager;
+class GlobeResourceManager;
+class GlobeSubmitManager;
 
-class GravityApp {
+class GlobeApp {
    public:
-    GravityApp();
-    ~GravityApp();
+    GlobeApp();
+    ~GlobeApp();
 
-    virtual bool Init(GravityInitStruct &init_struct);
+    virtual bool Init(GlobeInitStruct &init_struct);
     virtual void Resize();
     virtual bool Run();
     virtual bool Draw();
@@ -86,17 +86,17 @@ class GravityApp {
     bool PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
     bool PostSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
     bool ProcessEvents();
-    virtual void HandleEvent(GravityEvent &event);
+    virtual void HandleEvent(GlobeEvent &event);
     bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
                                  VkImageLayout old_image_layout, VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask,
                                  VkPipelineStageFlags src_stages, VkPipelineStageFlags dest_stages);
 
     std::string _name;
-    GravityVersion _app_version;
-    GravityVersion _engine_version;
-    GravityWindow *_gravity_window;
-    GravityResourceManager *_gravity_resource_mgr;
-    GravitySubmitManager *_gravity_submit_mgr;
+    GlobeVersion _app_version;
+    GlobeVersion _engine_version;
+    GlobeWindow *_globe_window;
+    GlobeResourceManager *_globe_resource_mgr;
+    GlobeSubmitManager *_globe_submit_mgr;
     uint32_t _width;
     uint32_t _height;
     bool _prepared;
@@ -119,7 +119,7 @@ class GravityApp {
     VkFormat _vk_swapchain_format;
     VkCommandPool _vk_setup_command_pool;
     VkCommandBuffer _vk_setup_command_buffer;
-    GravityDepthBuffer _depth_buffer;
+    GlobeDepthBuffer _depth_buffer;
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     ANativeWindow *_android_native_window;
 #endif

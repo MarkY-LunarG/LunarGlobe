@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_event.cpp
+ * LunarGlobe - globe_event.cpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -18,21 +18,21 @@
  * Author: Mark Young <marky@lunarg.com>
  */
 
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
+#include "globe_logger.hpp"
+#include "globe_event.hpp"
 
-GravityEventList::GravityEventList() : _current(0), _next(0) {}
+GlobeEventList::GlobeEventList() : _current(0), _next(0) {}
 
-GravityEventList::~GravityEventList() {}
+GlobeEventList::~GlobeEventList() {}
 
-bool GravityEventList::Alloc(uint16_t size) {
+bool GlobeEventList::Alloc(uint16_t size) {
     _mutex.lock();
     _list.resize(size);
     _mutex.unlock();
     return true;
 }
 
-bool GravityEventList::SpaceAvailable() {
+bool GlobeEventList::SpaceAvailable() {
     bool available = false;
     if (_list.size() > 0) {
         if (_current != _next) {
@@ -52,7 +52,7 @@ bool GravityEventList::SpaceAvailable() {
     return available;
 }
 
-bool GravityEventList::HasEvents() {
+bool GlobeEventList::HasEvents() {
     bool events = false;
     if (_list.size() > 0 && _current != _next) {
         events = true;
@@ -61,7 +61,7 @@ bool GravityEventList::HasEvents() {
     return events;
 }
 
-bool GravityEventList::InsertEvent(GravityEvent &event) {
+bool GlobeEventList::InsertEvent(GlobeEvent &event) {
     bool space = false;
     _mutex.lock();
     space = SpaceAvailable();
@@ -69,13 +69,13 @@ bool GravityEventList::InsertEvent(GravityEvent &event) {
         _list[_next] = event;
         _next = (_next + 1) % _list.size();
     } else {
-        GravityLogger::getInstance().LogError("Out of space for Event!!!");
+        GlobeLogger::getInstance().LogError("Out of space for Event!!!");
     }
     _mutex.unlock();
     return space;
 }
 
-bool GravityEventList::GetEvents(std::vector<GravityEvent> &current_events) {
+bool GlobeEventList::GetEvents(std::vector<GlobeEvent> &current_events) {
     bool removed = false;
     _mutex.lock();
     while (HasEvents()) {

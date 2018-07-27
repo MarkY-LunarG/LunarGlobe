@@ -29,19 +29,19 @@
 #include <assert.h>
 
 #include "object_type_string_helper.h"
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
+#include "globe_logger.hpp"
+#include "globe_event.hpp"
 
-GravityLogger::GravityLogger() {
+GlobeLogger::GlobeLogger() {
     _output_cmdline = true;
     _output_file = false;
-    _log_level = GRAVITY_LOG_WARN_ERROR;
+    _log_level = GLOBE_LOG_WARN_ERROR;
     _enable_validation = false;
     _enable_popups = true;
     _enable_break_on_error = false;
 }
 
-GravityLogger::~GravityLogger() {
+GlobeLogger::~GlobeLogger() {
     if (_output_file) {
         _file_stream.close();
     }
@@ -52,7 +52,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSever
                                                         const VkDebugUtilsMessengerCallbackDataEXT *pCallbackData,
                                                         void *pUserData) {
     std::string message;
-    GravityLogger *logger = reinterpret_cast<GravityLogger *>(pUserData);
+    GlobeLogger *logger = reinterpret_cast<GlobeLogger *>(pUserData);
 
     if (logger->BreakOnError()) {
 #ifndef WIN32
@@ -138,11 +138,11 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSever
 
 #ifdef _WIN32
 
-    GravityEventList::getInstance().InsertEvent(GravityEvent(GRAVITY_EVENT_PLATFORM_PAUSE_START));
+    GlobeEventList::getInstance().InsertEvent(GlobeEvent(GLOBE_EVENT_PLATFORM_PAUSE_START));
     if (logger->PopupsEnabled()) {
         MessageBox(NULL, message.c_str(), "Alert", MB_OK);
     }
-    GravityEventList::getInstance().InsertEvent(GravityEvent(GRAVITY_EVENT_PLATFORM_PAUSE_STOP));
+    GlobeEventList::getInstance().InsertEvent(GlobeEvent(GLOBE_EVENT_PLATFORM_PAUSE_STOP));
 
 #elif defined(ANDROID)
 
@@ -169,7 +169,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSever
     return false;
 }
 
-bool GravityLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
+bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
                                                void **next) {
     uint32_t extension_count = 0;
     uint32_t layer_count = 0;
@@ -283,17 +283,17 @@ bool GravityLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers,
     return true;
 }
 
-bool GravityLogger::ReleaseCreateInstanceItems(void **next) {
+bool GlobeLogger::ReleaseCreateInstanceItems(void **next) {
     try {
-        GravityBasicVulkanStruct *prev_next = nullptr;
-        GravityBasicVulkanStruct *next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(*next);
+        GlobeBasicVulkanStruct *prev_next = nullptr;
+        GlobeBasicVulkanStruct *next_ptr = reinterpret_cast<GlobeBasicVulkanStruct *>(*next);
         while (next_ptr != nullptr) {
             if (next_ptr->sType == VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT) {
                 VkDebugUtilsMessengerCreateInfoEXT *dbg_messenger_create_info =
                     reinterpret_cast<VkDebugUtilsMessengerCreateInfoEXT *>(next_ptr);
                 if (*next == next_ptr) {
                     *next = next_ptr->pNext;
-                    next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(*next);
+                    next_ptr = reinterpret_cast<GlobeBasicVulkanStruct *>(*next);
                 } else if (nullptr != prev_next) {
                     prev_next->pNext = next_ptr->pNext;
                 }
@@ -301,7 +301,7 @@ bool GravityLogger::ReleaseCreateInstanceItems(void **next) {
             }
             prev_next = next_ptr;
             if (nullptr != next_ptr) {
-                next_ptr = reinterpret_cast<GravityBasicVulkanStruct *>(next_ptr->pNext);
+                next_ptr = reinterpret_cast<GlobeBasicVulkanStruct *>(next_ptr->pNext);
             }
         }
         return true;
@@ -310,7 +310,7 @@ bool GravityLogger::ReleaseCreateInstanceItems(void **next) {
     }
 }
 
-bool GravityLogger::CreateInstanceDebugInfo(VkInstance instance) {
+bool GlobeLogger::CreateInstanceDebugInfo(VkInstance instance) {
     bool locked = false;
     try {
         if (_enable_validation) {
@@ -374,7 +374,7 @@ bool GravityLogger::CreateInstanceDebugInfo(VkInstance instance) {
     }
 }
 
-bool GravityLogger::DestroyInstanceDebugInfo(VkInstance instance) {
+bool GlobeLogger::DestroyInstanceDebugInfo(VkInstance instance) {
     bool locked = false;
     try {
         if (_enable_validation) {
@@ -401,7 +401,7 @@ bool GravityLogger::DestroyInstanceDebugInfo(VkInstance instance) {
     }
 }
 
-bool GravityLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
+bool GlobeLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
                                                      std::vector<std::string> &extensions) {
     uint32_t extension_count = 0;
 
@@ -425,7 +425,7 @@ bool GravityLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &phy
     return true;
 }
 
-void GravityLogger::SetFileOutput(std::string output_file) {
+void GlobeLogger::SetFileOutput(std::string output_file) {
     if (output_file.size() > 0) {
         _file_stream.open(output_file);
         if (_file_stream.fail()) {
@@ -438,7 +438,7 @@ void GravityLogger::SetFileOutput(std::string output_file) {
     }
 }
 
-void GravityLogger::LogMessage(const std::string &prefix, const std::string &message) {
+void GlobeLogger::LogMessage(const std::string &prefix, const std::string &message) {
     if (_output_cmdline) {
         std::cout << prefix << message << std::endl;
         std::cout << std::flush;
@@ -449,34 +449,34 @@ void GravityLogger::LogMessage(const std::string &prefix, const std::string &mes
     }
 }
 
-void GravityLogger::LogDebug(std::string message) {
+void GlobeLogger::LogDebug(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_DEBUG, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_DEBUG, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity DEBUG: ";
-    if (_log_level >= GRAVITY_LOG_ALL) {
+    std::string prefix = "LunarGlobe DEBUG: ";
+    if (_log_level >= GLOBE_LOG_ALL) {
         LogMessage(prefix, message);
     }
 #endif
 }
 
-void GravityLogger::LogInfo(std::string message) {
+void GlobeLogger::LogInfo(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_INFO, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_INFO, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity INFO: ";
-    if (_log_level >= GRAVITY_LOG_INFO_WARN_ERROR) {
+    std::string prefix = "LunarGlobe INFO: ";
+    if (_log_level >= GLOBE_LOG_INFO_WARN_ERROR) {
         LogMessage(prefix, message);
     }
 #endif
 }
 
-void GravityLogger::LogWarning(std::string message) {
+void GlobeLogger::LogWarning(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_WARN, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_WARN, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity WARNING: ";
-    if (_log_level >= GRAVITY_LOG_WARN_ERROR) {
+    std::string prefix = "LunarGlobe WARNING: ";
+    if (_log_level >= GLOBE_LOG_WARN_ERROR) {
         LogMessage(prefix, message);
 #ifdef _WIN32
         if (_enable_popups) {
@@ -487,23 +487,23 @@ void GravityLogger::LogWarning(std::string message) {
 #endif
 }
 
-void GravityLogger::LogPerf(std::string message) {
+void GlobeLogger::LogPerf(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_WARN, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_WARN, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity PERF: ";
-    if (_log_level >= GRAVITY_LOG_WARN_ERROR) {
+    std::string prefix = "LunarGlobe PERF: ";
+    if (_log_level >= GLOBE_LOG_WARN_ERROR) {
         LogMessage(prefix, message);
     }
 #endif
 }
 
-void GravityLogger::LogError(std::string message) {
+void GlobeLogger::LogError(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_ERROR, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_ERROR, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity ERROR: ";
-    if (_log_level >= GRAVITY_LOG_ERROR) {
+    std::string prefix = "LunarGlobe ERROR: ";
+    if (_log_level >= GLOBE_LOG_ERROR) {
         LogMessage(prefix, message);
 #ifdef _WIN32
         if (_enable_popups) {
@@ -517,12 +517,12 @@ void GravityLogger::LogError(std::string message) {
     }
 }
 
-void GravityLogger::LogFatalError(std::string message) {
+void GlobeLogger::LogFatalError(std::string message) {
 #ifdef __ANDROID__
-    __android_log_print(ANDROID_LOG_FATAL, "LunarGravity", "%s", message.c_str());
+    __android_log_print(ANDROID_LOG_FATAL, "LunarGlobe", "%s", message.c_str());
 #else
-    std::string prefix = "LunarGravity FATAL_ERROR: ";
-    if (_log_level >= GRAVITY_LOG_ERROR) {
+    std::string prefix = "LunarGlobe FATAL_ERROR: ";
+    if (_log_level >= GLOBE_LOG_ERROR) {
         if (_output_cmdline) {
             std::cerr << prefix << message << std::endl;
             std::cerr << std::flush;

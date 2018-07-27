@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -23,13 +23,13 @@
 #include <string>
 #include <sstream>
 
-#include "gravity_logger.hpp"
-#include "gravity_event.hpp"
-#include "gravity_submit_manager.hpp"
-#include "gravity_shader.hpp"
-#include "gravity_texture.hpp"
-#include "gravity_resource_manager.hpp"
-#include "gravity_app.hpp"
+#include "globe_logger.hpp"
+#include "globe_event.hpp"
+#include "globe_submit_manager.hpp"
+#include "globe_shader.hpp"
+#include "globe_texture.hpp"
+#include "globe_resource_manager.hpp"
+#include "globe_app.hpp"
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
 const char directory_symbol = '\\';
@@ -38,30 +38,30 @@ const char directory_symbol = '/';
 #endif
 static const char main_shader_func_name[] = "main";
 
-GravityShader* GravityShader::LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory) {
-    GravityShaderStageInitData shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES] = {{}, {}, {}, {}, {}, {}};
+GlobeShader* GlobeShader::LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory) {
+    GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES] = {{}, {}, {}, {}, {}, {}};
 
-    for (uint32_t stage = 0; stage < GRAVITY_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
+    for (uint32_t stage = 0; stage < GLOBE_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
         std::string full_shader_name = directory;
         full_shader_name += directory_symbol;
         full_shader_name += shader_name;
         switch (stage) {
-            case GRAVITY_SHADER_STAGE_ID_VERTEX:
+            case GLOBE_SHADER_STAGE_ID_VERTEX:
                 full_shader_name += "-vs.spv";
                 break;
-            case GRAVITY_SHADER_STAGE_ID_TESSELLATION_CONTROL:
+            case GLOBE_SHADER_STAGE_ID_TESSELLATION_CONTROL:
                 full_shader_name += "-cs.spv";
                 break;
-            case GRAVITY_SHADER_STAGE_ID_TESSELLATION_EVALUATION:
+            case GLOBE_SHADER_STAGE_ID_TESSELLATION_EVALUATION:
                 full_shader_name += "-es.spv";
                 break;
-            case GRAVITY_SHADER_STAGE_ID_GEOMETRY:
+            case GLOBE_SHADER_STAGE_ID_GEOMETRY:
                 full_shader_name += "-gs.spv";
                 break;
-            case GRAVITY_SHADER_STAGE_ID_FRAGMENT:
+            case GLOBE_SHADER_STAGE_ID_FRAGMENT:
                 full_shader_name += "-fs.spv";
                 break;
-            case GRAVITY_SHADER_STAGE_ID_COMPUTE:
+            case GLOBE_SHADER_STAGE_ID_COMPUTE:
                 full_shader_name += "-cp.spv";
                 break;
             default:
@@ -86,15 +86,15 @@ GravityShader* GravityShader::LoadFromFile(VkDevice vk_device, const std::string
         shader_data[stage].valid = true;
     }
 
-    return new GravityShader(vk_device, shader_name, shader_data);
+    return new GlobeShader(vk_device, shader_name, shader_data);
 }
 
-GravityShader::GravityShader(VkDevice vk_device, const std::string& shader_name,
-                             const GravityShaderStageInitData shader_data[GRAVITY_SHADER_STAGE_ID_NUM_STAGES])
+GlobeShader::GlobeShader(VkDevice vk_device, const std::string& shader_name,
+                             const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES])
     : _initialized(true), _vk_device(vk_device), _shader_name(shader_name) {
-    GravityLogger& logger = GravityLogger::getInstance();
+    GlobeLogger& logger = GlobeLogger::getInstance();
     uint32_t num_loaded_shaders = 0;
-    for (uint32_t stage = 0; stage < GRAVITY_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
+    for (uint32_t stage = 0; stage < GLOBE_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
         if (shader_data[stage].valid) {
             _shader_data[stage].vk_shader_flag = static_cast<VkShaderStageFlagBits>(1 << stage);
 
@@ -109,7 +109,7 @@ GravityShader::GravityShader(VkDevice vk_device, const std::string& shader_name,
             if (VK_SUCCESS != vk_result) {
                 _initialized = false;
                 _shader_data[stage].valid = false;
-                std::string error_msg = "GravityTexture::Read failed to read shader ";
+                std::string error_msg = "GlobeTexture::Read failed to read shader ";
                 error_msg += shader_name;
                 error_msg += " with error ";
                 error_msg += vk_result;
@@ -127,9 +127,9 @@ GravityShader::GravityShader(VkDevice vk_device, const std::string& shader_name,
     }
 }
 
-GravityShader::~GravityShader() {
+GlobeShader::~GlobeShader() {
     if (_initialized) {
-        for (uint32_t stage = 0; stage < GRAVITY_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
+        for (uint32_t stage = 0; stage < GLOBE_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
             if (_shader_data[stage].valid) {
                 vkDestroyShaderModule(_vk_device, _shader_data[stage].vk_shader_module, nullptr);
                 _shader_data[stage].valid = false;
@@ -140,14 +140,14 @@ GravityShader::~GravityShader() {
     }
 }
 
-bool GravityShader::GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo>& pipeline_stages) const {
+bool GlobeShader::GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo>& pipeline_stages) const {
     if (!_initialized) {
         return false;
     }
     VkPipelineShaderStageCreateInfo cur_stage_create_info = {};
     cur_stage_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_SHADER_STAGE_CREATE_INFO;
     cur_stage_create_info.pName = main_shader_func_name;
-    for (uint32_t stage = 0; stage < GRAVITY_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
+    for (uint32_t stage = 0; stage < GLOBE_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
         if (_shader_data[stage].valid) {
             cur_stage_create_info.stage = _shader_data[stage].vk_shader_flag;
             cur_stage_create_info.module = _shader_data[stage].vk_shader_module;

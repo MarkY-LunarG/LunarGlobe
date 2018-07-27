@@ -1,5 +1,5 @@
 /*
- * LunarGravity - gravity_app.hpp
+ * LunarGlobe - globe_app.hpp
  *
  * Copyright (C) 2018 LunarG, Inc.
  *
@@ -25,7 +25,7 @@
 
 #include "vulkan/vulkan_core.h"
 
-struct GravityTextureData {
+struct GlobeTextureData {
     uint32_t width;
     uint32_t height;
     uint32_t num_components;
@@ -37,25 +37,25 @@ struct GravityTextureData {
     VkDeviceSize vk_allocated_size;
     VkImageView vk_image_view;
     std::vector<uint8_t> raw_data;
-    GravityTextureData* staging_texture_data;
+    GlobeTextureData* staging_texture_data;
 };
 
-class GravityResourceManager;
+class GlobeResourceManager;
 
-class GravityTexture {
+class GlobeTexture {
    public:
-    static GravityTexture* LoadFromFile(const GravityResourceManager* resource_manager, VkDevice vk_device,
+    static GlobeTexture* LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
                                         VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                         const std::string& directory);
 
-    GravityTexture(const GravityResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
-                   GravityTextureData* texture_data);
-    ~GravityTexture();
+    GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
+                   GlobeTextureData* texture_data);
+    ~GlobeTexture();
 
     uint32_t Width() { return _width; }
     uint32_t Height() { return _height; }
     bool UsesStagingTexture() { return _uses_staging_texture; }
-    GravityTexture* StagingTexture() { return _staging_texture; }
+    GlobeTexture* StagingTexture() { return _staging_texture; }
     bool DeleteStagingTexture();
     VkFormat GetVkFormat() { return _vk_format; }
     VkSampler GetVkSampler() { return _vk_sampler; }
@@ -64,12 +64,12 @@ class GravityTexture {
     VkImageLayout GetVkImageLayout() { return _vk_image_layout; }
 
    private:
-    const GravityResourceManager* _gravity_resource_mgr;
+    const GlobeResourceManager* _globe_resource_mgr;
     VkPhysicalDevice _vk_physical_device;
     VkDevice _vk_device;
     std::string _texture_name;
     bool _uses_staging_texture;
-    GravityTexture* _staging_texture;
+    GlobeTexture* _staging_texture;
     uint32_t _width;
     uint32_t _height;
     VkFormat _vk_format;

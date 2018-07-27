@@ -1,4 +1,4 @@
-# **LunarGravity Repository Management**
+# **LunarGlobe Repository Management**
 
 ## **Open Source Project Objectives**
 
