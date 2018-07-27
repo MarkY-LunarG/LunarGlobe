@@ -10,10 +10,22 @@ realistically, "beginning to use Gravity" example.
 It renders an indexed colored triangle with the MVP matrix
 passed in via a uniform buffer.
 
+## Gravity Spin
+
+<img src="screenshots/gravity_spin.png" height="256px">
+
+Building on top of the above triangle example, I added
+the ability to spin the triangle around the Y-axis.
+This is done by utilizing a dynamic uniform buffer
+object and updating the offset before each draw to point
+to an updated matrix.
+
+Also, this is the first example to use GLM.
 
 ## Gravity Cube
 
 <img src="screenshots/gravity_cube.png" height="256px">
 
-This is a translation of the LunarG Cube example ported
-into the Lunar Gravity framework.
+This is a translation of the
+[LunarG Cube demo](https://github.com/KhronosGroup/Vulkan-Tools/blob/master/cube/cube.c)
+ported into the Lunar Gravity framework.
