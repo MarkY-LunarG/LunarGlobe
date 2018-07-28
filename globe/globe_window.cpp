@@ -186,6 +186,11 @@ bool GlobeWindow::PrepareCreateInstanceItems(std::vector<std::string> &layers, s
 #endif
     }
 
+// Brainpain
+#if !defined(VK_USE_PLATFORM_XCB_KHR) && !defined(VK_USE_PLATFORM_XLIB_KHR) && !defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#error("BLAH!")
+#endif
+
     if (!found_platform_surface_ext) {
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
         logger.LogFatalError("vkEnumerateInstanceExtensionProperties failed to find the " VK_KHR_WIN32_SURFACE_EXTENSION_NAME
