@@ -29,6 +29,7 @@ target_include_directories(globe
                                ${VULKAN_HEADERS_INSTALL_DIR}/include
                                ${GLOBE_INCLUDE_DIRS}
                                ${PROJECT_SOURCE_DIR}/submodules/stb
+                               ${PROJECT_SOURCE_DIR}/submodules/glm
                           )
 if(GLOBE_WSI_SELECTION STREQUAL "XCB")
     target_include_directories(globe PUBLIC ${XCB_INCLUDE_DIRS})
@@ -38,23 +39,23 @@ elseif(GLOBE_WSI_SELECTION STREQUAL "WAYLAND")
     target_include_directories(globe PUBLIC ${WAYLAND_CLIENT_INCLUDE_DIR})
 endif()
 
-target_compile_options(globe
-                       PUBLIC
-                           $<$<STREQUAL: "${CMAKE_SYSTEM_NAME}" , "Windows" >: ":/guard:cf" >
-                       )
-
 target_compile_definitions(globe
                             PUBLIC
-                                $<$<STREQUAL: "${CMAKE_SYSTEM_NAME}" , "Windows" >: "-D_CRT_SECURE_NO_WARNINGS -D_USE_MATH_DEFINES -DVK_USE_PLATFORM_WIN32_KHR -DWIN32_LEAN_AND_MEAN" >
-                                $<$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >: "-DVK_USE_PLATFORM_XCB_KHR" >
-                                $<$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >: "-DVK_USE_PLATFORM_XLIB_KHR" >
-                                $<$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >: "-DVK_USE_PLATFORM_WAYLAND_KHR" >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DWIN32 >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_WIN32 >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DWIN32_LEAN_AND_MEAN >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_CRT_SECURE_NO_WARNINGS >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_USE_MATH_DEFINES >
+                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DVK_USE_PLATFORM_WIN32_KHR >
+                                $<$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_XCB_KHR >
+                                $<$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_XLIB_KHR >
+                                $<$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_WAYLAND_KHR >
                           )
 
 target_link_libraries(globe
                       PUBLIC
                           ${LIBVK}
-                          $<$<STREQUAL: "${CMAKE_SYSTEM_NAME}" , "Windows" >: "Shcore.lib" >
+                          $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: Shcore.lib >
                           $<$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >: "${XCB_LIBRARIES}" >
                           $<$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >: "${X11_LIBRARIES}" >
                           $<$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >: "${WAYLAND_CLIENT_LIBRARIES}" >

@@ -60,9 +60,17 @@ Windows 7+ with the following software packages:
 
 For example, assuming an SDK is installed, for VS2017 (generators for other versions are [specified here](#cmake-visual-studio-generators)):
 
-    cmake "Visual Studio 15 2017 Win64" ..
+```
+cmake "Visual Studio 15 2017 Win64" \
+       -DVULKAN_HEADERS_INSTALL_DIR=absolute_path_to_header_install \
+       -DVULKAN_LOADER_INSTALL_DIR=absolute_path_to_header_install \
+       ..
+```
 
 This will create a Windows solution file named `LunarGlobe.sln` in the build directory.
+
+If no SDK is installed, you will need to point to the appropriate Vulkan Headers and Vulkan Loader repository.
+
 
 Launch Visual Studio and open the "LunarGlobe.sln" solution file in the build folder.
 You may select "Debug" or "Release" from the Solution Configurations drop-down list.

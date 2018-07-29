@@ -51,7 +51,6 @@ endforeach(CUR_FRAGMENT_SHADER_FILE)
 add_executable(globe_cube "")
 target_sources(globe_cube
                PRIVATE
-                   $<$<BOOL:$<STREQUAL:CMAKE_SYSTEM_NAME, "Windows" >>:WIN32>
                    globe_cube.cpp
                    ${SHADER_FILES}
               )
@@ -67,7 +66,6 @@ target_link_libraries(globe_cube
 add_executable(01_first_triangle "")
 target_sources(01_first_triangle
                PRIVATE
-                   $<$<BOOL:$<STREQUAL:CMAKE_SYSTEM_NAME, "Windows" >>:WIN32>
                    01_first_triangle.cpp
                    ${SHADER_FILES}
               )
@@ -83,7 +81,6 @@ target_link_libraries(01_first_triangle
 add_executable(02_dynamic_uniform_buffer "")
 target_sources(02_dynamic_uniform_buffer
                PRIVATE
-                   $<$<BOOL:$<STREQUAL:CMAKE_SYSTEM_NAME, "Windows" >>:WIN32>
                    02_dynamic_uniform_buffer.cpp
                    ${SHADER_FILES}
               )
