@@ -28,12 +28,12 @@
 #include "globe_resource_manager.hpp"
 #include "globe_app.hpp"
 
- #define STB_IMAGE_IMPLEMENTATION
- #include "stb_image.h"
+#define STB_IMAGE_IMPLEMENTATION
+#include "stb_image.h"
 
 static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
-    //filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
+// filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
 #elif defined(__ANDROID__)
 #else
@@ -53,8 +53,7 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
     }
     texture_data.width = static_cast<uint32_t>(int_width);
     texture_data.height = static_cast<uint32_t>(int_height);
-    texture_data.num_components = static_cast<uint32_t>(num_channels);
-    texture_data.raw_data.resize(int_width * int_height * num_channels);
+    bool was_three = false;
     switch (num_channels) {
         case 1:
             texture_data.vk_format = VK_FORMAT_R8_UNORM;
@@ -63,7 +62,11 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
             texture_data.vk_format = VK_FORMAT_R8G8_UNORM;
             break;
         case 3:
-            texture_data.vk_format = VK_FORMAT_R8G8B8_UNORM;
+            // Some graphics drivers don't seem to like 3 component linear textures, even just for
+            // loading a staging texture.  So, force it to 4 components.
+            was_three = true;
+            num_channels = 4;
+            texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
             break;
         case 4:
             texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -71,7 +74,24 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
         default:
             break;
     }
-    memcpy(texture_data.raw_data.data(), image_data, int_width * int_height * num_channels * sizeof(uint8_t));
+    texture_data.num_components = static_cast<uint32_t>(num_channels);
+    texture_data.raw_data.resize(int_width * int_height * num_channels);
+    // If this was 3, copy over each item manually
+    if (was_three) {
+        uint8_t* ptr_write = texture_data.raw_data.data();
+        uint8_t* ptr_read = image_data;
+        for (int32_t row = 0; row < int_height; ++row) {
+            for (int32_t col = 0; col < int_width; ++col) {
+                for (int32_t comp = 0; comp < 3; ++comp) {
+                    *ptr_write++ = *ptr_read++;
+                }
+                *ptr_write++ = 255;
+            }
+        }
+    // Otherwise, copy everything in bulk.
+    } else {
+        memcpy(texture_data.raw_data.data(), image_data, int_width * int_height * num_channels * sizeof(uint8_t));
+    }
     stbi_image_free(image_data);
     fclose(fPtr);
 #endif
@@ -136,8 +156,8 @@ static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkIm
 }
 
 GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                             VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                             const std::string& directory) {
+                                         VkCommandBuffer vk_command_buffer, const std::string& texture_name,
+                                         const std::string& directory) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     GlobeTextureData texture_data = {};
     std::string texture_file_name = directory;
@@ -157,7 +177,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     GlobeTextureData staging_texture_data = texture_data;
     GlobeTextureData* target_texture_data = &texture_data;
     VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
-    if ((vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) && !resource_manager->UseStagingBuffer()) {
+    if (!(vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) ||
+        resource_manager->UseStagingBuffer()) {
         loading_image_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         target_texture_data = &staging_texture_data;
         uses_staging = true;
@@ -193,7 +214,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         return nullptr;
     }
 
-    if (VK_SUCCESS != vkBindImageMemory(vk_device, target_texture_data->vk_image, target_texture_data->vk_device_memory, 0)) {
+    if (VK_SUCCESS !=
+        vkBindImageMemory(vk_device, target_texture_data->vk_image, target_texture_data->vk_device_memory, 0)) {
         logger.LogError("Failed to binding memory to texture image");
         return nullptr;
     }
@@ -207,8 +229,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     vkGetImageSubresourceLayout(vk_device, target_texture_data->vk_image, &image_subresource, &vk_subresource_layout);
 
     void* data;
-    if (VK_SUCCESS !=
-        vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0, target_texture_data->vk_allocated_size, 0, &data)) {
+    if (VK_SUCCESS != vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0,
+                                  target_texture_data->vk_allocated_size, 0, &data)) {
         logger.LogError("Failed to map memory for copying over texture image");
         return nullptr;
     }
@@ -250,7 +272,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         }
 
         if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                         texture_data.vk_device_memory, texture_data.vk_allocated_size)) {
+                                                         texture_data.vk_device_memory,
+                                                         texture_data.vk_allocated_size)) {
             logger.LogFatalError("Failed allocating tiled target texture image to memory");
             return nullptr;
         }
@@ -290,8 +313,9 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         }
     } else {
         if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                     VK_IMAGE_LAYOUT_PREINITIALIZED, texture_data.vk_image_layout, static_cast<VkAccessFlagBits>(0),
-                                     VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
+                                     VK_IMAGE_LAYOUT_PREINITIALIZED, texture_data.vk_image_layout,
+                                     static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
             logger.LogError("Failed to transition texture image to shader readable format");
             return nullptr;
         }
@@ -345,8 +369,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     return new GlobeTexture(resource_manager, vk_device, texture_name, &texture_data);
 }
 
-GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
-                               GlobeTextureData* texture_data)
+GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                           const std::string& texture_name, GlobeTextureData* texture_data)
     : _globe_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
     _width = texture_data->width;
     _height = texture_data->height;
@@ -359,7 +383,8 @@ GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevic
     _vk_image_view = texture_data->vk_image_view;
     if (nullptr != texture_data->staging_texture_data) {
         _uses_staging_texture = true;
-        _staging_texture = new GlobeTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
+        _staging_texture =
+            new GlobeTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
     } else {
         _uses_staging_texture = false;
         _staging_texture = nullptr;
