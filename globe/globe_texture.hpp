@@ -30,6 +30,7 @@ struct GlobeTextureData {
     uint32_t height;
     uint32_t num_components;
     VkFormat vk_format;
+    VkFormatProperties vk_format_props;
     VkSampler vk_sampler;
     VkImage vk_image;
     VkImageLayout vk_image_layout;

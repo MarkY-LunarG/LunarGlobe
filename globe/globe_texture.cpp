@@ -31,7 +31,8 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data) {
+static bool LoadFile(const GlobeResourceManager* resource_manager, const std::string& filename,
+                     GlobeTextureData& texture_data) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
 // filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
@@ -53,7 +54,8 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
     }
     texture_data.width = static_cast<uint32_t>(int_width);
     texture_data.height = static_cast<uint32_t>(int_height);
-    bool was_three = false;
+    bool requires_padding = false;
+    int32_t old_num_channels = num_channels;
     switch (num_channels) {
         case 1:
             texture_data.vk_format = VK_FORMAT_R8_UNORM;
@@ -62,11 +64,7 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
             texture_data.vk_format = VK_FORMAT_R8G8_UNORM;
             break;
         case 3:
-            // Some graphics drivers don't seem to like 3 component linear textures, even just for
-            // loading a staging texture.  So, force it to 4 components.
-            was_three = true;
-            num_channels = 4;
-            texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+            texture_data.vk_format = VK_FORMAT_R8G8B8_UNORM;
             break;
         case 4:
             texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
@@ -74,24 +72,38 @@ static bool LoadFile(const std::string& filename, GlobeTextureData& texture_data
         default:
             break;
     }
+    texture_data.vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
+    if (0 == (texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) &&
+        0 == (texture_data.vk_format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+        texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+        requires_padding = true;
+        num_channels = 4;
+    }
     texture_data.num_components = static_cast<uint32_t>(num_channels);
     texture_data.raw_data.resize(int_width * int_height * num_channels);
-    // If this was 3, copy over each item manually
-    if (was_three) {
-        uint8_t* ptr_write = texture_data.raw_data.data();
-        uint8_t* ptr_read = image_data;
+
+    if (requires_padding) {
+        uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(texture_data.raw_data.data());
+        uint8_t* src_ptr = image_data;
         for (int32_t row = 0; row < int_height; ++row) {
-            for (int32_t col = 0; col < int_width; ++col) {
-                for (int32_t comp = 0; comp < 3; ++comp) {
-                    *ptr_write++ = *ptr_read++;
+            for (int32_t col = 0; col < int_height; ++col) {
+                int32_t comp = 0;
+                for (; comp < old_num_channels; ++comp) {
+                    *dst_ptr++ = *src_ptr++;
                 }
-                *ptr_write++ = 255;
+                while (comp++ < num_channels) {
+                    if (comp == 4) {
+                        *dst_ptr++ = 255;
+                    } else {
+                        *dst_ptr++ = 0;
+                    }
+                }
             }
         }
-    // Otherwise, copy everything in bulk.
     } else {
         memcpy(texture_data.raw_data.data(), image_data, int_width * int_height * num_channels * sizeof(uint8_t));
     }
+
     stbi_image_free(image_data);
     fclose(fPtr);
 #endif
@@ -163,7 +175,7 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     std::string texture_file_name = directory;
     texture_file_name += texture_name;
 
-    if (!LoadFile(texture_file_name, texture_data)) {
+    if (!LoadFile(resource_manager, texture_file_name, texture_data)) {
         std::string error_message = "Failed to load texture for file \"";
         error_message += texture_file_name;
         error_message += "\"";
@@ -171,13 +183,11 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         return nullptr;
     }
 
-    VkFormatProperties vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
-
     bool uses_staging = false;
     GlobeTextureData staging_texture_data = texture_data;
     GlobeTextureData* target_texture_data = &texture_data;
     VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
-    if (!(vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) ||
+    if (!(texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) ||
         resource_manager->UseStagingBuffer()) {
         loading_image_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
         target_texture_data = &staging_texture_data;
