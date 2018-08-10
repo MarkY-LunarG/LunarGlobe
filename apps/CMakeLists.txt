@@ -92,3 +92,18 @@ target_link_libraries(02_dynamic_uniform_buffer
                       PUBLIC
                           globe
                       )
+
+add_executable(03_multi_texture "")
+target_sources(03_multi_texture
+               PRIVATE
+                   03_multi_texture.cpp
+                   ${SHADER_FILES}
+              )
+target_include_directories(03_multi_texture
+                           PUBLIC
+                               ${PROJECT_SOURCE_DIR}
+                          )
+target_link_libraries(03_multi_texture
+                      PUBLIC
+                          globe
+                      )

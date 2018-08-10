@@ -50,10 +50,10 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class TriangleApp : public GlobeApp {
+class DynamicUniformApp : public GlobeApp {
    public:
-    TriangleApp();
-    ~TriangleApp();
+    DynamicUniformApp();
+    ~DynamicUniformApp();
 
    protected:
     virtual bool Setup();
@@ -73,7 +73,7 @@ class TriangleApp : public GlobeApp {
     uint8_t *_uniform_mapped_data;
 };
 
-TriangleApp::TriangleApp() {
+DynamicUniformApp::DynamicUniformApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -91,7 +91,7 @@ TriangleApp::TriangleApp() {
     _vk_pipeline = VK_NULL_HANDLE;
 }
 
-TriangleApp::~TriangleApp() {
+DynamicUniformApp::~DynamicUniformApp() {
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -141,7 +141,7 @@ static const float g_triangle_vertex_buffer_data[] = {
 };
 static const uint32_t g_triangle_index_buffer_data[] = {0, 1, 2};
 
-bool TriangleApp::Setup() {
+bool DynamicUniformApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -322,7 +322,7 @@ bool TriangleApp::Setup() {
             return false;
         }
         memcpy(_uniform_mapped_data, &view_matrix, sizeof(view_matrix));
-//        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
+
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _uniform_buffer.vk_buffer, _uniform_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind uniform buffer memory");
             return false;
@@ -506,7 +506,7 @@ bool TriangleApp::Setup() {
     return true;
 }
 
-bool TriangleApp::Draw() {
+bool DynamicUniformApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -596,12 +596,12 @@ bool TriangleApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static TriangleApp *g_app = nullptr;
+static DynamicUniformApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Triangle";
+    init_struct.app_name = "Globe App - Dynamic Uniform App";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -611,7 +611,7 @@ GLOBE_APP_MAIN() {
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new TriangleApp();
+    g_app = new DynamicUniformApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();

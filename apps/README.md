@@ -22,6 +22,18 @@ to an updated matrix.
 
 Also, this is the first example to use GLM.
 
+## Multi-Texture
+
+<img src="screenshots/03_multi_texture.png" height="256px">
+
+Building on dynamic uniform test.  Instead of passing in
+the matrix every frame, pass in a position for an ellipse.
+If the texture coordinates are within the ellipse, then
+display the second texture.  Otherwise, display the first
+texture.
+
+Also, this is the first example to use GLM.
+
 ## LunarGlobe Cube
 
 <img src="screenshots/globe_cube.png" height="256px">

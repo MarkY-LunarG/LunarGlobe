@@ -167,7 +167,6 @@ class CubeApp : public GlobeApp {
 
     std::vector<SwapchainImageResources> _swapchain_resources;
 
-    bool _uses_staging_texture;
     mat4x4 _projection_matrix;
     mat4x4 _view_matrix;
     mat4x4 _model_matrix;
@@ -184,7 +183,6 @@ class CubeApp : public GlobeApp {
 };
 
 CubeApp::CubeApp() {
-    _uses_staging_texture = false;
     _vk_desc_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_pipeline_cache = VK_NULL_HANDLE;
@@ -296,8 +294,6 @@ bool CubeApp::Setup() {
     _swapchain_resources.resize(_swapchain_count);
 
     if (!_is_minimized) {
-        GlobeTexture *LoadTexture(const std::string &texture_name, VkCommandBuffer command_buffer);
-
         _texture = _globe_resource_mgr->LoadTexture("lunarg.ppm", vk_setup_command_buffer);
         if (nullptr == _texture) {
             logger.LogError("Failed loading lunarg.ppm texture");
