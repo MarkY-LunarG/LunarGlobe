@@ -95,6 +95,7 @@ void GlobeResourceManager::FreeAllShaders() {
 void GlobeResourceManager::FreeShader(GlobeShader* shader) {
     for (uint32_t shd_index = 0; shd_index < _shaders.size(); ++shd_index) {
         if (_shaders[shd_index] == shader) {
+            delete _shaders[shd_index];
             _shaders.erase(_shaders.begin() + shd_index);
         }
     }

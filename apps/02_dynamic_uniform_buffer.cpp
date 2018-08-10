@@ -55,6 +55,8 @@ class DynamicUniformApp : public GlobeApp {
     DynamicUniformApp();
     ~DynamicUniformApp();
 
+    virtual void Cleanup();
+
    protected:
     virtual bool Setup();
     virtual bool Draw();
@@ -92,6 +94,11 @@ DynamicUniformApp::DynamicUniformApp() {
 }
 
 DynamicUniformApp::~DynamicUniformApp() {
+    Cleanup();
+}
+
+void DynamicUniformApp::Cleanup() {
+    GlobeApp::Cleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -334,6 +341,7 @@ bool DynamicUniformApp::Setup() {
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
         descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptor_pool_create_info.pNext = nullptr;
+        descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.maxSets = 2;
         descriptor_pool_create_info.poolSizeCount = 2;
         descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
@@ -356,7 +364,7 @@ bool DynamicUniformApp::Setup() {
         VkDescriptorBufferInfo descriptor_buffer_info = {};
         descriptor_buffer_info.buffer = _uniform_buffer.vk_buffer;
         descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = _uniform_buffer.vk_size;
+        descriptor_buffer_info.range = sizeof(glm::mat4);
         VkWriteDescriptorSet write_descriptor_set = {};
         write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_descriptor_set.pNext = NULL;
@@ -574,6 +582,7 @@ bool DynamicUniformApp::Draw() {
     if (inc > 360.f) { inc = inc - 360.f; }
     memcpy(_uniform_mapped_data + offset, &view_matrix, sizeof(view_matrix));
     VkMappedMemoryRange memoryRange = {};
+    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _uniform_buffer.vk_memory;
     memoryRange.size = sizeof(glm::mat4);
     memoryRange.offset = offset;

@@ -49,6 +49,8 @@ class TriangleApp : public GlobeApp {
     TriangleApp();
     ~TriangleApp();
 
+    virtual void Cleanup();
+
    protected:
     virtual bool Setup();
     virtual bool Draw();
@@ -84,6 +86,11 @@ TriangleApp::TriangleApp() {
 }
 
 TriangleApp::~TriangleApp() {
+    Cleanup();
+}
+
+void TriangleApp::Cleanup() {
+    GlobeApp::Cleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -319,6 +326,7 @@ bool TriangleApp::Setup() {
         descriptor_pool_size.descriptorCount = 1;
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
         descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.maxSets = 2;
         descriptor_pool_create_info.poolSizeCount = 2;

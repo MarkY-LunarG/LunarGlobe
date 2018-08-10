@@ -446,6 +446,10 @@ void GlobeApp::Resize() {
     Setup();
 }
 
+void GlobeApp::Cleanup() {
+    CleanupCommandObjects(false);
+}
+
 void GlobeApp::CleanupCommandObjects(bool is_resize) {
     _prepared = false;
     if (!_is_minimized) {
@@ -542,7 +546,7 @@ void GlobeApp::Exit() {
     if (!_is_minimized) {
         vkDeviceWaitIdle(_vk_device);
     }
-    CleanupCommandObjects(false);
+    Cleanup();
     vkDeviceWaitIdle(_vk_device);
     if (_globe_submit_mgr) {
         delete _globe_submit_mgr;

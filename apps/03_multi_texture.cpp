@@ -55,6 +55,8 @@ class MultiTexApp : public GlobeApp {
     MultiTexApp();
     ~MultiTexApp();
 
+    virtual void Cleanup();
+
    protected:
     virtual bool Setup();
     virtual bool Draw();
@@ -97,6 +99,11 @@ MultiTexApp::MultiTexApp() {
 }
 
 MultiTexApp::~MultiTexApp() {
+    Cleanup();
+}
+
+void MultiTexApp::Cleanup() {
+    GlobeApp::Cleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -374,6 +381,7 @@ bool MultiTexApp::Setup() {
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
         descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptor_pool_create_info.pNext = nullptr;
+        descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.maxSets = 2;
         descriptor_pool_create_info.poolSizeCount = descriptor_pool_sizes.size();
         descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
@@ -408,7 +416,7 @@ bool MultiTexApp::Setup() {
         VkDescriptorBufferInfo descriptor_buffer_info = {};
         descriptor_buffer_info.buffer = _uniform_buffer.vk_buffer;
         descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = _uniform_buffer.vk_size;
+        descriptor_buffer_info.range = sizeof(glm::vec2);
 
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         VkWriteDescriptorSet write_set = {};
@@ -674,6 +682,7 @@ bool MultiTexApp::Draw() {
     VkDeviceSize offset = (_vk_uniform_vec2_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
+    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _uniform_buffer.vk_memory;
     memoryRange.size = sizeof(glm::vec2);
     memoryRange.offset = offset;
