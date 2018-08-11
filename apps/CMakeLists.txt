@@ -47,63 +47,26 @@ endforeach(CUR_FRAGMENT_SHADER_FILE)
 ######################################################################################
 # applications
 
-
-add_executable(globe_cube "")
-target_sources(globe_cube
-               PRIVATE
-                   globe_cube.cpp
-                   ${SHADER_FILES}
-              )
-target_include_directories(globe_cube
-                           PUBLIC
-                               ${PROJECT_SOURCE_DIR}
+macro(SINGLE_SOURCE_EXECUTABLE test_name)
+    Message(STATUS "Building single source executable ${test_name}")
+    add_executable(${test_name} "")
+    target_sources(${test_name}
+                   PRIVATE
+                       ${test_name}.cpp
+                       ${SHADER_FILES}
+                  )
+    target_include_directories(${test_name}
+                               PUBLIC
+                                  ${PROJECT_SOURCE_DIR}
+                              )
+    target_link_libraries(${test_name}
+                          PUBLIC
+                              globe
                           )
-target_link_libraries(globe_cube
-                      PUBLIC
-                          globe
-                      )
+endmacro()
 
-add_executable(01_first_triangle "")
-target_sources(01_first_triangle
-               PRIVATE
-                   01_first_triangle.cpp
-                   ${SHADER_FILES}
-              )
-target_include_directories(01_first_triangle
-                           PUBLIC
-                               ${PROJECT_SOURCE_DIR}
-                          )
-target_link_libraries(01_first_triangle
-                      PUBLIC
-                          globe
-                      )
-
-add_executable(02_dynamic_uniform_buffer "")
-target_sources(02_dynamic_uniform_buffer
-               PRIVATE
-                   02_dynamic_uniform_buffer.cpp
-                   ${SHADER_FILES}
-              )
-target_include_directories(02_dynamic_uniform_buffer
-                           PUBLIC
-                               ${PROJECT_SOURCE_DIR}
-                          )
-target_link_libraries(02_dynamic_uniform_buffer
-                      PUBLIC
-                          globe
-                      )
-
-add_executable(03_multi_texture "")
-target_sources(03_multi_texture
-               PRIVATE
-                   03_multi_texture.cpp
-                   ${SHADER_FILES}
-              )
-target_include_directories(03_multi_texture
-                           PUBLIC
-                               ${PROJECT_SOURCE_DIR}
-                          )
-target_link_libraries(03_multi_texture
-                      PUBLIC
-                          globe
-                      )
+SINGLE_SOURCE_EXECUTABLE(01_first_triangle)
+SINGLE_SOURCE_EXECUTABLE(02_dynamic_uniform_buffer)
+SINGLE_SOURCE_EXECUTABLE(03_multi_texture)
+SINGLE_SOURCE_EXECUTABLE(04_push_constants)
+SINGLE_SOURCE_EXECUTABLE(globe_cube)

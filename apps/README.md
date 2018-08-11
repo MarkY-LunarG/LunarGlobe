@@ -26,7 +26,7 @@ Also, this is the first example to use GLM.
 
 <img src="screenshots/03_multi_texture.png" height="256px">
 
-Building on the dynamic uniform test, I added the ability
+Building on the dynamic uniform app, I added the ability
 to sample from two textures.
 Also, instead of passing in the matrix every frame, pass
 in a position for an ellipse.
@@ -35,6 +35,20 @@ incoming texture coordinates.
 If the texture coordinates are within the ellipse, then
 the shader samples from the second texture.
 Otherwise, the shader samples the first texture.
+
+## 04 - Push Constants
+
+<img src="screenshots/04_push_constants.png" height="256px">
+
+Building on the multi-texture app, I added the ability
+to control what's going on in the shader using 3 push constants.
+The first push constant is an integer value which is used to
+indicate what behavior the shader should perform when sampling
+from the two textures.
+The second push constant defines the X radius of the
+ellipse.
+The third push constant defines the Y radius of the
+ellipse.
 
 ## LunarGlobe Cube
 

@@ -50,10 +50,10 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class MultiTexApp : public GlobeApp {
+class PushConstantApp : public GlobeApp {
    public:
-    MultiTexApp();
-    ~MultiTexApp();
+    PushConstantApp();
+    ~PushConstantApp();
 
     virtual void Cleanup() override;
 
@@ -78,9 +78,11 @@ class MultiTexApp : public GlobeApp {
     GlobeTexture *_texture_2;
     glm::vec4 _ellipse_center;
     glm::vec4 _movement_dir;
+    uint8_t *_push_constants;
+    size_t _push_constants_size;
 };
 
-MultiTexApp::MultiTexApp() {
+PushConstantApp::PushConstantApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -98,10 +100,14 @@ MultiTexApp::MultiTexApp() {
     _vk_pipeline = VK_NULL_HANDLE;
 }
 
-MultiTexApp::~MultiTexApp() { Cleanup(); }
+PushConstantApp::~PushConstantApp() { Cleanup(); }
 
-void MultiTexApp::Cleanup() {
+void PushConstantApp::Cleanup() {
     GlobeApp::PreCleanup();
+    if (nullptr != _push_constants) {
+        delete[] _push_constants;
+        _push_constants = nullptr;
+    }
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -153,7 +159,7 @@ static const float g_quad_vertex_buffer_data[] = {
 };
 static const uint32_t g_quad_index_buffer_data[] = {0, 1, 2, 2, 3, 0};
 
-bool MultiTexApp::Setup() {
+bool PushConstantApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -217,9 +223,29 @@ bool MultiTexApp::Setup() {
             return false;
         }
 
+        // Set up our push constant range, which mirrors the declaration of
+        std::vector<VkPushConstantRange> push_constant_ranges;
+        VkPushConstantRange push_constant_range = {};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        push_constant_range.offset = 0;
+        push_constant_range.size = 4;
+        push_constant_ranges.push_back(push_constant_range);
+        push_constant_range = {};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        push_constant_range.offset = 4;
+        push_constant_range.size = 4;
+        push_constant_ranges.push_back(push_constant_range);
+        push_constant_range = {};
+        push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
+        push_constant_range.offset = 8;
+        push_constant_range.size = 4;
+        push_constant_ranges.push_back(push_constant_range);
+
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
         pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipeline_layout_create_info.pNext = nullptr;
+        pipeline_layout_create_info.pushConstantRangeCount = push_constant_ranges.size();
+        pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges.data();
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &_vk_descriptor_set_layout;
         if (VK_SUCCESS !=
@@ -452,6 +478,29 @@ bool MultiTexApp::Setup() {
 
         vkUpdateDescriptorSets(_vk_device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
 
+        // Ensure we have enough room for push constant data
+        _push_constants_size = sizeof(int32_t) + (sizeof(float) * 2);
+        if (_push_constants_size > properties.limits.maxPushConstantsSize) {
+            logger.LogFatalError("Not able to support required number of push constants");
+            return false;
+        }
+
+        // Create our push constant data, which matches shader expectations
+        _push_constants = new uint8_t[_push_constants_size];
+        if (nullptr == _push_constants) {
+            logger.LogFatalError("Failed to allocate space for push constants");
+            return false;
+        }
+
+        int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
+        *selection = 0;
+        float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
+        *rad_x_sqd = 0.03;
+        float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
+        *rad_y_sqd = 0.12;
+        vkCmdPushConstants(vk_setup_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                           _push_constants_size, _push_constants);
+
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
         dynamic_state_enables[0] = VK_DYNAMIC_STATE_VIEWPORT;
@@ -550,9 +599,9 @@ bool MultiTexApp::Setup() {
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GlobeShader *multi_tex_shader = _globe_resource_mgr->LoadShader("position_multi_texture_ellipse");
+        GlobeShader *multi_tex_shader = _globe_resource_mgr->LoadShader("position_multi_texture_ellipse_pushconst");
         if (nullptr == multi_tex_shader) {
-            logger.LogFatalError("Failed to load position_multi_texture_ellipse shaders");
+            logger.LogFatalError("Failed to load position_multi_texture_ellipse_pushconst shaders");
             return false;
         }
         std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
@@ -598,7 +647,7 @@ bool MultiTexApp::Setup() {
     return true;
 }
 
-void MultiTexApp::UpdateEllipseCenter() {
+void PushConstantApp::UpdateEllipseCenter() {
     bool boundary_hit = false;
     _ellipse_center += _movement_dir;
     if (_ellipse_center.x > 1.0f) {
@@ -629,7 +678,7 @@ void MultiTexApp::UpdateEllipseCenter() {
     }
 }
 
-bool MultiTexApp::Draw() {
+bool PushConstantApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -667,6 +716,9 @@ bool MultiTexApp::Draw() {
         logger.LogFatalError("Failed to begin command buffer for draw commands for framebuffer");
     }
 
+    vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
+                       _push_constants_size, _push_constants);
+
     vkCmdBeginRenderPass(vk_render_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
     // Update dynamic viewport state
@@ -690,6 +742,19 @@ bool MultiTexApp::Draw() {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
+    static uint32_t cur_frame_count = 0;
+    if (cur_frame_count++ > 200) {
+        int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
+        *selection = *selection + 1;
+        if (*selection > 3) {
+            *selection = 0;
+        }
+        float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
+        *rad_x_sqd = ((rand() % 110) + 1) * 0.001;
+        float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
+        *rad_y_sqd = ((rand() % 110) + 1) * 0.003;
+        cur_frame_count = 0;
+    }
     UpdateEllipseCenter();
     VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
@@ -717,12 +782,12 @@ bool MultiTexApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static MultiTexApp *g_app = nullptr;
+static PushConstantApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Multi-texture";
+    init_struct.app_name = "Globe App - Push Constant";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -732,7 +797,7 @@ GLOBE_APP_MAIN() {
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new MultiTexApp();
+    g_app = new PushConstantApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();
