@@ -55,7 +55,7 @@ class DynamicUniformApp : public GlobeApp {
     DynamicUniformApp();
     ~DynamicUniformApp();
 
-    virtual void Cleanup();
+    virtual void Cleanup() override;
 
    protected:
     virtual bool Setup();
@@ -98,7 +98,7 @@ DynamicUniformApp::~DynamicUniformApp() {
 }
 
 void DynamicUniformApp::Cleanup() {
-    GlobeApp::Cleanup();
+    GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -139,6 +139,7 @@ void DynamicUniformApp::Cleanup() {
         vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
         _vk_descriptor_set_layout = VK_NULL_HANDLE;
     }
+    GlobeApp::PostCleanup();
 }
 
 static const float g_triangle_vertex_buffer_data[] = {

@@ -446,8 +446,20 @@ void GlobeApp::Resize() {
     Setup();
 }
 
-void GlobeApp::Cleanup() {
+void GlobeApp::PreCleanup() {
     CleanupCommandObjects(false);
+}
+
+void GlobeApp::PostCleanup() {
+    if (nullptr != _globe_resource_mgr) {
+        delete _globe_resource_mgr;
+        _globe_resource_mgr = nullptr;
+    }
+}
+
+void GlobeApp::Cleanup() {
+    PreCleanup();
+    PostCleanup();
 }
 
 void GlobeApp::CleanupCommandObjects(bool is_resize) {

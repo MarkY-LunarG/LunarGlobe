@@ -68,6 +68,8 @@ class GlobeApp {
     virtual void Resize();
     virtual bool Run();
     virtual bool Draw();
+    void PreCleanup();
+    void PostCleanup();
     virtual void Cleanup();
     virtual void CleanupCommandObjects(bool is_resize);
     virtual void Exit();

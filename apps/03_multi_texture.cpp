@@ -55,7 +55,7 @@ class MultiTexApp : public GlobeApp {
     MultiTexApp();
     ~MultiTexApp();
 
-    virtual void Cleanup();
+    virtual void Cleanup() override;
 
    protected:
     virtual bool Setup();
@@ -72,12 +72,12 @@ class MultiTexApp : public GlobeApp {
     VkDescriptorPool _vk_descriptor_pool;
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;
-    VkDeviceSize _vk_uniform_vec2_alignment;
+    VkDeviceSize _vk_uniform_vec4_alignment;
     uint8_t *_uniform_mapped_data;
     GlobeTexture *_texture_1;
     GlobeTexture *_texture_2;
-    glm::vec2 _ellipse_center;
-    glm::vec2 _movement_dir;
+    glm::vec4 _ellipse_center;
+    glm::vec4 _movement_dir;
 };
 
 MultiTexApp::MultiTexApp() {
@@ -103,7 +103,7 @@ MultiTexApp::~MultiTexApp() {
 }
 
 void MultiTexApp::Cleanup() {
-    GlobeApp::Cleanup();
+    GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -144,6 +144,7 @@ void MultiTexApp::Cleanup() {
         vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
         _vk_descriptor_set_layout = VK_NULL_HANDLE;
     }
+    GlobeApp::PostCleanup();
 }
 
 static const float g_quad_vertex_buffer_data[] = {
@@ -165,6 +166,8 @@ bool MultiTexApp::Setup() {
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(_vk_phys_device, &properties);
+
+    // Determine the alignment required to store the minimum amount of data
     VkDeviceSize vk_uniform_alignment = properties.limits.minUniformBufferOffsetAlignment;
 
     if (!_is_minimized) {
@@ -341,13 +344,19 @@ bool MultiTexApp::Setup() {
             return false;
         }
 
-        _ellipse_center = glm::vec2(0.2f, 0.2f);
-        _movement_dir = glm::vec2(0.01f, 0.01f);
-        _vk_uniform_vec2_alignment = (sizeof(glm::vec2) + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
+        _ellipse_center = glm::vec4(0.2f, 0.2f, 0.f, 0.f);
+        _movement_dir = glm::vec4(0.01f, 0.01f, 0.f, 0.f);
+        _vk_uniform_vec4_alignment = (sizeof(glm::vec4) + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
+
+        // The smallest submit size is an atom, so we need to make sure we're at least as big as that per
+        // uniform buffer submission.
+        if (_vk_uniform_vec4_alignment < properties.limits.nonCoherentAtomSize) {
+            _vk_uniform_vec4_alignment = properties.limits.nonCoherentAtomSize;
+        }
 
         // Create the uniform buffer containing the mvp matrix
         buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        buffer_create_info.size = _vk_uniform_vec2_alignment * _swapchain_count;
+        buffer_create_info.size = _vk_uniform_vec4_alignment * _swapchain_count;
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_uniform_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create uniform buffer");
             return false;
@@ -416,7 +425,7 @@ bool MultiTexApp::Setup() {
         VkDescriptorBufferInfo descriptor_buffer_info = {};
         descriptor_buffer_info.buffer = _uniform_buffer.vk_buffer;
         descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(glm::vec2);
+        descriptor_buffer_info.range = sizeof(glm::vec4);
 
         std::vector<VkWriteDescriptorSet> write_descriptor_sets;
         VkWriteDescriptorSet write_set = {};
@@ -673,18 +682,18 @@ bool MultiTexApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_vec2_alignment;
+    uint32_t dynamic_offset = _current_buffer * _vk_uniform_vec4_alignment;
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
     UpdateEllipseCenter();
-    VkDeviceSize offset = (_vk_uniform_vec2_alignment * _current_buffer);
+    VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
     memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _uniform_buffer.vk_memory;
-    memoryRange.size = sizeof(glm::vec2);
+    memoryRange.size = _vk_uniform_vec4_alignment;
     memoryRange.offset = offset;
     vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
 

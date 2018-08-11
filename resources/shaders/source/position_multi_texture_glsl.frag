@@ -20,10 +20,10 @@ layout (binding = 1) uniform sampler2D tex1_sampler;
 layout (binding = 2) uniform sampler2D tex2_sampler;
 
 layout(std140, binding = 0) uniform buf {
-    vec2 ellipse_center;
+    vec4 ellipse_center;
 } my_uniform_buf;
 
-layout (location = 0) in vec4 tex_coord;
+layout (location = 0) in vec2 tex_coord;
 layout (location = 0) out vec4 uFragColor;
 
 void main() {
