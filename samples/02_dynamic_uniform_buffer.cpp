@@ -156,9 +156,7 @@ bool DynamicUniformApp::Setup() {
         return false;
     }
 
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(_vk_phys_device, &properties);
-    VkDeviceSize vk_uniform_alignment = properties.limits.minUniformBufferOffsetAlignment;
+    VkDeviceSize vk_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
 
     if (!_is_minimized) {
         uint8_t *mapped_data;

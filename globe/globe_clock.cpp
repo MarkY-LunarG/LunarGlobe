@@ -1,7 +1,7 @@
 /*
- * LunarGlobe - globeclock.hpp
+ * LunarGlobe - globeclock.cpp
  *
- * Copyright (C) 2017-2018 LunarG, Inc.
+ * Copyright (C) 2018 LunarG, Inc.
  *
  * Licensed under the Apache License, Version 2.0 (the "License");
  * you may not use this file except in compliance with the License.
@@ -18,23 +18,17 @@
  * Author: Mark Young <marky@lunarg.com>
  */
 
-#pragma once
+#if defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#include "linux/globe_clock_linux.hpp"
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+#include "windows/globe_clock_windows.hpp"
+#endif
 
-#include <cstdint>
-
-class GlobeClock {
-   public:
-    static GlobeClock* CreateClock();
-
-    GlobeClock() { m_paused = true; }
-    virtual ~GlobeClock() {}
-
-    virtual void Start() = 0;
-    virtual void StartGameTime() = 0;
-    virtual void GetTimeDiffMS(float &comp_diff, float &game_diff) = 0;
-    virtual void SleepMs(uint32_t milliseconds) = 0;
-    void PauseGameTime() { m_paused = true; }
-
-   protected:
-    bool m_paused;
-};
+GlobeClock* GlobeClock::CreateClock() {
+#if defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    return new GlobeClockLinux();
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+    return new GlobeClockWindows();
+#endif
+    return nullptr;
+}

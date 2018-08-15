@@ -139,6 +139,8 @@ class GlobeApp {
     uint64_t _exit_frame;
     VkInstance _vk_instance;
     VkPhysicalDevice _vk_phys_device;
+    VkPhysicalDeviceFeatures _vk_phys_device_features;
+    VkPhysicalDeviceProperties _vk_phys_device_properties;
     VkDevice _vk_device;
     VkPresentModeKHR _vk_present_mode;
     uint32_t _swapchain_count;

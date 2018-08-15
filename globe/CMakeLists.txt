@@ -12,10 +12,12 @@ target_sources(globe
                    globe_logger.cpp
                    globe_event.hpp
                    globe_event.cpp
+                   globe_clock.hpp
+                   globe_clock.cpp
                    globe_window.hpp
                    globe_window.cpp
-                   $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: windows/globe_window_windows.hpp windows/globe_window_windows.cpp >
-                   $<$<OR:$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >,$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >,$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >>: linux/globe_window_linux.hpp linux/globe_window_linux.cpp >
+                   $<${GLOBE_WINDOWS_ENABLED}: windows/globe_window_windows.hpp windows/globe_window_windows.cpp windows/globe_clock_windows.hpp>
+                   $<$<OR:${GLOBE_XCB_ENABLED},${GLOBE_XLIB_ENABLED},${GLOBE_WAYLAND_ENABLED}>: linux/globe_window_linux.hpp linux/globe_window_linux.cpp linux/globe_clock_linux.hpp >
                    globe_resource_manager.hpp
                    globe_resource_manager.cpp
                    globe_shader.hpp
@@ -30,36 +32,37 @@ target_include_directories(globe
                            PUBLIC
                                ${VULKAN_HEADERS_INSTALL_DIR}/include
                                ${CMAKE_CURRENT_SOURCE_DIR}
-                               ${CMAKE_CURRENT_SOURCE_DIR}/windows
+                               $<${GLOBE_WINDOWS_ENABLED}: ${CMAKE_CURRENT_SOURCE_DIR}/windows >
+                               $<$<OR:${GLOBE_XCB_ENABLED},${GLOBE_XLIB_ENABLED},${GLOBE_WAYLAND_ENABLED}>: ${CMAKE_CURRENT_SOURCE_DIR}/linux >
                                ${PROJECT_SOURCE_DIR}/submodules/stb
                                ${PROJECT_SOURCE_DIR}/submodules/glm
                           )
-if(GLOBE_WSI_SELECTION STREQUAL "XCB")
+if(${GLOBE_XCB_ENABLED})
     target_include_directories(globe PUBLIC ${XCB_INCLUDE_DIRS})
-elseif(GLOBE_WSI_SELECTION STREQUAL "XLIB")
+elseif(${GLOBE_XLIB_ENABLED})
     target_include_directories(globe PUBLIC ${X11_INCLUDE_DIR})
-elseif(GLOBE_WSI_SELECTION STREQUAL "WAYLAND")
+elseif(${GLOBE_WAYLAND_ENABLED})
     target_include_directories(globe PUBLIC ${WAYLAND_CLIENT_INCLUDE_DIR})
 endif()
 
 target_compile_definitions(globe
                             PUBLIC
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DWIN32 >
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_WIN32 >
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DWIN32_LEAN_AND_MEAN >
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_CRT_SECURE_NO_WARNINGS >
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -D_USE_MATH_DEFINES >
-                                $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: -DVK_USE_PLATFORM_WIN32_KHR >
-                                $<$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_XCB_KHR >
-                                $<$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_XLIB_KHR >
-                                $<$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >: -DVK_USE_PLATFORM_WAYLAND_KHR >
+                                $<${GLOBE_WINDOWS_ENABLED}: -DWIN32 >
+                                $<${GLOBE_WINDOWS_ENABLED}: -D_WIN32 >
+                                $<${GLOBE_WINDOWS_ENABLED}: -DWIN32_LEAN_AND_MEAN >
+                                $<${GLOBE_WINDOWS_ENABLED}: -D_CRT_SECURE_NO_WARNINGS >
+                                $<${GLOBE_WINDOWS_ENABLED}: -D_USE_MATH_DEFINES >
+                                $<${GLOBE_WINDOWS_ENABLED}: -DVK_USE_PLATFORM_WIN32_KHR >
+                                $<${GLOBE_XCB_ENABLED}: -DVK_USE_PLATFORM_XCB_KHR >
+                                $<${GLOBE_XLIB_ENABLED}: -DVK_USE_PLATFORM_XLIB_KHR >
+                                $<${GLOBE_WAYLAND_ENABLED}: -DVK_USE_PLATFORM_WAYLAND_KHR >
                           )
 
 target_link_libraries(globe
                       PUBLIC
                           ${LIBVK}
-                          $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: Shcore.lib >
-                          $<$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >: "${XCB_LIBRARIES}" >
-                          $<$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >: "${X11_LIBRARIES}" >
-                          $<$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >: "${WAYLAND_CLIENT_LIBRARIES}" >
+                          $<${GLOBE_WINDOWS_ENABLED}: Shcore.lib >
+                          $<${GLOBE_XCB_ENABLED}: "${XCB_LIBRARIES}" >
+                          $<${GLOBE_XLIB_ENABLED}: "${X11_LIBRARIES}" >
+                          $<${GLOBE_WAYLAND_ENABLED}: "${WAYLAND_CLIENT_LIBRARIES}" >
                       )

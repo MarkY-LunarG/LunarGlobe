@@ -22,12 +22,12 @@
 
 #include <time.h>
 
-#include "globeclock.hpp"
+#include "globe_clock.hpp"
 
-class GlobeClockWin32 : public GlobeClock {
+class GlobeClockWindows : public GlobeClock {
    public:
-    GlobeClockWin32() : GlobeClock() {}
-    virtual ~GlobeClockWin32(){};
+    GlobeClockWindows() : GlobeClock() {}
+    virtual ~GlobeClockWindows(){};
 
     virtual void Start() {
         QueryPerformanceFrequency(&m_frequency);

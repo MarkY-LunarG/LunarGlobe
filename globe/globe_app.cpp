@@ -243,8 +243,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
     // Query fine-grained feature support for this device.
     //  If app has specific feature requirements it should check supported
     //  features based on this query
-    VkPhysicalDeviceFeatures physDevFeatures;
-    vkGetPhysicalDeviceFeatures(_vk_phys_device, &physDevFeatures);
+    vkGetPhysicalDeviceProperties(_vk_phys_device, &_vk_phys_device_properties);
+    vkGetPhysicalDeviceFeatures(_vk_phys_device, &_vk_phys_device_features);
 
 #if defined(VK_USE_PLATFORM_WIN32_KHR)
     _globe_window->SetHInstance(init_struct.windows_instance);

@@ -25,7 +25,7 @@
 #include <unistd.h>  // for usleep
 #endif
 
-#include "globeclock.hpp"
+#include "globe_clock.hpp"
 
 class GlobeClockLinux : public GlobeClock {
    public:

@@ -41,8 +41,6 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
 
 struct VulkanBuffer {
     VkBuffer vk_buffer;
@@ -162,11 +160,8 @@ bool MultiTexApp::Setup() {
         return false;
     }
 
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(_vk_phys_device, &properties);
-
     // Determine the alignment required to store the minimum amount of data
-    VkDeviceSize vk_uniform_alignment = properties.limits.minUniformBufferOffsetAlignment;
+    VkDeviceSize vk_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
 
     if (!_is_minimized) {
         uint8_t *mapped_data;
@@ -352,8 +347,8 @@ bool MultiTexApp::Setup() {
 
         // The smallest submit size is an atom, so we need to make sure we're at least as big as that per
         // uniform buffer submission.
-        if (_vk_uniform_vec4_alignment < properties.limits.nonCoherentAtomSize) {
-            _vk_uniform_vec4_alignment = properties.limits.nonCoherentAtomSize;
+        if (_vk_uniform_vec4_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
+            _vk_uniform_vec4_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
         }
 
         // Create the uniform buffer containing the mvp matrix
