@@ -14,6 +14,8 @@ target_sources(globe
                    globe_event.cpp
                    globe_window.hpp
                    globe_window.cpp
+                   $<$<STREQUAL: "Windows" , "${CMAKE_SYSTEM_NAME}" >: windows/globe_window_windows.hpp windows/globe_window_windows.cpp >
+                   $<$<OR:$<STREQUAL: "XCB" , "${GLOBE_WSI_SELECTION}" >,$<STREQUAL: "XLIB" , "${GLOBE_WSI_SELECTION}" >,$<STREQUAL: "WAYLAND" , "${GLOBE_WSI_SELECTION}" >>: linux/globe_window_linux.hpp linux/globe_window_linux.cpp >
                    globe_resource_manager.hpp
                    globe_resource_manager.cpp
                    globe_shader.hpp
@@ -27,7 +29,8 @@ target_sources(globe
 target_include_directories(globe
                            PUBLIC
                                ${VULKAN_HEADERS_INSTALL_DIR}/include
-                               ${GLOBE_INCLUDE_DIRS}
+                               ${CMAKE_CURRENT_SOURCE_DIR}
+                               ${CMAKE_CURRENT_SOURCE_DIR}/windows
                                ${PROJECT_SOURCE_DIR}/submodules/stb
                                ${PROJECT_SOURCE_DIR}/submodules/glm
                           )

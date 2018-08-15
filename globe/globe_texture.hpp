@@ -46,11 +46,11 @@ class GlobeResourceManager;
 class GlobeTexture {
    public:
     static GlobeTexture* LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                        VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                        const std::string& directory);
+                                      VkCommandBuffer vk_command_buffer, const std::string& texture_name,
+                                      const std::string& directory);
 
     GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
-                   GlobeTextureData* texture_data);
+                 GlobeTextureData* texture_data);
     ~GlobeTexture();
 
     uint32_t Width() { return _width; }

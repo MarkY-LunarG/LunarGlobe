@@ -113,5 +113,26 @@ elseif(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     endif()
 endif()
 
+######################################################################################
+# build macro
+
+macro(SINGLE_SOURCE_EXECUTABLE test_name)
+    Message(STATUS "Building single source executable ${test_name}")
+    add_executable(${test_name} "")
+    target_sources(${test_name}
+                   PRIVATE
+                       ${test_name}.cpp
+                  )
+    target_include_directories(${test_name}
+                               PUBLIC
+                                  ${PROJECT_SOURCE_DIR}
+                              )
+    target_link_libraries(${test_name}
+                          PUBLIC
+                              globe
+                          )
+endmacro()
+
 add_subdirectory(globe)
+add_subdirectory(samples)
 add_subdirectory(apps)

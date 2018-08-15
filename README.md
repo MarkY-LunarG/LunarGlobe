@@ -37,9 +37,16 @@ LunarGlobe started out as a remodelling of the
 It is now split into a library and applications.  The "globe_cube"
 application is very similar in behavior to the original LunarG Cube demo.
 
+## Samples
+
+I wanted to start out small by creating simple example on top of the new framework
+so that I could be sure things worked properly.  And, to let me do a little more messing
+around with basic Vulkan.  So, there are several [Samples](./samples/README.md) that
+I created using it in a simple way.
+
 ## Applications
 
-There are several applications currently supported.  The full list can be found in the
+I also have a folder for more in depth applications/demos.  The full list can be found in the
 [Applications Listing](./apps/README.md).
 
 ## Building

@@ -42,15 +42,16 @@ class GlobeResourceManager {
 
     bool AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
                                     VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const;
-    bool AllocateDeviceImageMemory(VkImage vk_image, VkMemoryPropertyFlags vk_memory_properties, VkDeviceMemory& vk_device_memory,
-                                   VkDeviceSize& vk_allocated_size) const;
+    bool AllocateDeviceImageMemory(VkImage vk_image, VkMemoryPropertyFlags vk_memory_properties,
+                                   VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const;
     void FreeDeviceMemory(VkDeviceMemory& vk_device_memory) const;
 
     bool UseStagingBuffer() const { return _uses_staging_buffer; }
     VkFormatProperties GetVkFormatProperties(VkFormat format) const;
 
    private:
-    bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags, uint32_t& type) const;
+    bool SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags,
+                                           uint32_t& type) const;
 
     VkInstance _vk_instance;
     VkPhysicalDevice _vk_physical_device;

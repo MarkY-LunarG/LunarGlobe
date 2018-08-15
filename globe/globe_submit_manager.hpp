@@ -26,8 +26,7 @@
 #include "globe_vulkan_headers.hpp"
 #include "globe_window.hpp"
 
-typedef struct
-{
+typedef struct {
     VkBuffer uniform_buffer;
     VkDeviceMemory uniform_memory;
     VkDeviceSize vk_allocated_size;
@@ -36,19 +35,19 @@ typedef struct
 
 class GlobeApp;
 
-class GlobeSubmitManager
-{
-  public:
+class GlobeSubmitManager {
+   public:
     GlobeSubmitManager(GlobeApp *app, GlobeWindow *window, VkInstance instance, VkPhysicalDevice phys_device);
     ~GlobeSubmitManager();
 
-    bool PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions, void **next);
+    bool PrepareCreateDeviceItems(VkDeviceCreateInfo &device_create_info, std::vector<std::string> &extensions,
+                                  void **next);
     bool ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next);
 
     uint32_t GetGraphicsQueueIndex() { return _graphics_queue_family_index; }
 
-    bool PrepareForSwapchain(VkDevice device, uint8_t num_images, VkPresentModeKHR present_mode, VkFormat prefered_format,
-                             VkFormat secondary_format);
+    bool PrepareForSwapchain(VkDevice device, uint8_t num_images, VkPresentModeKHR present_mode,
+                             VkFormat prefered_format, VkFormat secondary_format);
     bool CreateSwapchain();
     bool DetachSwapchain();
     bool DestroySwapchain();
@@ -71,7 +70,7 @@ class GlobeSubmitManager
     bool Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait);
     bool SubmitAndPresent();
 
-  private:
+   private:
     GlobeApp *_app;
     GlobeWindow *_window;
     VkInstance _vk_instance;
@@ -114,11 +113,11 @@ class GlobeSubmitManager
     bool _syncd_with_actual_presents;
     uint64_t _refresh_duration;
     uint64_t _refresh_duration_multiplier;
-    uint64_t _target_IPD; // image present duration (inverse of frame rate)
+    uint64_t _target_IPD;  // image present duration (inverse of frame rate)
     uint64_t _prev_desired_present_time;
     uint32_t _next_present_id;
-    uint32_t _last_early_id; // 0 if no early images
-    uint32_t _last_late_id;  // 0 if no late images
+    uint32_t _last_early_id;  // 0 if no early images
+    uint32_t _last_late_id;   // 0 if no late images
 
     std::vector<VkSemaphore> _image_acquired_semaphores;
     std::vector<VkSemaphore> _draw_complete_semaphores;

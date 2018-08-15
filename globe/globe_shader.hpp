@@ -41,22 +41,23 @@ struct GlobeShaderStageInitData {
 };
 
 struct GlobeShaderStage {
-    bool                  valid;
+    bool valid;
     VkShaderStageFlagBits vk_shader_flag;
-    VkShaderModule        vk_shader_module;
+    VkShaderModule vk_shader_module;
 };
 
 class GlobeShader {
-  public:
+   public:
     static GlobeShader* LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory);
 
-    GlobeShader(VkDevice vk_device, const std::string& shader_name, const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES]);
+    GlobeShader(VkDevice vk_device, const std::string& shader_name,
+                const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES]);
     ~GlobeShader();
 
     bool IsValid() { return _initialized; }
-    bool GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo> &pipeline_stages) const;
+    bool GetPipelineShaderStages(std::vector<VkPipelineShaderStageCreateInfo>& pipeline_stages) const;
 
-  private:
+   private:
     bool _initialized;
     VkDevice _vk_device;
     std::string _shader_name;

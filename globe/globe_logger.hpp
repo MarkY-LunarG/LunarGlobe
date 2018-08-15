@@ -59,13 +59,15 @@ class GlobeLogger {
     void operator=(GlobeLogger const &) = delete;
 
     // Extension utilities
-    bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions, void **next);
+    bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
+                                    void **next);
     bool ReleaseCreateInstanceItems(void **next);
 
     bool CreateInstanceDebugInfo(VkInstance instance);
     bool DestroyInstanceDebugInfo(VkInstance instance);
 
-    bool CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device, std::vector<std::string> &extensions);
+    bool CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
+                                          std::vector<std::string> &extensions);
 
     // Output targets
     void SetCommandLineOutput(bool enable) { _output_cmdline = enable; }

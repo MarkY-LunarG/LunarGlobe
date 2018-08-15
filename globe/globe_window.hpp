@@ -28,94 +28,30 @@
 
 class GlobeApp;
 
-struct NativeWindowInfo {
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-    HINSTANCE instance_handle;
-    HWND window_handle;
-    POINT minsize;
-#endif
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-    Display *display;
-    Window xlib_window;
-    Atom xlib_wm_delete_window;
-#endif
-#ifdef VK_USE_PLATFORM_XCB_KHR
-    Display *display;
-    xcb_connection_t *connection;
-    xcb_screen_t *screen;
-    xcb_window_t xcb_window;
-    xcb_intern_atom_reply_t *atom_wm_delete_window;
-#endif
-#ifdef VK_USE_PLATFORM_WAYLAND_KHR
-    struct wl_display *display;
-    struct wl_registry *registry;
-    struct wl_compositor *compositor;
-    struct wl_surface *window;
-    struct wl_shell *shell;
-    struct wl_shell_surface *shell_surface;
-    struct wl_seat *seat;
-    struct wl_pointer *pointer;
-    struct wl_keyboard *keyboard;
-#endif
-#ifdef VK_USE_PLATFORM_ANDROID_KHR
-    struct ANativeWindow *window;
-#endif
-#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK))
-    void *view;
-#endif
-    VkInstance vk_instance;
-    VkPhysicalDevice vk_physical_device;
-};
-
 class GlobeWindow {
    public:
     GlobeWindow(GlobeApp *associated_app, const std::string &name);
     virtual ~GlobeWindow();
 
-#ifdef VK_USE_PLATFORM_WIN32_KHR
-    void SetHInstance(HINSTANCE win_hinstance) { _native_win_info.instance_handle = win_hinstance; }
-    void RedrawOsWindow() { RedrawWindow(_native_win_info.window_handle, NULL, NULL, RDW_INTERNALPAINT); }
-#endif
+    virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height) = 0;
+    virtual bool DestroyPlatformWindow();
+    virtual bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
+                                            void **next) {
+        return true;
+    }
+    virtual bool ReleaseCreateInstanceItems(void **next) { return true; }
+    virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) = 0;
+    virtual bool DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface);
 
-    bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height);
-    bool DestroyPlatformWindow();
-
-    bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions, void **next);
-    bool ReleaseCreateInstanceItems(void **next);
-
-    bool CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device, std::vector<std::string> &extensions);
-    bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface);
-    bool DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface);
-
-    const NativeWindowInfo &GetNativeWinInfo() const { return _native_win_info; }
     bool IsValid() { return _window_created; }
     bool IsFullScreen() { return _is_fullscreen; }
     uint32_t Width() const { return _width; }
     uint32_t Height() const { return _height; }
 
-#if defined(VK_USE_PLATFORM_ANDROID_KHR)
-    void SetAndroidNativeWindow(ANativeWindow *android_native_window) { _native_win_info.window = android_native_window; }
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-    void HandleXlibEvent();
-    void HandleAllXlibEvents();
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-    void HandlePausedXcbEvent();
-    void HandleActiveXcbEvent();
-    void HandleAllXcbEvents();
-#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    void MoveSurface(uint32_t serial);
-    void HandleSeatCapabilities(void *data, struct wl_seat *seat, enum wl_seat_capability caps);
-    void HandleGlobalRegistration(void *data, struct wl_registry *registry, uint32_t id, const char *interface, uint32_t version);
-    void HandlePausedWaylandEvent();
-    void HandleActiveWaylandEvents();
-#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-    void SetMoltenVkView(void *view) { _view = view; }
-#endif
+    bool CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
+                                          std::vector<std::string> &extensions);
 
-   private:
-#ifdef VK_USE_PLATFORM_XCB_KHR
-    void HandleXcbEvent(xcb_generic_event_t *xcb_event);
-#endif
+   protected:
 
     GlobeApp *_associated_app;
     std::string _name;
@@ -123,6 +59,7 @@ class GlobeWindow {
     uint32_t _height;
     bool _is_fullscreen;
     bool _window_created;
-    NativeWindowInfo _native_win_info;
+    VkInstance _vk_instance;
+    VkPhysicalDevice _vk_physical_device;
     VkSurfaceKHR _vk_surface;
 };

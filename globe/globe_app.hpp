@@ -23,7 +23,17 @@
 #include <string>
 #include <vector>
 
+#if defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
+#include "linux/globe_window_linux.hpp"
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+#include "windows/globe_window_windows.hpp"
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+#include "android/globe_window_android.hpp"
+#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
+#include "apple/globe_window_apple.hpp"
+#else
 #include "globe_window.hpp"
+#endif
 
 struct GlobeVersion {
     uint8_t major;
@@ -80,24 +90,37 @@ class GlobeApp {
     bool UsesStagingBuffer() const { return _uses_staging_buffer; }
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
-    void SetAndroidNativeWindow(ANativeWindow *android_native_window) { _android_native_window = android_native_window; }
+    void SetAndroidNativeWindow(ANativeWindow *android_native_window) {
+        _android_native_window = android_native_window;
+    }
     void SetFocused(bool focused) { _focused = focused; }
 #endif
 
    protected:
     virtual bool Setup() = 0;
-    bool PreSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
-    bool PostSetup(VkCommandPool& vk_setup_command_pool, VkCommandBuffer& vk_setup_command_buffer);
+    bool PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer);
+    bool PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer);
     bool ProcessEvents();
     virtual void HandleEvent(GlobeEvent &event);
     bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                 VkImageLayout old_image_layout, VkImageLayout new_image_layout, VkAccessFlagBits src_access_mask,
-                                 VkPipelineStageFlags src_stages, VkPipelineStageFlags dest_stages);
+                                 VkImageLayout old_image_layout, VkImageLayout new_image_layout,
+                                 VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
+                                 VkPipelineStageFlags dest_stages);
 
     std::string _name;
     GlobeVersion _app_version;
     GlobeVersion _engine_version;
+#if defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    GlobeWindowLinux *_globe_window;
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+    GlobeWindowWindows *_globe_window;
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+    GlobeWindowAndroid *_globe_window;
+#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
+    GlobeWindowApple *_globe_window;
+#else
     GlobeWindow *_globe_window;
+#endif
     GlobeResourceManager *_globe_resource_mgr;
     GlobeSubmitManager *_globe_submit_mgr;
     uint32_t _width;

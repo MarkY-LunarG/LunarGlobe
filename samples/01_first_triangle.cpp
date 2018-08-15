@@ -38,22 +38,16 @@
 #include "globe/globe_app.hpp"
 #include "globe/globe_main.hpp"
 
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-
 struct VulkanBuffer {
     VkBuffer vk_buffer;
     VkDeviceMemory vk_memory;
     VkDeviceSize vk_size;
 };
 
-class DynamicUniformApp : public GlobeApp {
+class TriangleApp : public GlobeApp {
    public:
-    DynamicUniformApp();
-    ~DynamicUniformApp();
+    TriangleApp();
+    ~TriangleApp();
 
     virtual void Cleanup() override;
 
@@ -71,11 +65,9 @@ class DynamicUniformApp : public GlobeApp {
     VkDescriptorPool _vk_descriptor_pool;
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;
-    VkDeviceSize _vk_uniform_matrix_alignment;
-    uint8_t *_uniform_mapped_data;
 };
 
-DynamicUniformApp::DynamicUniformApp() {
+TriangleApp::TriangleApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -93,11 +85,9 @@ DynamicUniformApp::DynamicUniformApp() {
     _vk_pipeline = VK_NULL_HANDLE;
 }
 
-DynamicUniformApp::~DynamicUniformApp() {
-    Cleanup();
-}
+TriangleApp::~TriangleApp() { Cleanup(); }
 
-void DynamicUniformApp::Cleanup() {
+void TriangleApp::Cleanup() {
     GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
@@ -112,7 +102,6 @@ void DynamicUniformApp::Cleanup() {
         _vk_descriptor_pool = VK_NULL_HANDLE;
     }
     if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
-        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
         vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
         _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
     }
@@ -148,8 +137,10 @@ static const float g_triangle_vertex_buffer_data[] = {
     0.0f,  1.0f,  0.0f, 0.0f, 0.0f, 1.0f   // Vertex 2 Pos/Color
 };
 static const uint32_t g_triangle_index_buffer_data[] = {0, 1, 2};
+static const float g_triangle_uniform_buffer_data[] = {1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f, 0.0f, 0.0f,
+                                                       0.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f, 1.0f};
 
-bool DynamicUniformApp::Setup() {
+bool TriangleApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -158,16 +149,12 @@ bool DynamicUniformApp::Setup() {
         return false;
     }
 
-    VkPhysicalDeviceProperties properties;
-    vkGetPhysicalDeviceProperties(_vk_phys_device, &properties);
-    VkDeviceSize vk_uniform_alignment = properties.limits.minUniformBufferOffsetAlignment;
-
     if (!_is_minimized) {
         uint8_t *mapped_data;
 
         VkDescriptorSetLayoutBinding descriptor_set_layout_bindings = {};
         descriptor_set_layout_bindings.binding = 0;
-        descriptor_set_layout_bindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptor_set_layout_bindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptor_set_layout_bindings.descriptorCount = 1;
         descriptor_set_layout_bindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         descriptor_set_layout_bindings.pImmutableSamplers = nullptr;
@@ -177,7 +164,8 @@ bool DynamicUniformApp::Setup() {
         descriptor_set_layout.pNext = nullptr;
         descriptor_set_layout.bindingCount = 1;
         descriptor_set_layout.pBindings = &descriptor_set_layout_bindings;
-        if (VK_SUCCESS != vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
+        if (VK_SUCCESS !=
+            vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
             logger.LogFatalError("Failed to create descriptor set layout");
             return false;
         }
@@ -187,7 +175,8 @@ bool DynamicUniformApp::Setup() {
         pipeline_layout_create_info.pNext = nullptr;
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &_vk_descriptor_set_layout;
-        if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_vk_pipeline_layout)) {
+        if (VK_SUCCESS !=
+            vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_vk_pipeline_layout)) {
             logger.LogFatalError("Failed to create pipeline layout layout");
             return false;
         }
@@ -273,7 +262,8 @@ bool DynamicUniformApp::Setup() {
             logger.LogFatalError("Failed to allocate vertex buffer memory");
             return false;
         }
-        if (VK_SUCCESS != vkMapMemory(_vk_device, _vertex_buffer.vk_memory, 0, _vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
+        if (VK_SUCCESS !=
+            vkMapMemory(_vk_device, _vertex_buffer.vk_memory, 0, _vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map vertex buffer memory");
             return false;
         }
@@ -297,7 +287,8 @@ bool DynamicUniformApp::Setup() {
             logger.LogFatalError("Failed to allocate index buffer memory");
             return false;
         }
-        if (VK_SUCCESS != vkMapMemory(_vk_device, _index_buffer.vk_memory, 0, _index_buffer.vk_size, 0, (void **)&mapped_data)) {
+        if (VK_SUCCESS !=
+            vkMapMemory(_vk_device, _index_buffer.vk_memory, 0, _index_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map index buffer memory");
             return false;
         }
@@ -308,12 +299,9 @@ bool DynamicUniformApp::Setup() {
             return false;
         }
 
-        glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f), glm::vec3(0.0f, 0.0f, 1.0f));
-        _vk_uniform_matrix_alignment = (sizeof(glm::mat4) + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
-
         // Create the uniform buffer containing the mvp matrix
         buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        buffer_create_info.size = _vk_uniform_matrix_alignment * _swapchain_count;
+        buffer_create_info.size = sizeof(g_triangle_uniform_buffer_data);
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_uniform_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create uniform buffer");
             return false;
@@ -325,28 +313,29 @@ bool DynamicUniformApp::Setup() {
             return false;
         }
         if (VK_SUCCESS !=
-            vkMapMemory(_vk_device, _uniform_buffer.vk_memory, 0, _uniform_buffer.vk_size, 0, (void **)&_uniform_mapped_data)) {
+            vkMapMemory(_vk_device, _uniform_buffer.vk_memory, 0, _uniform_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map uniform buffer memory");
             return false;
         }
-        memcpy(_uniform_mapped_data, &view_matrix, sizeof(view_matrix));
-
+        memcpy(mapped_data, g_triangle_uniform_buffer_data, sizeof(g_triangle_uniform_buffer_data));
+        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _uniform_buffer.vk_buffer, _uniform_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind uniform buffer memory");
             return false;
         }
 
         VkDescriptorPoolSize descriptor_pool_size = {};
-        descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         descriptor_pool_size.descriptorCount = 1;
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
         descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.maxSets = 2;
         descriptor_pool_create_info.poolSizeCount = 2;
         descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
-        if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
+        if (VK_SUCCESS !=
+            vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
             logger.LogFatalError("Failed to create descriptor pool");
             return false;
         }
@@ -365,13 +354,13 @@ bool DynamicUniformApp::Setup() {
         VkDescriptorBufferInfo descriptor_buffer_info = {};
         descriptor_buffer_info.buffer = _uniform_buffer.vk_buffer;
         descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(glm::mat4);
+        descriptor_buffer_info.range = _uniform_buffer.vk_size;
         VkWriteDescriptorSet write_descriptor_set = {};
         write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_descriptor_set.pNext = NULL;
         write_descriptor_set.dstSet = _vk_descriptor_set;
         write_descriptor_set.descriptorCount = 1;
-        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER;
         write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
         write_descriptor_set.dstArrayElement = 0;
         write_descriptor_set.dstBinding = 0;
@@ -497,8 +486,8 @@ bool DynamicUniformApp::Setup() {
         gfx_pipeline_create_info.pStages = pipeline_shader_stage_create_info.data();
         gfx_pipeline_create_info.renderPass = _vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &pipeline_dynamic_state_create_info;
-        if (VK_SUCCESS !=
-            vkCreateGraphicsPipelines(_vk_device, VK_NULL_HANDLE, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
+        if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, VK_NULL_HANDLE, 1, &gfx_pipeline_create_info, nullptr,
+                                                    &_vk_pipeline)) {
             logger.LogFatalError("Failed to create graphics pipeline");
             return false;
         }
@@ -515,7 +504,7 @@ bool DynamicUniformApp::Setup() {
     return true;
 }
 
-bool DynamicUniformApp::Draw() {
+bool TriangleApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -571,26 +560,11 @@ bool DynamicUniformApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_matrix_alignment;
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
-                            &_vk_descriptor_set, 1, &dynamic_offset);
+                            &_vk_descriptor_set, 0, nullptr);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
-
-    VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
-    static float inc = 1.f;
-    glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f + inc), glm::vec3(0.0f, 0.0f, 1.0f));
-    inc += 1.f;
-    if (inc > 360.f) { inc = inc - 360.f; }
-    memcpy(_uniform_mapped_data + offset, &view_matrix, sizeof(view_matrix));
-    VkMappedMemoryRange memoryRange = {};
-    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memoryRange.memory = _uniform_buffer.vk_memory;
-    memoryRange.size = sizeof(glm::mat4);
-    memoryRange.offset = offset;
-    vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
-
-    const VkDeviceSize vert_buffer_offset = 0;
-    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
+    const VkDeviceSize offset = 0;
+    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(vk_render_command_buffer, 3, 1, 0, 0, 1);
     vkCmdEndRenderPass(vk_render_command_buffer);
@@ -606,12 +580,12 @@ bool DynamicUniformApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static DynamicUniformApp *g_app = nullptr;
+static TriangleApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Dynamic Uniform App";
+    init_struct.app_name = "Globe_Triangle";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -621,7 +595,7 @@ GLOBE_APP_MAIN() {
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new DynamicUniformApp();
+    g_app = new TriangleApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();

@@ -183,7 +183,7 @@ bool PushConstantApp::Setup() {
             return false;
         }
 
-        _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_lake.jpg", vk_setup_command_buffer);
+        _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.jpg", vk_setup_command_buffer);
         if (nullptr == _texture_2) {
             logger.LogError("Failed loading cks_memorial_taipei_lake.jpg texture");
             return false;
@@ -191,21 +191,21 @@ bool PushConstantApp::Setup() {
 
         std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings;
         VkDescriptorSetLayoutBinding cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding =  static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         cur_binding.pImmutableSamplers = nullptr;
         descriptor_set_layout_bindings.push_back(cur_binding);
         cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         cur_binding.pImmutableSamplers = nullptr;
         descriptor_set_layout_bindings.push_back(cur_binding);
         cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -215,7 +215,7 @@ bool PushConstantApp::Setup() {
         VkDescriptorSetLayoutCreateInfo descriptor_set_layout = {};
         descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptor_set_layout.pNext = nullptr;
-        descriptor_set_layout.bindingCount = descriptor_set_layout_bindings.size();
+        descriptor_set_layout.bindingCount =  static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
         if (VK_SUCCESS !=
             vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
@@ -244,7 +244,7 @@ bool PushConstantApp::Setup() {
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
         pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
         pipeline_layout_create_info.pNext = nullptr;
-        pipeline_layout_create_info.pushConstantRangeCount = push_constant_ranges.size();
+        pipeline_layout_create_info.pushConstantRangeCount = static_cast<uint32_t>(push_constant_ranges.size());
         pipeline_layout_create_info.pPushConstantRanges = push_constant_ranges.data();
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &_vk_descriptor_set_layout;
@@ -420,7 +420,7 @@ bool PushConstantApp::Setup() {
         descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.maxSets = 2;
-        descriptor_pool_create_info.poolSizeCount = descriptor_pool_sizes.size();
+        descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
         descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
         if (VK_SUCCESS !=
             vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
@@ -472,11 +472,11 @@ bool PushConstantApp::Setup() {
         write_set.dstSet = _vk_descriptor_set;
         write_set.dstBinding = 1;
         write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_set.descriptorCount = descriptor_image_infos.size();
+        write_set.descriptorCount = static_cast<uint32_t>(descriptor_image_infos.size());
         write_set.pImageInfo = descriptor_image_infos.data();
         write_descriptor_sets.push_back(write_set);
 
-        vkUpdateDescriptorSets(_vk_device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
+        vkUpdateDescriptorSets(_vk_device,  static_cast<uint32_t>(write_descriptor_sets.size()), write_descriptor_sets.data(), 0, nullptr);
 
         // Ensure we have enough room for push constant data
         _push_constants_size = sizeof(int32_t) + (sizeof(float) * 2);
@@ -495,11 +495,11 @@ bool PushConstantApp::Setup() {
         int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
         *selection = 0;
         float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
-        *rad_x_sqd = 0.03;
+        *rad_x_sqd = 0.03f;
         float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
-        *rad_y_sqd = 0.12;
+        *rad_y_sqd = 0.12f;
         vkCmdPushConstants(vk_setup_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                           _push_constants_size, _push_constants);
+                            static_cast<uint32_t>(_push_constants_size), _push_constants);
 
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
@@ -717,7 +717,7 @@ bool PushConstantApp::Draw() {
     }
 
     vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_FRAGMENT_BIT, 0,
-                       _push_constants_size, _push_constants);
+                        static_cast<uint32_t>(_push_constants_size), _push_constants);
 
     vkCmdBeginRenderPass(vk_render_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
@@ -737,7 +737,7 @@ bool PushConstantApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_vec4_alignment;
+    uint32_t dynamic_offset = _current_buffer *  static_cast<uint32_t>(_vk_uniform_vec4_alignment);
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
@@ -750,9 +750,9 @@ bool PushConstantApp::Draw() {
             *selection = 0;
         }
         float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
-        *rad_x_sqd = ((rand() % 110) + 1) * 0.001;
+        *rad_x_sqd = ((rand() % 110) + 1) * 0.001f;
         float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
-        *rad_y_sqd = ((rand() % 110) + 1) * 0.003;
+        *rad_y_sqd = ((rand() % 110) + 1) * 0.003f;
         cur_frame_count = 0;
     }
     UpdateEllipseCenter();

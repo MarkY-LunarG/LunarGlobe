@@ -102,7 +102,8 @@ void GlobeResourceManager::FreeShader(GlobeShader* shader) {
 }
 
 bool GlobeResourceManager::AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
-                                                        VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const {
+                                                      VkDeviceMemory& vk_device_memory,
+                                                      VkDeviceSize& vk_allocated_size) const {
     GlobeLogger& logger = GlobeLogger::getInstance();
 
     VkMemoryRequirements vk_memory_requirements = {};
@@ -127,7 +128,8 @@ bool GlobeResourceManager::AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemo
 }
 
 bool GlobeResourceManager::AllocateDeviceImageMemory(VkImage vk_image, VkMemoryPropertyFlags vk_memory_properties,
-                                                       VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const {
+                                                     VkDeviceMemory& vk_device_memory,
+                                                     VkDeviceSize& vk_allocated_size) const {
     GlobeLogger& logger = GlobeLogger::getInstance();
 
     VkMemoryRequirements vk_memory_requirements = {};
@@ -162,13 +164,14 @@ VkFormatProperties GlobeResourceManager::GetVkFormatProperties(VkFormat format) 
 }
 
 bool GlobeResourceManager::SelectMemoryTypeUsingRequirements(VkMemoryRequirements requirements, VkFlags required_flags,
-                                                               uint32_t& type) const {
+                                                             uint32_t& type) const {
     uint32_t type_bits = requirements.memoryTypeBits;
     // Search memtypes to find first index with those properties
     for (uint32_t i = 0; i < VK_MAX_MEMORY_TYPES; i++) {
         if ((type_bits & 1) == 1) {
             // Type is available, does it match user properties?
-            if ((_vk_physical_device_memory_properties.memoryTypes[i].propertyFlags & required_flags) == required_flags) {
+            if ((_vk_physical_device_memory_properties.memoryTypes[i].propertyFlags & required_flags) ==
+                required_flags) {
                 type = i;
                 return true;
             }

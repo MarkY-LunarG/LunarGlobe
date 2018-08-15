@@ -78,6 +78,7 @@ static bool LoadFile(const GlobeResourceManager* resource_manager, const std::st
         texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
         requires_padding = true;
         num_channels = 4;
+        texture_data.vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
     }
     texture_data.num_components = static_cast<uint32_t>(num_channels);
     texture_data.raw_data.resize(int_width * int_height * num_channels);
@@ -86,7 +87,7 @@ static bool LoadFile(const GlobeResourceManager* resource_manager, const std::st
         uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(texture_data.raw_data.data());
         uint8_t* src_ptr = image_data;
         for (int32_t row = 0; row < int_height; ++row) {
-            for (int32_t col = 0; col < int_height; ++col) {
+            for (int32_t col = 0; col < int_width; ++col) {
                 int32_t comp = 0;
                 for (; comp < old_num_channels; ++comp) {
                     *dst_ptr++ = *src_ptr++;

@@ -38,7 +38,8 @@ const char directory_symbol = '/';
 #endif
 static const char main_shader_func_name[] = "main";
 
-GlobeShader* GlobeShader::LoadFromFile(VkDevice vk_device, const std::string& shader_name, const std::string& directory) {
+GlobeShader* GlobeShader::LoadFromFile(VkDevice vk_device, const std::string& shader_name,
+                                       const std::string& directory) {
     GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES] = {{}, {}, {}, {}, {}, {}};
 
     for (uint32_t stage = 0; stage < GLOBE_SHADER_STAGE_ID_NUM_STAGES; ++stage) {
@@ -90,7 +91,7 @@ GlobeShader* GlobeShader::LoadFromFile(VkDevice vk_device, const std::string& sh
 }
 
 GlobeShader::GlobeShader(VkDevice vk_device, const std::string& shader_name,
-                             const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES])
+                         const GlobeShaderStageInitData shader_data[GLOBE_SHADER_STAGE_ID_NUM_STAGES])
     : _initialized(true), _vk_device(vk_device), _shader_name(shader_name) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     uint32_t num_loaded_shaders = 0;
@@ -104,8 +105,8 @@ GlobeShader::GlobeShader(VkDevice vk_device, const std::string& shader_name,
             shader_module_create_info.codeSize = shader_data[stage].spirv_content.size() * sizeof(uint32_t);
             shader_module_create_info.pCode = shader_data[stage].spirv_content.data();
             shader_module_create_info.flags = 0;
-            VkResult vk_result =
-                vkCreateShaderModule(vk_device, &shader_module_create_info, NULL, &_shader_data[stage].vk_shader_module);
+            VkResult vk_result = vkCreateShaderModule(vk_device, &shader_module_create_info, NULL,
+                                                      &_shader_data[stage].vk_shader_module);
             if (VK_SUCCESS != vk_result) {
                 _initialized = false;
                 _shader_data[stage].valid = false;

@@ -325,7 +325,8 @@ bool CubeApp::Setup() {
         buffer_create_info.size = sizeof(data);
 
         for (unsigned int i = 0; i < _swapchain_count; i++) {
-            if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, nullptr, &_swapchain_resources[i].uniform_buffer)) {
+            if (VK_SUCCESS !=
+                vkCreateBuffer(_vk_device, &buffer_create_info, nullptr, &_swapchain_resources[i].uniform_buffer)) {
                 std::string error_message = "Failed to create buffer for swapchain image ";
                 error_message += std::to_string(i);
                 logger.LogFatalError(error_message);
@@ -352,8 +353,8 @@ bool CubeApp::Setup() {
 
             vkUnmapMemory(_vk_device, _swapchain_resources[i].uniform_memory);
 
-            if (VK_SUCCESS !=
-                vkBindBufferMemory(_vk_device, _swapchain_resources[i].uniform_buffer, _swapchain_resources[i].uniform_memory, 0)) {
+            if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _swapchain_resources[i].uniform_buffer,
+                                                 _swapchain_resources[i].uniform_memory, 0)) {
                 logger.LogFatalError("Failed to find memory type supporting necessary buffer requirements");
                 return false;
             }
@@ -387,7 +388,8 @@ bool CubeApp::Setup() {
         pPipelineLayoutCreateInfo.setLayoutCount = 1;
         pPipelineLayoutCreateInfo.pSetLayouts = &_vk_desc_set_layout;
 
-        if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pPipelineLayoutCreateInfo, nullptr, &_vk_pipeline_layout)) {
+        if (VK_SUCCESS !=
+            vkCreatePipelineLayout(_vk_device, &pPipelineLayoutCreateInfo, nullptr, &_vk_pipeline_layout)) {
             logger.LogFatalError("Failed to create pipeline layout layout");
             return false;
         }
@@ -524,7 +526,8 @@ bool CubeApp::Setup() {
         cube_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
 
         pipeline_cache_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_CACHE_CREATE_INFO;
-        if (VK_SUCCESS != vkCreatePipelineCache(_vk_device, &pipeline_cache_create_info, nullptr, &_vk_pipeline_cache)) {
+        if (VK_SUCCESS !=
+            vkCreatePipelineCache(_vk_device, &pipeline_cache_create_info, nullptr, &_vk_pipeline_cache)) {
             logger.LogFatalError("Failed to create pipeline cache");
             return false;
         }
@@ -541,8 +544,8 @@ bool CubeApp::Setup() {
         gfx_pipeline_create_info.renderPass = _vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &dynamicState;
 
-        if (VK_SUCCESS !=
-            vkCreateGraphicsPipelines(_vk_device, _vk_pipeline_cache, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
+        if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, _vk_pipeline_cache, 1, &gfx_pipeline_create_info,
+                                                    nullptr, &_vk_pipeline)) {
             logger.LogFatalError("Failed to create graphics pipeline");
             return false;
         }
@@ -596,7 +599,8 @@ bool CubeApp::Setup() {
         writes[1].pImageInfo = &descriptor_image_info;
 
         for (unsigned int i = 0; i < _swapchain_count; i++) {
-            if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &alloc_info, &_swapchain_resources[i].descriptor_set)) {
+            if (VK_SUCCESS !=
+                vkAllocateDescriptorSets(_vk_device, &alloc_info, &_swapchain_resources[i].descriptor_set)) {
                 logger.LogFatalError("Failed to allocate descriptor set");
                 return false;
             }
@@ -659,8 +663,8 @@ bool CubeApp::Draw() {
     mat4x4_rotate(_model_matrix, Model, 0.0f, 1.0f, 0.0f, (float)degreesToRadians(_spin_angle));
     mat4x4_mul(MVP, VP, _model_matrix);
 
-    if (VK_SUCCESS !=
-        vkMapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0, (void **)&pData)) {
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory, 0, VK_WHOLE_SIZE, 0,
+                                  (void **)&pData)) {
         logger.LogFatalError("Failed to map uniform buffer memory");
         return false;
     }

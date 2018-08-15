@@ -108,7 +108,8 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSever
             std::ostringstream oss_handle;
             oss_handle << std::hex << reinterpret_cast<const void *>(pCallbackData->pObjects[object].objectHandle);
             message += oss_handle.str();
-            if (NULL != pCallbackData->pObjects[object].pObjectName && strlen(pCallbackData->pObjects[object].pObjectName) > 0) {
+            if (NULL != pCallbackData->pObjects[object].pObjectName &&
+                strlen(pCallbackData->pObjects[object].pObjectName) > 0) {
                 message += ", Name \"";
                 message += pCallbackData->pObjects[object].pObjectName;
                 message += "\"\n";
@@ -170,7 +171,7 @@ VKAPI_ATTR VkBool32 VKAPI_CALL debug_messenger_callback(VkDebugUtilsMessageSever
 }
 
 bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
-                                               void **next) {
+                                             void **next) {
     uint32_t extension_count = 0;
     uint32_t layer_count = 0;
 
@@ -182,9 +183,9 @@ bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, s
         char core_validation_layer_name[] = "VK_LAYER_LUNARG_core_validation";
         char unique_objects_layer_name[] = "VK_LAYER_GOOGLE_unique_objects";
         const uint32_t number_of_individual_layers = 5;
-        char *instance_validation_layers_list[number_of_individual_layers] = {threading_layer_name, parameter_validation_layer_name,
-                                                                              object_tracker_layer_name, core_validation_layer_name,
-                                                                              unique_objects_layer_name};
+        char *instance_validation_layers_list[number_of_individual_layers] = {
+            threading_layer_name, parameter_validation_layer_name, object_tracker_layer_name,
+            core_validation_layer_name, unique_objects_layer_name};
 
         // Look for validation layers
         bool validation_found = false;
@@ -217,7 +218,8 @@ bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, s
                 // Look for the individual layers second
                 for (uint32_t inst_layer = 0; inst_layer < layer_count; ++inst_layer) {
                     for (uint32_t valid_layer = 0; valid_layer < number_of_individual_layers; ++valid_layer) {
-                        if (!strcmp(instance_layers[inst_layer].layerName, instance_validation_layers_list[valid_layer])) {
+                        if (!strcmp(instance_layers[inst_layer].layerName,
+                                    instance_validation_layers_list[valid_layer])) {
                             found_mask |= 1 << valid_layer;
                             break;
                         }
@@ -334,8 +336,10 @@ bool GlobeLogger::CreateInstanceDebugInfo(VkInstance instance) {
                 (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
             if (NULL == instance_debug_info.CreateDebugUtilsMessengerEXT ||
                 NULL == instance_debug_info.DestroyDebugUtilsMessengerEXT ||
-                NULL == instance_debug_info.SubmitDebugUtilsMessageEXT || NULL == instance_debug_info.CmdBeginDebugUtilsLabelEXT ||
-                NULL == instance_debug_info.CmdEndDebugUtilsLabelEXT || NULL == instance_debug_info.CmdInsertDebugUtilsLabelEXT ||
+                NULL == instance_debug_info.SubmitDebugUtilsMessageEXT ||
+                NULL == instance_debug_info.CmdBeginDebugUtilsLabelEXT ||
+                NULL == instance_debug_info.CmdEndDebugUtilsLabelEXT ||
+                NULL == instance_debug_info.CmdInsertDebugUtilsLabelEXT ||
                 NULL == instance_debug_info.SetDebugUtilsObjectNameEXT) {
                 LogFatalError("GetProcAddr: Failed to init VK_EXT_debug_utils\n");
                 return false;
@@ -353,8 +357,8 @@ bool GlobeLogger::CreateInstanceDebugInfo(VkInstance instance) {
                                                     VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
             dbg_messenger_create_info.pfnUserCallback = debug_messenger_callback;
             dbg_messenger_create_info.pUserData = this;
-            if (VK_SUCCESS != instance_debug_info.CreateDebugUtilsMessengerEXT(instance, &dbg_messenger_create_info, NULL,
-                                                                               &instance_debug_info.dbg_messenger)) {
+            if (VK_SUCCESS != instance_debug_info.CreateDebugUtilsMessengerEXT(
+                                  instance, &dbg_messenger_create_info, NULL, &instance_debug_info.dbg_messenger)) {
                 LogFatalError("vkCreateDebugUtilsMessengerEXT: Failed to create messenger\n");
                 return false;
             }
@@ -383,7 +387,8 @@ bool GlobeLogger::DestroyInstanceDebugInfo(VkInstance instance) {
             for (auto it = _instance_debug_info.begin(); it != _instance_debug_info.end();) {
                 if (it->first == instance) {
                     InstanceDebugInfo instance_debug_info = it->second;
-                    instance_debug_info.DestroyDebugUtilsMessengerEXT(instance, instance_debug_info.dbg_messenger, nullptr);
+                    instance_debug_info.DestroyDebugUtilsMessengerEXT(instance, instance_debug_info.dbg_messenger,
+                                                                      nullptr);
                     _instance_debug_info.erase(it++);
                 } else {
                     ++it;
@@ -402,7 +407,7 @@ bool GlobeLogger::DestroyInstanceDebugInfo(VkInstance instance) {
 }
 
 bool GlobeLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
-                                                     std::vector<std::string> &extensions) {
+                                                   std::vector<std::string> &extensions) {
     uint32_t extension_count = 0;
 
     // Determine the number of device extensions supported
@@ -414,7 +419,8 @@ bool GlobeLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physi
     // Query the available instance extensions
     std::vector<VkExtensionProperties> extension_properties;
     extension_properties.resize(extension_count);
-    result = vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, extension_properties.data());
+    result =
+        vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, extension_properties.data());
     if (VK_SUCCESS != result || 0 >= extension_count) {
         return false;
     }

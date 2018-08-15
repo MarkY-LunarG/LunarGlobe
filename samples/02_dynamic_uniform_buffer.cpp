@@ -50,17 +50,16 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class MultiTexApp : public GlobeApp {
+class DynamicUniformApp : public GlobeApp {
    public:
-    MultiTexApp();
-    ~MultiTexApp();
+    DynamicUniformApp();
+    ~DynamicUniformApp();
 
     virtual void Cleanup() override;
 
    protected:
     virtual bool Setup();
     virtual bool Draw();
-    void UpdateEllipseCenter();
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -72,15 +71,11 @@ class MultiTexApp : public GlobeApp {
     VkDescriptorPool _vk_descriptor_pool;
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;
-    VkDeviceSize _vk_uniform_vec4_alignment;
+    VkDeviceSize _vk_uniform_matrix_alignment;
     uint8_t *_uniform_mapped_data;
-    GlobeTexture *_texture_1;
-    GlobeTexture *_texture_2;
-    glm::vec4 _ellipse_center;
-    glm::vec4 _movement_dir;
 };
 
-MultiTexApp::MultiTexApp() {
+DynamicUniformApp::DynamicUniformApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -98,9 +93,9 @@ MultiTexApp::MultiTexApp() {
     _vk_pipeline = VK_NULL_HANDLE;
 }
 
-MultiTexApp::~MultiTexApp() { Cleanup(); }
+DynamicUniformApp::~DynamicUniformApp() { Cleanup(); }
 
-void MultiTexApp::Cleanup() {
+void DynamicUniformApp::Cleanup() {
     GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
@@ -145,15 +140,14 @@ void MultiTexApp::Cleanup() {
     GlobeApp::PostCleanup();
 }
 
-static const float g_quad_vertex_buffer_data[] = {
-    1.0f,  -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vertex 0 Pos/Texture Coord
-    -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vertex 1 Pos/Texture Coord
-    -1.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vertex 2 Pos/Texture Coord
-    1.0f,  1.0f,  0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vertex 3 Pos/Texture Coord
+static const float g_triangle_vertex_buffer_data[] = {
+    1.0f,  -1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vertex 0 Pos/Color
+    -1.0f, -1.0f, 0.0f, 0.0f, 1.0f, 0.0f,  // Vertex 1 Pos/Color
+    0.0f,  1.0f,  0.0f, 0.0f, 0.0f, 1.0f   // Vertex 2 Pos/Color
 };
-static const uint32_t g_quad_index_buffer_data[] = {0, 1, 2, 2, 3, 0};
+static const uint32_t g_triangle_index_buffer_data[] = {0, 1, 2};
 
-bool MultiTexApp::Setup() {
+bool DynamicUniformApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -164,53 +158,23 @@ bool MultiTexApp::Setup() {
 
     VkPhysicalDeviceProperties properties;
     vkGetPhysicalDeviceProperties(_vk_phys_device, &properties);
-
-    // Determine the alignment required to store the minimum amount of data
     VkDeviceSize vk_uniform_alignment = properties.limits.minUniformBufferOffsetAlignment;
 
     if (!_is_minimized) {
         uint8_t *mapped_data;
 
-        _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer);
-        if (nullptr == _texture_1) {
-            logger.LogError("Failed loading kootenay_winter_stream.jpg texture");
-            return false;
-        }
-
-        _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_lake.jpg", vk_setup_command_buffer);
-        if (nullptr == _texture_2) {
-            logger.LogError("Failed loading cks_memorial_taipei_lake.jpg texture");
-            return false;
-        }
-
-        std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings;
-        VkDescriptorSetLayoutBinding cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
-        cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        cur_binding.descriptorCount = 1;
-        cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        cur_binding.pImmutableSamplers = nullptr;
-        descriptor_set_layout_bindings.push_back(cur_binding);
-        cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
-        cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        cur_binding.descriptorCount = 1;
-        cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        cur_binding.pImmutableSamplers = nullptr;
-        descriptor_set_layout_bindings.push_back(cur_binding);
-        cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
-        cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        cur_binding.descriptorCount = 1;
-        cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        cur_binding.pImmutableSamplers = nullptr;
-        descriptor_set_layout_bindings.push_back(cur_binding);
+        VkDescriptorSetLayoutBinding descriptor_set_layout_bindings = {};
+        descriptor_set_layout_bindings.binding = 0;
+        descriptor_set_layout_bindings.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptor_set_layout_bindings.descriptorCount = 1;
+        descriptor_set_layout_bindings.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
+        descriptor_set_layout_bindings.pImmutableSamplers = nullptr;
 
         VkDescriptorSetLayoutCreateInfo descriptor_set_layout = {};
         descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptor_set_layout.pNext = nullptr;
-        descriptor_set_layout.bindingCount = descriptor_set_layout_bindings.size();
-        descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
+        descriptor_set_layout.bindingCount = 1;
+        descriptor_set_layout.pBindings = &descriptor_set_layout_bindings;
         if (VK_SUCCESS !=
             vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
             logger.LogFatalError("Failed to create descriptor set layout");
@@ -294,7 +258,7 @@ bool MultiTexApp::Setup() {
         buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buffer_create_info.pNext = nullptr;
         buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_quad_vertex_buffer_data);
+        buffer_create_info.size = sizeof(g_triangle_vertex_buffer_data);
         buffer_create_info.queueFamilyIndexCount = 0;
         buffer_create_info.pQueueFamilyIndices = nullptr;
         buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
@@ -314,7 +278,7 @@ bool MultiTexApp::Setup() {
             logger.LogFatalError("Failed to map vertex buffer memory");
             return false;
         }
-        memcpy(mapped_data, g_quad_vertex_buffer_data, sizeof(g_quad_vertex_buffer_data));
+        memcpy(mapped_data, g_triangle_vertex_buffer_data, sizeof(g_triangle_vertex_buffer_data));
         vkUnmapMemory(_vk_device, _vertex_buffer.vk_memory);
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _vertex_buffer.vk_buffer, _vertex_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind vertex buffer memory");
@@ -323,7 +287,7 @@ bool MultiTexApp::Setup() {
 
         // Create the index buffer
         buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_quad_index_buffer_data);
+        buffer_create_info.size = sizeof(g_triangle_index_buffer_data);
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_index_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create index buffer");
             return false;
@@ -339,26 +303,19 @@ bool MultiTexApp::Setup() {
             logger.LogFatalError("Failed to map index buffer memory");
             return false;
         }
-        memcpy(mapped_data, g_quad_index_buffer_data, sizeof(g_quad_index_buffer_data));
+        memcpy(mapped_data, g_triangle_index_buffer_data, sizeof(g_triangle_index_buffer_data));
         vkUnmapMemory(_vk_device, _index_buffer.vk_memory);
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _index_buffer.vk_buffer, _index_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind index buffer memory");
             return false;
         }
 
-        _ellipse_center = glm::vec4(0.2f, 0.2f, 0.f, 0.f);
-        _movement_dir = glm::vec4(0.01f, 0.01f, 0.f, 0.f);
-        _vk_uniform_vec4_alignment = (sizeof(glm::vec4) + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
-
-        // The smallest submit size is an atom, so we need to make sure we're at least as big as that per
-        // uniform buffer submission.
-        if (_vk_uniform_vec4_alignment < properties.limits.nonCoherentAtomSize) {
-            _vk_uniform_vec4_alignment = properties.limits.nonCoherentAtomSize;
-        }
+        glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f), glm::vec3(0.0f, 0.0f, 1.0f));
+        _vk_uniform_matrix_alignment = (sizeof(glm::mat4) + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
 
         // Create the uniform buffer containing the mvp matrix
         buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-        buffer_create_info.size = _vk_uniform_vec4_alignment * _swapchain_count;
+        buffer_create_info.size = _vk_uniform_matrix_alignment * _swapchain_count;
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_uniform_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create uniform buffer");
             return false;
@@ -374,28 +331,23 @@ bool MultiTexApp::Setup() {
             logger.LogFatalError("Failed to map uniform buffer memory");
             return false;
         }
-        memcpy(_uniform_mapped_data, &_ellipse_center, sizeof(_ellipse_center));
+        memcpy(_uniform_mapped_data, &view_matrix, sizeof(view_matrix));
 
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _uniform_buffer.vk_buffer, _uniform_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind uniform buffer memory");
             return false;
         }
 
-        std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
-        VkDescriptorPoolSize pool_size = {};
-        pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        pool_size.descriptorCount = 1;
-        descriptor_pool_sizes.push_back(pool_size);
-        pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        pool_size.descriptorCount = 2;
-        descriptor_pool_sizes.push_back(pool_size);
+        VkDescriptorPoolSize descriptor_pool_size = {};
+        descriptor_pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        descriptor_pool_size.descriptorCount = 1;
         VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
         descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
         descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.maxSets = 2;
-        descriptor_pool_create_info.poolSizeCount = descriptor_pool_sizes.size();
-        descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
+        descriptor_pool_create_info.poolSizeCount = 2;
+        descriptor_pool_create_info.pPoolSizes = &descriptor_pool_size;
         if (VK_SUCCESS !=
             vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
             logger.LogFatalError("Failed to create descriptor pool");
@@ -413,44 +365,20 @@ bool MultiTexApp::Setup() {
             return false;
         }
 
-        std::vector<VkDescriptorImageInfo> descriptor_image_infos;
-        VkDescriptorImageInfo image_info = {};
-        image_info.sampler = _texture_1->GetVkSampler();
-        image_info.imageView = _texture_1->GetVkImageView();
-        image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        descriptor_image_infos.push_back(image_info);
-        image_info = {};
-        image_info.sampler = _texture_2->GetVkSampler();
-        image_info.imageView = _texture_2->GetVkImageView();
-        image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        descriptor_image_infos.push_back(image_info);
-
         VkDescriptorBufferInfo descriptor_buffer_info = {};
         descriptor_buffer_info.buffer = _uniform_buffer.vk_buffer;
         descriptor_buffer_info.offset = 0;
-        descriptor_buffer_info.range = sizeof(glm::vec4);
-
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        VkWriteDescriptorSet write_set = {};
-        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_set.pNext = nullptr;
-        write_set.dstSet = _vk_descriptor_set;
-        write_set.dstBinding = 0;
-        write_set.descriptorCount = 1;
-        write_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        write_set.pBufferInfo = &descriptor_buffer_info;
-        write_descriptor_sets.push_back(write_set);
-        write_set = {};
-        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_set.pNext = nullptr;
-        write_set.dstSet = _vk_descriptor_set;
-        write_set.dstBinding = 1;
-        write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_set.descriptorCount = descriptor_image_infos.size();
-        write_set.pImageInfo = descriptor_image_infos.data();
-        write_descriptor_sets.push_back(write_set);
-
-        vkUpdateDescriptorSets(_vk_device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
+        descriptor_buffer_info.range = sizeof(glm::mat4);
+        VkWriteDescriptorSet write_descriptor_set = {};
+        write_descriptor_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_descriptor_set.pNext = NULL;
+        write_descriptor_set.dstSet = _vk_descriptor_set;
+        write_descriptor_set.descriptorCount = 1;
+        write_descriptor_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        write_descriptor_set.pBufferInfo = &descriptor_buffer_info;
+        write_descriptor_set.dstArrayElement = 0;
+        write_descriptor_set.dstBinding = 0;
+        vkUpdateDescriptorSets(_vk_device, 1, &write_descriptor_set, 0, nullptr);
 
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
@@ -465,18 +393,18 @@ bool MultiTexApp::Setup() {
         VkVertexInputBindingDescription vertex_input_binding_description = {};
         vertex_input_binding_description.binding = 0;
         vertex_input_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-        vertex_input_binding_description.stride = sizeof(float) * 8;
+        vertex_input_binding_description.stride = sizeof(float) * 6;
         VkVertexInputAttributeDescription vertex_input_attribute_description[2];
         vertex_input_attribute_description[0] = {};
         vertex_input_attribute_description[0].binding = 0;
         vertex_input_attribute_description[0].location = 0;
-        vertex_input_attribute_description[0].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+        vertex_input_attribute_description[0].format = VK_FORMAT_R32G32B32_SFLOAT;
         vertex_input_attribute_description[0].offset = 0;
         vertex_input_attribute_description[1] = {};
         vertex_input_attribute_description[1].binding = 0;
         vertex_input_attribute_description[1].location = 1;
-        vertex_input_attribute_description[1].format = VK_FORMAT_R32G32B32A32_SFLOAT;
-        vertex_input_attribute_description[1].offset = sizeof(float) * 4;
+        vertex_input_attribute_description[1].format = VK_FORMAT_R32G32B32_SFLOAT;
+        vertex_input_attribute_description[1].offset = sizeof(float) * 3;
         VkPipelineVertexInputStateCreateInfo pipline_vert_input_state_create_info = {};
         pipline_vert_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
         pipline_vert_input_state_create_info.pNext = NULL;
@@ -550,13 +478,13 @@ bool MultiTexApp::Setup() {
         pipeline_multisample_state_create_info.pSampleMask = nullptr;
         pipeline_multisample_state_create_info.rasterizationSamples = VK_SAMPLE_COUNT_1_BIT;
 
-        GlobeShader *multi_tex_shader = _globe_resource_mgr->LoadShader("position_multi_texture_ellipse");
-        if (nullptr == multi_tex_shader) {
-            logger.LogFatalError("Failed to load position_multi_texture_ellipse shaders");
+        GlobeShader *cube_shader = _globe_resource_mgr->LoadShader("position_color");
+        if (nullptr == cube_shader) {
+            logger.LogFatalError("Failed to load position/color shaders");
             return false;
         }
         std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
-        multi_tex_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
+        cube_shader->GetPipelineShaderStages(pipeline_shader_stage_create_info);
 
         VkGraphicsPipelineCreateInfo gfx_pipeline_create_info = {};
         gfx_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
@@ -578,7 +506,7 @@ bool MultiTexApp::Setup() {
             return false;
         }
 
-        _globe_resource_mgr->FreeShader(multi_tex_shader);
+        _globe_resource_mgr->FreeShader(cube_shader);
     }
 
     if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
@@ -587,49 +515,10 @@ bool MultiTexApp::Setup() {
     _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
     _current_buffer = 0;
 
-    if (_texture_1->UsesStagingTexture()) {
-        _texture_1->DeleteStagingTexture();
-    }
-
-    if (_texture_2->UsesStagingTexture()) {
-        _texture_2->DeleteStagingTexture();
-    }
-
     return true;
 }
 
-void MultiTexApp::UpdateEllipseCenter() {
-    bool boundary_hit = false;
-    _ellipse_center += _movement_dir;
-    if (_ellipse_center.x > 1.0f) {
-        _ellipse_center.x = 1.0f;
-        boundary_hit = true;
-    }
-    if (_ellipse_center.x < 0.0f) {
-        _ellipse_center.x = 0.0f;
-        boundary_hit = true;
-    }
-    if (_ellipse_center.y > 1.0f) {
-        _ellipse_center.y = 1.0f;
-        boundary_hit = true;
-    }
-    if (_ellipse_center.y < 0.0f) {
-        _ellipse_center.y = 0.0f;
-        boundary_hit = true;
-    }
-    if (boundary_hit) {
-        _movement_dir.x = 0.001f * (static_cast<float>((rand() % 9) + 1));
-        if (rand() % 2 == 0 && _ellipse_center.x > 0.1f) {
-            _movement_dir.x = -_movement_dir.x;
-        }
-        _movement_dir.y = 0.001f * (static_cast<float>((rand() % 9) + 1));
-        if (rand() % 2 == 0 && _ellipse_center.y > 0.1f) {
-            _movement_dir.y = -_movement_dir.y;
-        }
-    }
-}
-
-bool MultiTexApp::Draw() {
+bool DynamicUniformApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -685,25 +574,30 @@ bool MultiTexApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_vec4_alignment;
+    uint32_t dynamic_offset = _current_buffer * _vk_uniform_matrix_alignment;
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    UpdateEllipseCenter();
-    VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
-    memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
+    VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
+    static float inc = 1.f;
+    glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f + inc), glm::vec3(0.0f, 0.0f, 1.0f));
+    inc += 1.f;
+    if (inc > 360.f) {
+        inc = inc - 360.f;
+    }
+    memcpy(_uniform_mapped_data + offset, &view_matrix, sizeof(view_matrix));
     VkMappedMemoryRange memoryRange = {};
     memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _uniform_buffer.vk_memory;
-    memoryRange.size = _vk_uniform_vec4_alignment;
+    memoryRange.size = sizeof(glm::mat4);
     memoryRange.offset = offset;
     vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
 
     const VkDeviceSize vert_buffer_offset = 0;
     vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(vk_render_command_buffer, 6, 1, 0, 0, 1);
+    vkCmdDrawIndexed(vk_render_command_buffer, 3, 1, 0, 0, 1);
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
         logger.LogFatalError("Failed to end command buffer");
@@ -717,22 +611,22 @@ bool MultiTexApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static MultiTexApp *g_app = nullptr;
+static DynamicUniformApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Multi-texture";
+    init_struct.app_name = "Globe App - Dynamic Uniform App";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
-    init_struct.width = 900;
-    init_struct.height = 600;
+    init_struct.width = 500;
+    init_struct.height = 500;
     init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
-    g_app = new MultiTexApp();
+    g_app = new DynamicUniformApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();

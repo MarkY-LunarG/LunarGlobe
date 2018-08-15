@@ -97,7 +97,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         if (init_struct.command_line_args[cur_arg] == "--use_staging") {
             _uses_staging_buffer = true;
         } else if (init_struct.command_line_args[cur_arg] == "--present_mode" && not_last_argument) {
-            _vk_present_mode = static_cast<VkPresentModeKHR>(std::stoi(init_struct.command_line_args[cur_arg + 1], &argument_size));
+            _vk_present_mode =
+                static_cast<VkPresentModeKHR>(std::stoi(init_struct.command_line_args[cur_arg + 1], &argument_size));
             ++cur_arg;
         } else if (init_struct.command_line_args[cur_arg] == "--break") {
             logger.EnableBreakOnError(true);
@@ -145,7 +146,17 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
 #endif
     }
 
+#if defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    _globe_window = new GlobeWindowLinux(this, _name);
+#elif defined(VK_USE_PLATFORM_WIN32_KHR)
+    _globe_window = new GlobeWindowWindows(this, _name);
+#elif defined(VK_USE_PLATFORM_ANDROID_KHR)
+    _globe_window = new GlobeWindowAndroid(this, _name);
+#elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
+    _globe_window = new GlobeWindowApple(this, _name);
+#else
     _globe_window = new GlobeWindow(this, _name);
+#endif
     if (!GlobeEventList::getInstance().Alloc(100)) {
         GlobeLogger::getInstance().LogFatalError("Failed allocating space for events");
     }
@@ -282,7 +293,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
     }
 
     if (!_globe_submit_mgr->PrepareForSwapchain(_vk_device, init_struct.num_swapchain_buffers, init_struct.present_mode,
-                                                  init_struct.ideal_swapchain_format, init_struct.secondary_swapchain_format)) {
+                                                init_struct.ideal_swapchain_format,
+                                                init_struct.secondary_swapchain_format)) {
         logger.LogFatalError("Failed to prepare swapchain");
         return false;
     }
@@ -372,7 +384,8 @@ bool GlobeApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &v
         }
 
         if (!_globe_resource_mgr->AllocateDeviceImageMemory(_depth_buffer.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                              _depth_buffer.vk_device_memory, _depth_buffer.vk_allocated_size)) {
+                                                            _depth_buffer.vk_device_memory,
+                                                            _depth_buffer.vk_allocated_size)) {
             logger.LogFatalError("Failed allocating depth buffer image to memory");
             return false;
         }
@@ -383,7 +396,8 @@ bool GlobeApp::PreSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &v
         }
 
         image_view_create_info.image = _depth_buffer.vk_image;
-        if (VK_SUCCESS != vkCreateImageView(_vk_device, &image_view_create_info, nullptr, &_depth_buffer.vk_image_view)) {
+        if (VK_SUCCESS !=
+            vkCreateImageView(_vk_device, &image_view_create_info, nullptr, &_depth_buffer.vk_image_view)) {
             logger.LogFatalError("Failed creating image view to depth buffer image");
             return false;
         }
@@ -446,9 +460,7 @@ void GlobeApp::Resize() {
     Setup();
 }
 
-void GlobeApp::PreCleanup() {
-    CleanupCommandObjects(false);
-}
+void GlobeApp::PreCleanup() { CleanupCommandObjects(false); }
 
 void GlobeApp::PostCleanup() {
     if (nullptr != _globe_resource_mgr) {
@@ -573,9 +585,9 @@ void GlobeApp::Exit() {
 }
 
 bool GlobeApp::TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                         VkImageLayout old_image_layout, VkImageLayout new_image_layout,
-                                         VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                         VkPipelineStageFlags dest_stages) {
+                                       VkImageLayout old_image_layout, VkImageLayout new_image_layout,
+                                       VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
+                                       VkPipelineStageFlags dest_stages) {
     GlobeLogger &logger = GlobeLogger::getInstance();
     if (VK_NULL_HANDLE == new_image_layout) {
         logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
