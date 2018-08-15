@@ -26,9 +26,14 @@
 #include "vulkan/vulkan_core.h"
 
 struct GlobeTextureData {
+    bool setup_for_render_target;
+    bool is_color;
+    bool is_depth;
+    bool is_stencil;
     uint32_t width;
     uint32_t height;
     uint32_t num_components;
+    VkSampleCountFlagBits vk_sample_count;
     VkFormat vk_format;
     VkFormatProperties vk_format_props;
     VkSampler vk_sampler;
@@ -48,6 +53,9 @@ class GlobeTexture {
     static GlobeTexture* LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
                                       VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                       const std::string& directory);
+    static GlobeTexture* CreateRenderTarget(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                            VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
+                                            VkFormat vk_format);
 
     GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
                  GlobeTextureData* texture_data);
@@ -59,12 +67,19 @@ class GlobeTexture {
     GlobeTexture* StagingTexture() { return _staging_texture; }
     bool DeleteStagingTexture();
     VkFormat GetVkFormat() { return _vk_format; }
+    VkSampleCountFlagBits GetVkSampleCount() { return _vk_sample_count; }
     VkSampler GetVkSampler() { return _vk_sampler; }
     VkImage GetVkImage() { return _vk_image; }
     VkImageView GetVkImageView() { return _vk_image_view; }
     VkImageLayout GetVkImageLayout() { return _vk_image_layout; }
+    VkAttachmentDescription GenVkAttachmentDescription();
+    VkAttachmentReference GenVkAttachmentReference(uint32_t attachment_index);
 
    private:
+    bool _setup_for_render_target;
+    bool _is_color;
+    bool _is_depth;
+    bool _is_stencil;
     const GlobeResourceManager* _globe_resource_mgr;
     VkPhysicalDevice _vk_physical_device;
     VkDevice _vk_device;
@@ -73,6 +88,7 @@ class GlobeTexture {
     GlobeTexture* _staging_texture;
     uint32_t _width;
     uint32_t _height;
+    VkSampleCountFlagBits _vk_sample_count;
     VkFormat _vk_format;
     VkSampler _vk_sampler;
     VkImage _vk_image;

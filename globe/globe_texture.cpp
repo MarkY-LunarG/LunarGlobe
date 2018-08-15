@@ -52,6 +52,7 @@ static bool LoadFile(const GlobeResourceManager* resource_manager, const std::st
         }
         return false;
     }
+    texture_data.setup_for_render_target = false;
     texture_data.width = static_cast<uint32_t>(int_width);
     texture_data.height = static_cast<uint32_t>(int_height);
     bool requires_padding = false;
@@ -195,6 +196,11 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         uses_staging = true;
     }
 
+    texture_data.is_color = true;
+    texture_data.is_stencil = false;
+    texture_data.is_depth = false;
+    texture_data.vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
+
     VkImageCreateInfo image_create_info = {};
     image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
     image_create_info.pNext = nullptr;
@@ -205,7 +211,7 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     image_create_info.extent.depth = 1;
     image_create_info.mipLevels = 1;
     image_create_info.arrayLayers = 1;
-    image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+    image_create_info.samples = texture_data.vk_sample_count;
     image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
     image_create_info.usage = loading_image_usage_flags;
     image_create_info.flags = 0;
@@ -380,11 +386,226 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     return new GlobeTexture(resource_manager, vk_device, texture_name, &texture_data);
 }
 
+static bool IsStencilFormat(VkFormat vk_format) {
+    switch (vk_format) {
+        case VK_FORMAT_S8_UINT:
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return true;
+            break;
+        default:
+            return false;
+    }
+}
+
+static bool IsDepthFormat(VkFormat vk_format) {
+    switch (vk_format) {
+        case VK_FORMAT_D16_UNORM:
+        case VK_FORMAT_X8_D24_UNORM_PACK32:
+        case VK_FORMAT_D32_SFLOAT:
+        case VK_FORMAT_D16_UNORM_S8_UINT:
+        case VK_FORMAT_D24_UNORM_S8_UINT:
+        case VK_FORMAT_D32_SFLOAT_S8_UINT:
+            return true;
+            break;
+        default:
+            return false;
+    }
+}
+
+GlobeTexture* GlobeTexture::CreateRenderTarget(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                               VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
+                                               VkFormat vk_format) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    bool is_depth = IsDepthFormat(vk_format);
+    bool is_stencil = IsStencilFormat(vk_format);
+    bool is_color = !is_depth && !is_stencil;
+    std::string texture_name = "rendertarget_";
+    if (is_color) {
+        texture_name += "color";
+    } else {
+        if (is_depth) {
+            texture_name += "depth";
+            if (is_stencil) {
+                texture_name += "_stencil";
+            }
+        } else if (is_stencil) {
+            texture_name += "stencil";
+        }
+    }
+    texture_name += "_";
+    texture_name += std::to_string(width);
+    texture_name += "_";
+    texture_name += std::to_string(height);
+    texture_name += "_";
+    texture_name += std::to_string(static_cast<uint32_t>(vk_format));
+
+    VkFormatProperties vk_format_props = resource_manager->GetVkFormatProperties(vk_format);
+    if (0 == (vk_format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+        return nullptr;
+    }
+    GlobeTextureData texture_data = {};
+    texture_data.setup_for_render_target = true;
+    texture_data.is_color = is_color;
+    texture_data.is_stencil = is_stencil;
+    texture_data.is_depth = is_depth;
+    texture_data.vk_format = vk_format;
+    texture_data.width = width;
+    texture_data.height = height;
+    texture_data.vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
+
+    if (is_color) {
+        texture_data.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    } else {
+        texture_data.vk_image_layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+
+    VkImageCreateInfo image_create_info = {};
+    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+    image_create_info.pNext = nullptr;
+    image_create_info.flags = 0;
+    image_create_info.imageType = VK_IMAGE_TYPE_2D;
+    image_create_info.format = vk_format;
+    image_create_info.extent.width = width;
+    image_create_info.extent.height = height;
+    image_create_info.extent.depth = 1;
+    image_create_info.mipLevels = 1;
+    image_create_info.arrayLayers = 1;
+    image_create_info.samples = texture_data.vk_sample_count;
+    image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
+    image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (is_color) {
+        image_create_info.usage = VK_IMAGE_USAGE_COLOR_ATTACHMENT_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+    } else {
+        image_create_info.usage = VK_IMAGE_USAGE_DEPTH_STENCIL_ATTACHMENT_BIT;
+    }
+    if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &texture_data.vk_image)) {
+        std::string error_msg = "Failed to create image for render target ";
+        error_msg += texture_name;
+        logger.LogError(error_msg);
+        return nullptr;
+    }
+
+    if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                     texture_data.vk_device_memory, texture_data.vk_allocated_size)) {
+        std::string error_msg = "Failed to allocate memory for render target ";
+        error_msg += texture_name;
+        logger.LogError(error_msg);
+        return nullptr;
+    }
+
+    if (VK_SUCCESS != vkBindImageMemory(vk_device, texture_data.vk_image, texture_data.vk_device_memory, 0)) {
+        std::string error_msg = "Failed to bind image to memory for render target ";
+        error_msg += texture_name;
+        logger.LogError(error_msg);
+        return nullptr;
+    }
+
+    if (is_color) {
+        VkSamplerCreateInfo sampler_create_info = {};
+        sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
+        sampler_create_info.pNext = nullptr;
+        sampler_create_info.magFilter = VK_FILTER_LINEAR;
+        sampler_create_info.minFilter = VK_FILTER_LINEAR;
+        sampler_create_info.mipmapMode = VK_SAMPLER_MIPMAP_MODE_LINEAR;
+        sampler_create_info.addressModeU = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_create_info.addressModeV = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_create_info.addressModeW = VK_SAMPLER_ADDRESS_MODE_CLAMP_TO_EDGE;
+        sampler_create_info.mipLodBias = 0.0f;
+        sampler_create_info.anisotropyEnable = VK_FALSE;
+        sampler_create_info.maxAnisotropy = 1;
+        sampler_create_info.compareOp = VK_COMPARE_OP_NEVER;
+        sampler_create_info.minLod = 0.0f;
+        sampler_create_info.maxLod = 0.0f;
+        sampler_create_info.borderColor = VK_BORDER_COLOR_FLOAT_OPAQUE_WHITE;
+        sampler_create_info.unnormalizedCoordinates = VK_FALSE;
+        if (VK_SUCCESS != vkCreateSampler(vk_device, &sampler_create_info, nullptr, &texture_data.vk_sampler)) {
+            std::string error_msg = "Failed to create image sampler for render target ";
+            error_msg += texture_name;
+            logger.LogError(error_msg);
+            return nullptr;
+        }
+    }
+
+    VkImageViewCreateInfo image_view_create_info = {};
+    image_view_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_VIEW_CREATE_INFO;
+    image_view_create_info.pNext = nullptr;
+    image_view_create_info.flags = 0;
+    image_view_create_info.image = texture_data.vk_image;
+    image_view_create_info.viewType = VK_IMAGE_VIEW_TYPE_2D;
+    image_view_create_info.format = texture_data.vk_format;
+    image_view_create_info.components = {
+        VK_COMPONENT_SWIZZLE_R,
+        VK_COMPONENT_SWIZZLE_G,
+        VK_COMPONENT_SWIZZLE_B,
+        VK_COMPONENT_SWIZZLE_A,
+    };
+    image_view_create_info.subresourceRange = {};
+    image_view_create_info.subresourceRange.baseMipLevel = 0;
+    image_view_create_info.subresourceRange.levelCount = 1;
+    image_view_create_info.subresourceRange.baseArrayLayer = 0;
+    image_view_create_info.subresourceRange.layerCount = 1;
+    if (is_color) {
+        image_view_create_info.subresourceRange.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    } else {
+        image_view_create_info.subresourceRange.aspectMask = 0;
+        if (is_depth) {
+            image_view_create_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_DEPTH_BIT;
+        }
+        if (is_stencil) {
+            image_view_create_info.subresourceRange.aspectMask |= VK_IMAGE_ASPECT_STENCIL_BIT;
+        }
+    }
+    image_view_create_info.image = texture_data.vk_image;
+    if (VK_SUCCESS != vkCreateImageView(vk_device, &image_view_create_info, nullptr, &texture_data.vk_image_view)) {
+        std::string error_msg = "Failed to create imageview for render target ";
+        error_msg += texture_name;
+        logger.LogError(error_msg);
+        return nullptr;
+    }
+
+    return new GlobeTexture(resource_manager, vk_device, texture_name, &texture_data);
+}
+
+VkAttachmentDescription GlobeTexture::GenVkAttachmentDescription() {
+    VkAttachmentDescription texture_attach_desc = {};
+    texture_attach_desc.format = _vk_format;
+    texture_attach_desc.samples = _vk_sample_count;
+    texture_attach_desc.loadOp = VK_ATTACHMENT_LOAD_OP_CLEAR;
+    texture_attach_desc.storeOp = VK_ATTACHMENT_STORE_OP_STORE;
+    texture_attach_desc.stencilLoadOp = VK_ATTACHMENT_LOAD_OP_DONT_CARE;
+    texture_attach_desc.stencilStoreOp = VK_ATTACHMENT_STORE_OP_DONT_CARE;
+    texture_attach_desc.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
+    if (_is_color) {
+        texture_attach_desc.finalLayout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+    } else {
+        texture_attach_desc.finalLayout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+    return texture_attach_desc;
+}
+
+VkAttachmentReference GlobeTexture::GenVkAttachmentReference(uint32_t attachment_index) {
+    VkAttachmentReference texture_attach_ref = {};
+    texture_attach_ref.attachment = attachment_index;
+    if (_is_color) {
+        texture_attach_ref.layout = VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL;
+    } else {
+        texture_attach_ref.layout = VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL;
+    }
+    return texture_attach_ref;
+}
+
 GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device,
                            const std::string& texture_name, GlobeTextureData* texture_data)
     : _globe_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
+    _setup_for_render_target = texture_data->setup_for_render_target;
+    _is_color = texture_data->is_color;
+    _is_depth = texture_data->is_depth;
+    _is_stencil = texture_data->is_stencil;
     _width = texture_data->width;
     _height = texture_data->height;
+    _vk_sample_count = texture_data->vk_sample_count;
     _vk_format = texture_data->vk_format;
     _vk_sampler = texture_data->vk_sampler;
     _vk_image = texture_data->vk_image;
