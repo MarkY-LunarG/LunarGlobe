@@ -159,7 +159,7 @@ class CubeApp : public GlobeApp {
    protected:
     virtual bool Setup();
     virtual void CleanupCommandObjects(bool is_resize);
-    virtual bool Draw();
+    virtual bool Draw(float diff_ms);
 
    private:
     bool BuildDrawCmdBuffer(uint32_t framebuffer_index);
@@ -648,7 +648,7 @@ void CubeApp::CleanupCommandObjects(bool is_resize) {
     GlobeApp::CleanupCommandObjects(is_resize);
 }
 
-bool CubeApp::Draw() {
+bool CubeApp::Draw(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
 
@@ -672,7 +672,7 @@ bool CubeApp::Draw() {
     vkUnmapMemory(_vk_device, _swapchain_resources[_current_buffer].uniform_memory);
 
     _globe_submit_mgr->SubmitAndPresent();
-    return GlobeApp::Draw();
+    return GlobeApp::Draw(diff_ms);
 }
 
 void CubeApp::HandleEvent(GlobeEvent &event) {

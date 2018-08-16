@@ -68,6 +68,7 @@ struct GlobeDepthBuffer {
 
 class GlobeResourceManager;
 class GlobeSubmitManager;
+class GlobeClock;
 
 class GlobeApp {
    public:
@@ -77,7 +78,7 @@ class GlobeApp {
     virtual bool Init(GlobeInitStruct &init_struct);
     virtual void Resize();
     virtual bool Run();
-    virtual bool Draw();
+    virtual bool Draw(float diff_ms);
     void PreCleanup();
     void PostCleanup();
     virtual void Cleanup();
@@ -123,6 +124,7 @@ class GlobeApp {
 #endif
     GlobeResourceManager *_globe_resource_mgr;
     GlobeSubmitManager *_globe_submit_mgr;
+    GlobeClock *_globe_clock;
     uint32_t _width;
     uint32_t _height;
     bool _prepared;

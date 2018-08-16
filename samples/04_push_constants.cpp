@@ -57,7 +57,7 @@ class PushConstantApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw();
+    virtual bool Draw(float diff_ms);
     void UpdateEllipseCenter();
 
    private:
@@ -673,7 +673,7 @@ void PushConstantApp::UpdateEllipseCenter() {
     }
 }
 
-bool PushConstantApp::Draw() {
+bool PushConstantApp::Draw(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -737,8 +737,9 @@ bool PushConstantApp::Draw() {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    static uint32_t cur_frame_count = 0;
-    if (cur_frame_count++ > 200) {
+    static float cur_time_diff = 0;
+    cur_time_diff += diff_ms;
+    if (cur_time_diff > 2000.f) {
         int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
         *selection = *selection + 1;
         if (*selection > 3) {
@@ -748,7 +749,7 @@ bool PushConstantApp::Draw() {
         *rad_x_sqd = ((rand() % 110) + 1) * 0.001f;
         float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
         *rad_y_sqd = ((rand() % 110) + 1) * 0.003f;
-        cur_frame_count = 0;
+        cur_time_diff = 0.f;
     }
     UpdateEllipseCenter();
     VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
@@ -774,7 +775,7 @@ bool PushConstantApp::Draw() {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw();
+    return GlobeApp::Draw(diff_ms);
 }
 
 static PushConstantApp *g_app = nullptr;
@@ -790,8 +791,8 @@ GLOBE_APP_MAIN() {
     init_struct.height = 600;
     init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     g_app = new PushConstantApp();
     g_app->Init(init_struct);
     g_app->Run();

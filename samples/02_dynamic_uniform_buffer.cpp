@@ -59,7 +59,7 @@ class DynamicUniformApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw();
+    virtual bool Draw(float diff_ms);
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -516,7 +516,7 @@ bool DynamicUniformApp::Setup() {
     return true;
 }
 
-bool DynamicUniformApp::Draw() {
+bool DynamicUniformApp::Draw(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -578,9 +578,9 @@ bool DynamicUniformApp::Draw() {
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
     VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
-    static float inc = 1.f;
+    static float inc = 0.f;
     glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f + inc), glm::vec3(0.0f, 0.0f, 1.0f));
-    inc += 1.f;
+    inc += diff_ms * 0.1f;
     if (inc > 360.f) {
         inc = inc - 360.f;
     }
@@ -606,7 +606,7 @@ bool DynamicUniformApp::Draw() {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw();
+    return GlobeApp::Draw(diff_ms);
 }
 
 static DynamicUniformApp *g_app = nullptr;
@@ -622,8 +622,8 @@ GLOBE_APP_MAIN() {
     init_struct.height = 500;
     init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     g_app = new DynamicUniformApp();
     g_app->Init(init_struct);
     g_app->Run();

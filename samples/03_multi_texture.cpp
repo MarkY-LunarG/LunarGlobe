@@ -57,8 +57,8 @@ class MultiTexApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw();
-    void UpdateEllipseCenter();
+    virtual bool Draw(float diff_ms);
+    void UpdateEllipseCenter(float diff_ms);
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -593,9 +593,9 @@ bool MultiTexApp::Setup() {
     return true;
 }
 
-void MultiTexApp::UpdateEllipseCenter() {
+void MultiTexApp::UpdateEllipseCenter(float diff_ms) {
     bool boundary_hit = false;
-    _ellipse_center += _movement_dir;
+    _ellipse_center += _movement_dir * (diff_ms * 0.07f);
     if (_ellipse_center.x > 1.0f) {
         _ellipse_center.x = 1.0f;
         boundary_hit = true;
@@ -624,7 +624,7 @@ void MultiTexApp::UpdateEllipseCenter() {
     }
 }
 
-bool MultiTexApp::Draw() {
+bool MultiTexApp::Draw(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -685,7 +685,7 @@ bool MultiTexApp::Draw() {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    UpdateEllipseCenter();
+    UpdateEllipseCenter(diff_ms);
     VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
@@ -709,7 +709,7 @@ bool MultiTexApp::Draw() {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw();
+    return GlobeApp::Draw(diff_ms);
 }
 
 static MultiTexApp *g_app = nullptr;
@@ -725,8 +725,8 @@ GLOBE_APP_MAIN() {
     init_struct.height = 600;
     init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     g_app = new MultiTexApp();
     g_app->Init(init_struct);
     g_app->Run();

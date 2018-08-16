@@ -21,6 +21,7 @@
 #include "globe_event.hpp"
 #include "globe_submit_manager.hpp"
 #include "globe_resource_manager.hpp"
+#include "globe_clock.hpp"
 #include "globe_app.hpp"
 #include "globe_logger.hpp"
 
@@ -37,6 +38,7 @@ GlobeApp::GlobeApp() {
     _engine_version.patch = GLOBE_APP_ENGINE_PATCH;
     _globe_resource_mgr = nullptr;
     _globe_submit_mgr = nullptr;
+    _globe_clock = nullptr;
     _globe_window = nullptr;
     _width = 100;
     _height = 100;
@@ -64,6 +66,10 @@ GlobeApp::~GlobeApp() {
     if (nullptr != _globe_window) {
         delete _globe_window;
         _globe_window = nullptr;
+    }
+    if (nullptr != _globe_clock) {
+        delete _globe_clock;
+        _globe_clock = nullptr;
     }
     if (nullptr != _globe_resource_mgr) {
         _globe_resource_mgr->FreeAllTextures();
@@ -299,6 +305,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         return false;
     }
 
+   _globe_clock = GlobeClock::CreateClock();
+
     if (!Setup()) {
         return false;
     }
@@ -494,7 +502,13 @@ void GlobeApp::CleanupCommandObjects(bool is_resize) {
 }
 
 bool GlobeApp::Run() {
+    _globe_clock->Start();
+    _globe_clock->StartGameTime();
+
     while (!_must_exit) {
+        float comp_diff = 0;
+        float game_diff = 0;
+        _globe_clock->GetTimeDiffMS(comp_diff, game_diff);
 #if defined(VK_USE_PLATFORM_XLIB_KHR)
         if (_is_paused) {
             _globe_window->HandleXlibEvent();
@@ -543,21 +557,21 @@ bool GlobeApp::Run() {
             if (!ProcessEvents()) {
                 return false;
             }
-            Draw();
+            Draw(game_diff);
         }
 #else
         if (!ProcessEvents()) {
             return false;
         }
         if (_focused) {
-            Draw();
+            Draw(game_diff);
         }
 #endif
     }
     return true;
 }
 
-bool GlobeApp::Draw() {
+bool GlobeApp::Draw(float diff_ms) {
     _current_frame++;
     if (_exit_on_frame && _current_frame == _exit_frame) {
         GlobeEvent quit_event(GLOBE_EVENT_QUIT);
@@ -667,7 +681,7 @@ void GlobeApp::HandleEvent(GlobeEvent &event) {
             break;
         case GLOBE_EVENT_WINDOW_DRAW:
             if (_focused) {
-                Draw();
+                Draw(0);
             }
             break;
         case GLOBE_EVENT_WINDOW_RESIZE:

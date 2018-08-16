@@ -53,7 +53,7 @@ class TriangleApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw();
+    virtual bool Draw(float diff_ms);
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -504,7 +504,7 @@ bool TriangleApp::Setup() {
     return true;
 }
 
-bool TriangleApp::Draw() {
+bool TriangleApp::Draw(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -577,7 +577,7 @@ bool TriangleApp::Draw() {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw();
+    return GlobeApp::Draw(diff_ms);
 }
 
 static TriangleApp *g_app = nullptr;
@@ -593,8 +593,8 @@ GLOBE_APP_MAIN() {
     init_struct.height = 500;
     init_struct.present_mode = VK_PRESENT_MODE_FIFO_KHR;
     init_struct.num_swapchain_buffers = 3;
-    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
+    init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
     g_app = new TriangleApp();
     g_app->Init(init_struct);
     g_app->Run();
