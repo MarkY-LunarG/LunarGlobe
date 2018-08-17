@@ -52,7 +52,7 @@ def main(argv):
         else:
             continue
         input_file = os.path.join(shader_src_full_path, filename)
-        glslang_command = '%s -s -V -o %s %s' % (glslang_validator, output_file, input_file)
+        glslang_command = '%s -g -V -o %s %s' % (glslang_validator, output_file, input_file)
         print('GLSLANG COMMAND => %s' % glslang_command)
         os.system(glslang_command)
     

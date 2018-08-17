@@ -58,6 +58,16 @@ GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name,
     return texture;
 }
 
+GlobeTexture* GlobeResourceManager::CreateRenderTargetTexture(VkCommandBuffer vk_command_buffer, uint32_t width,
+                                                              uint32_t height, VkFormat vk_format) {
+    GlobeTexture* texture =
+        GlobeTexture::CreateRenderTarget(this, _vk_device, vk_command_buffer, width, height, vk_format);
+    if (nullptr != texture) {
+        _textures.push_back(texture);
+    }
+    return texture;
+}
+
 GlobeShader* GlobeResourceManager::LoadShader(const std::string& shader_prefix) {
     std::string shader_dir = _base_directory;
     shader_dir += directory_symbol;

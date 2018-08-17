@@ -43,7 +43,6 @@ GlobeApp::GlobeApp() {
     _width = 100;
     _height = 100;
     _prepared = false;
-    _uses_staging_buffer = false;
     _was_minimized = false;
     _focused = true;
     _is_minimized = false;
@@ -57,7 +56,6 @@ GlobeApp::GlobeApp() {
     _vk_instance = VK_NULL_HANDLE;
     _vk_phys_device = VK_NULL_HANDLE;
     _vk_device = VK_NULL_HANDLE;
-    _vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
     _vk_setup_command_pool = VK_NULL_HANDLE;
     _vk_setup_command_buffer = VK_NULL_HANDLE;
 }
@@ -101,13 +99,7 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
     size_t max_arg = init_struct.command_line_args.size();
     for (size_t cur_arg = 0; cur_arg < max_arg; ++cur_arg) {
         bool not_last_argument = cur_arg < max_arg - 1;
-        if (init_struct.command_line_args[cur_arg] == "--use_staging") {
-            _uses_staging_buffer = true;
-        } else if (init_struct.command_line_args[cur_arg] == "--present_mode" && not_last_argument) {
-            _vk_present_mode =
-                static_cast<VkPresentModeKHR>(std::stoi(init_struct.command_line_args[cur_arg + 1], &argument_size));
-            ++cur_arg;
-        } else if (init_struct.command_line_args[cur_arg] == "--break") {
+        if (init_struct.command_line_args[cur_arg] == "--break") {
             logger.EnableBreakOnError(true);
         } else if (init_struct.command_line_args[cur_arg] == "--fullscreen") {
             start_fullscreen = true;
@@ -139,16 +131,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         std::string usage_message = "Usage:\n  ";
         usage_message += _name;
         usage_message +=
-            "\t[--resource_dir <directory] [--use_staging] [--validate] [--break]\n"
-            "\t[--c <framecount>] [--suppress_popups] [--display_timing]\n"
-            "\t[--present_mode <present mode enum>]\n"
-            "\t <present_mode_enum>\tVK_PRESENT_MODE_IMMEDIATE_KHR = ";
-        usage_message += std::to_string(VK_PRESENT_MODE_IMMEDIATE_KHR);
-        usage_message += "\n\t\t\t\tVK_PRESENT_MODE_FIFO_KHR = ";
-        usage_message += std::to_string(VK_PRESENT_MODE_MAILBOX_KHR);
-        usage_message += "\n\t\t\t\tVK_PRESENT_MODE_FIFO_RELAXED_KHR = ";
-        usage_message += std::to_string(VK_PRESENT_MODE_FIFO_RELAXED_KHR);
-        usage_message += "\n\n";
+            "\t[--resource_dir <directory] [--validate] [--break] [--fullscreen]\n"
+            "\t[--c <framecount>] [--suppress_popups] [--display_timing]\n\n";
         GlobeLogger::getInstance().LogFatalError(usage_message);
         fflush(stderr);
         return false;
@@ -308,7 +292,7 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         return false;
     }
 
-   _globe_clock = GlobeClock::CreateClock();
+    _globe_clock = GlobeClock::CreateClock();
 
     if (!Setup()) {
         return false;

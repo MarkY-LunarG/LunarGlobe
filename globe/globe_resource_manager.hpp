@@ -33,7 +33,9 @@ class GlobeResourceManager {
     GlobeResourceManager(const GlobeApp* app, const std::string& directory);
     ~GlobeResourceManager();
 
-    GlobeTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer command_buffer);
+    GlobeTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer vk_command_buffer);
+    GlobeTexture* CreateRenderTargetTexture(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
+                                            VkFormat vk_format);
     void FreeTexture(GlobeTexture* texture);
     void FreeAllTextures();
     GlobeShader* LoadShader(const std::string& shader_prefix);

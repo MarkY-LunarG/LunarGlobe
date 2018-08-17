@@ -462,20 +462,20 @@ bool GlobeSubmitManager::CreateSwapchain() {
 
         // Create semaphores to synchronize acquiring presentable buffers before
         // rendering and waiting for drawing to be complete before presenting
-        VkSemaphoreCreateInfo semaphore_creat_info = {};
-        semaphore_creat_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
-        semaphore_creat_info.pNext = nullptr;
-        semaphore_creat_info.flags = 0;
+        VkSemaphoreCreateInfo semaphore_create_info = {};
+        semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+        semaphore_create_info.pNext = nullptr;
+        semaphore_create_info.flags = 0;
 
         if (VK_SUCCESS !=
-            vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_acquired_semaphores[i])) {
+            vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_image_acquired_semaphores[i])) {
             std::string err_message = "Failed to retrieve swapchain image acquire semaphore ";
             err_message += std::to_string(i);
             logger.LogFatalError(err_message);
             return false;
         }
         if (VK_SUCCESS !=
-            vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_draw_complete_semaphores[i])) {
+            vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_draw_complete_semaphores[i])) {
             std::string err_message = "Failed to retrieve swapchain draw complete semaphore ";
             err_message += std::to_string(i);
             logger.LogFatalError(err_message);
@@ -483,7 +483,7 @@ bool GlobeSubmitManager::CreateSwapchain() {
         }
         if (UsesSeparatePresentQueue()) {
             if (VK_SUCCESS !=
-                vkCreateSemaphore(_vk_device, &semaphore_creat_info, nullptr, &_image_ownership_semaphores[i])) {
+                vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_image_ownership_semaphores[i])) {
                 std::string err_message = "Failed to retrieve swapchain image ownership semaphore ";
                 err_message += std::to_string(i);
                 logger.LogFatalError(err_message);
