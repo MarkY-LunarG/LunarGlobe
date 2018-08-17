@@ -30,7 +30,7 @@ class GlobeApp;
 
 class GlobeWindow {
    public:
-    GlobeWindow(GlobeApp *associated_app, const std::string &name);
+    GlobeWindow(GlobeApp *associated_app, const std::string &name, bool start_fullscreen);
     virtual ~GlobeWindow();
 
     virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height) = 0;
@@ -52,7 +52,6 @@ class GlobeWindow {
                                           std::vector<std::string> &extensions);
 
    protected:
-
     GlobeApp *_associated_app;
     std::string _name;
     uint32_t _width;

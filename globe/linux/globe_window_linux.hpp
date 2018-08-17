@@ -26,7 +26,7 @@
 
 class GlobeWindowLinux : public GlobeWindow {
    public:
-    GlobeWindowLinux(GlobeApp *associated_app, const std::string &name);
+    GlobeWindowLinux(GlobeApp *associated_app, const std::string &name, bool start_fullscreen);
     virtual ~GlobeWindowLinux();
 
     virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height);

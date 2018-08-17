@@ -87,6 +87,7 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
     GlobeLogger &logger = GlobeLogger::getInstance();
     std::string::size_type argument_size;
     bool print_usage = false;
+    bool start_fullscreen = false;
 
     _name = init_struct.app_name;
     _width = init_struct.width;
@@ -108,6 +109,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
             ++cur_arg;
         } else if (init_struct.command_line_args[cur_arg] == "--break") {
             logger.EnableBreakOnError(true);
+        } else if (init_struct.command_line_args[cur_arg] == "--fullscreen") {
+            start_fullscreen = true;
         } else if (init_struct.command_line_args[cur_arg] == "--validate") {
             logger.EnableValidation(true);
         } else if (init_struct.command_line_args[cur_arg] == "--c" && !_exit_on_frame && not_last_argument) {
@@ -153,15 +156,15 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
     }
 
 #if defined(VK_USE_PLATFORM_XLIB_KHR) || defined(VK_USE_PLATFORM_XCB_KHR) || defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    _globe_window = new GlobeWindowLinux(this, _name);
+    _globe_window = new GlobeWindowLinux(this, _name, start_fullscreen);
 #elif defined(VK_USE_PLATFORM_WIN32_KHR)
-    _globe_window = new GlobeWindowWindows(this, _name);
+    _globe_window = new GlobeWindowWindows(this, _name, start_fullscreen);
 #elif defined(VK_USE_PLATFORM_ANDROID_KHR)
-    _globe_window = new GlobeWindowAndroid(this, _name);
+    _globe_window = new GlobeWindowAndroid(this, _name, true);
 #elif defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK)
-    _globe_window = new GlobeWindowApple(this, _name);
+    _globe_window = new GlobeWindowApple(this, _name, start_fullscreen);
 #else
-    _globe_window = new GlobeWindow(this, _name);
+    _globe_window = new GlobeWindow(this, _name, start_fullscreen);
 #endif
     if (!GlobeEventList::getInstance().Alloc(100)) {
         GlobeLogger::getInstance().LogFatalError("Failed allocating space for events");

@@ -22,6 +22,9 @@
 
 #include <cstring>
 
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+#include <X11/Xatom.h>
+#endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 #include <wayland-server-protocol.h>
 #endif
@@ -47,7 +50,8 @@ static const wl_registry_listener registry_listener = {registry_handle_global, r
 
 #endif
 
-GlobeWindowLinux::GlobeWindowLinux(GlobeApp *app, const std::string &name) : GlobeWindow(app, name) {
+GlobeWindowLinux::GlobeWindowLinux(GlobeApp *app, const std::string &name, bool start_fullscreen)
+    : GlobeWindow(app, name, start_fullscreen) {
 #ifdef VK_USE_PLATFORM_XCB_KHR
     const xcb_setup_t *setup;
     xcb_screen_iterator_t iter;
@@ -426,7 +430,12 @@ void GlobeWindowLinux::HandleAllXlibEvents() {
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
 
 static void pointer_handle_enter(void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface, wl_fixed_t sx,
-                                 wl_fixed_t sy) {}
+                                 wl_fixed_t sy) {
+    GlobeWindowLinux *window = reinterpret_cast<GlobeWindowLinux *>(data);
+    if (window->IsFullScreen()) {
+        wl_pointer_set_cursor(pointer, serial, NULL, 0, 0);
+    }
+}
 
 static void pointer_handle_leave(void *data, wl_pointer *pointer, uint32_t serial, wl_surface *surface) {}
 
@@ -580,6 +589,15 @@ static void handle_popup_done(void *data, wl_shell_surface *shell_surface) {
     (void)shell_surface;
 }
 
+static void configure_callback(void *data, struct wl_callback *callback, uint32_t time) {
+    GlobeWindowLinux *window = reinterpret_cast<GlobeWindowLinux *>(data);
+    wl_callback_destroy(callback);
+}
+
+static struct wl_callback_listener configure_callback_listener = {
+    configure_callback,
+};
+
 static const wl_shell_surface_listener shell_surface_listener = {handle_ping, handle_configure, handle_popup_done};
 
 #endif
@@ -612,16 +630,27 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
     xcb_intern_atom_cookie_t cookie2 = xcb_intern_atom(_connection, 0, 16, "WM_DELETE_WINDOW");
     _atom_wm_delete_window = xcb_intern_atom_reply(_connection, cookie2, 0);
 
-    xcb_change_property(_connection, XCB_PROP_MODE_REPLACE, _xcb_window, (*reply).atom, 4, 32, 1,
+    xcb_change_property(_connection, XCB_PROP_MODE_REPLACE, _xcb_window, (*reply).atom, XCB_ATOM_ATOM, 32, 1,
                         &(*_atom_wm_delete_window).atom);
     free(reply);
 
     xcb_map_window(_connection, _xcb_window);
 
-    // Force the x/y coordinates to 100,100 results are identical in consecutive
-    // runs
-    const uint32_t coords[] = {100, 100};
-    xcb_configure_window(_connection, _xcb_window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, coords);
+    if (_is_fullscreen) {
+        xcb_intern_atom_cookie_t wm_state_ck = xcb_intern_atom(_connection, 0, 13, "_NET_WM_STATE");
+        reply = xcb_intern_atom_reply(_connection, wm_state_ck, 0);
+        xcb_intern_atom_cookie_t wm_state_fs_ck = xcb_intern_atom(_connection, 0, 24, "_NET_WM_STATE_FULLSCREEN");
+        xcb_intern_atom_reply_t *reply_fs = xcb_intern_atom_reply(_connection, wm_state_fs_ck, 0);
+        xcb_change_property(_connection, XCB_PROP_MODE_REPLACE, _xcb_window, (*reply).atom, XCB_ATOM_ATOM, 32, 1,
+                            &(*reply_fs).atom);
+        free(reply);
+        free(reply_fs);
+    } else {
+        // Force the x/y coordinates to 100,100 results are identical in consecutive
+        // runs
+        const uint32_t coords[] = {100, 100};
+        xcb_configure_window(_connection, _xcb_window, XCB_CONFIG_WINDOW_X | XCB_CONFIG_WINDOW_Y, coords);
+    }
 
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
 
@@ -646,6 +675,20 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
                                  visualInfo->depth, InputOutput, visualInfo->visual,
                                  CWBackPixel | CWBorderPixel | CWEventMask | CWColormap, &windowAttributes);
 
+    if (_is_fullscreen) {
+        Atom fullscreen_atom = XInternAtom(_display, "_NET_WM_STATE_FULLSCREEN", True);
+        if (fullscreen_atom == None) {
+            logger.LogFatalError("Failed retrieving fullscreen atom");
+            exit(1);
+        }
+        XChangeProperty(_display, _xlib_window, XInternAtom(_display, "_NET_WM_STATE", True), XA_ATOM, 32,
+                        PropModeReplace, (unsigned char *)&fullscreen_atom, 1);
+
+        int compos_win_value = 1;
+        XChangeProperty(_display, _xlib_window, XInternAtom(_display, "_HILDON_NON_COMPOSITED_WINDOW", False),
+                        XA_INTEGER, 32, PropModeReplace, (unsigned char *)&compos_win_value, 1);
+    }
+
     XSelectInput(_display, _xlib_window, windowAttributes.event_mask);
     XMapWindow(_display, _xlib_window);
     XFlush(_display);
@@ -666,8 +709,16 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
         exit(1);
     }
     wl_shell_surface_add_listener(_shell_surface, &shell_surface_listener, this);
-    wl_shell_surface_set_toplevel(_shell_surface);
+    wl_surface_set_user_data(_window, this);
     wl_shell_surface_set_title(_shell_surface, _name.c_str());
+
+    if (_is_fullscreen) {
+        // TODO: Not working yet.
+        wl_shell_surface_set_fullscreen(_shell_surface, WL_SHELL_SURFACE_FULLSCREEN_METHOD_DEFAULT, 0, nullptr);
+    } else {
+        wl_shell_surface_set_toplevel(_shell_surface);
+    }
+
 #endif
 
     _window_created = true;

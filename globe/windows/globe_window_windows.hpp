@@ -26,7 +26,7 @@
 
 class GlobeWindowWindows : public GlobeWindow {
    public:
-    GlobeWindowWindows(GlobeApp *associated_app, const std::string &name);
+    GlobeWindowWindows(GlobeApp *associated_app, const std::string &name, bool start_fullscreen);
     virtual ~GlobeWindowWindows();
 
     void SetHInstance(HINSTANCE win_hinstance) { _instance_handle = win_hinstance; }

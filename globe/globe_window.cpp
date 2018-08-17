@@ -26,8 +26,13 @@
 
 #define ARRAY_SIZE(a) (sizeof(a) / sizeof(a[0]))
 
-GlobeWindow::GlobeWindow(GlobeApp *app, const std::string &name)
-    : _associated_app(app), _name(name), _is_fullscreen(false), _window_created(false), _vk_instance(VK_NULL_HANDLE), _vk_surface(VK_NULL_HANDLE) {}
+GlobeWindow::GlobeWindow(GlobeApp *app, const std::string &name, bool start_fullscreen)
+    : _associated_app(app),
+      _name(name),
+      _is_fullscreen(start_fullscreen),
+      _window_created(false),
+      _vk_instance(VK_NULL_HANDLE),
+      _vk_surface(VK_NULL_HANDLE) {}
 
 GlobeWindow::~GlobeWindow() { DestroyVkSurface(_vk_instance, _vk_surface); }
 

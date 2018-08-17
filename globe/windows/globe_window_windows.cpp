@@ -28,7 +28,8 @@
 
 #include "shellscalingapi.h"
 
-GlobeWindowWindows::GlobeWindowWindows(GlobeApp *app, const std::string &name) : GlobeWindow(app, name) {}
+GlobeWindowWindows::GlobeWindowWindows(GlobeApp *app, const std::string &name, bool start_fullscreen)
+    : GlobeWindow(app, name, start_fullscreen) {}
 
 GlobeWindowWindows::~GlobeWindowWindows() {}
 
@@ -248,9 +249,8 @@ bool GlobeWindowWindows::CreatePlatformWindow(VkInstance instance, VkPhysicalDev
     }
     windows_error = GetLastError();
     SetProcessDpiAwareness(PROCESS_DPI_AWARENESS::PROCESS_SYSTEM_DPI_AWARE);
-    _window_handle =
-        CreateWindowEx(windows_extended_style, _name.c_str(), _name.c_str(), windows_style, 0, 0, wr.right - wr.left,
-                       wr.bottom - wr.top, NULL, NULL, _instance_handle, this);
+    _window_handle = CreateWindowEx(windows_extended_style, _name.c_str(), _name.c_str(), windows_style, 0, 0,
+                                    wr.right - wr.left, wr.bottom - wr.top, NULL, NULL, _instance_handle, this);
     windows_error = GetLastError();
     if (!_window_handle) {
         logger.LogFatalError("Cannot create a window in which to draw!");

@@ -135,6 +135,7 @@ class GlobeApp {
     bool _focused;
     bool _is_paused;
     bool _must_exit;
+    bool _start_fullscreen;
     bool _google_display_timing_enabled;
     uint64_t _current_frame;
     uint32_t _current_buffer;
