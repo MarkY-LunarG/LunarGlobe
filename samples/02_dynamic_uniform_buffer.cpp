@@ -59,7 +59,8 @@ class DynamicUniformApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw(float diff_ms);
+    virtual bool Update(float diff_ms);
+    virtual bool Draw();
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -516,12 +517,30 @@ bool DynamicUniformApp::Setup() {
     return true;
 }
 
-bool DynamicUniformApp::Draw(float diff_ms) {
+bool DynamicUniformApp::Update(float diff_ms) {
+    _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
+    VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
+    static float inc = 0.f;
+    glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f + inc), glm::vec3(0.0f, 0.0f, 1.0f));
+    inc += diff_ms * 0.1f;
+    if (inc > 360.f) {
+        inc = inc - 360.f;
+    }
+    memcpy(_uniform_mapped_data + offset, &view_matrix, sizeof(view_matrix));
+    VkMappedMemoryRange memoryRange = {};
+    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
+    memoryRange.memory = _uniform_buffer.vk_memory;
+    memoryRange.size = sizeof(glm::mat4);
+    memoryRange.offset = offset;
+    vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
+    return true;
+}
+
+bool DynamicUniformApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
     VkFramebuffer vk_framebuffer;
-    _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
     _globe_submit_mgr->GetCurrentRenderCommandBuffer(vk_render_command_buffer);
     _globe_submit_mgr->GetCurrentFramebuffer(vk_framebuffer);
 
@@ -577,21 +596,6 @@ bool DynamicUniformApp::Draw(float diff_ms) {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
-    static float inc = 0.f;
-    glm::mat4 view_matrix = glm::rotate(glm::mat4(1.0f), glm::radians(90.f + inc), glm::vec3(0.0f, 0.0f, 1.0f));
-    inc += diff_ms * 0.1f;
-    if (inc > 360.f) {
-        inc = inc - 360.f;
-    }
-    memcpy(_uniform_mapped_data + offset, &view_matrix, sizeof(view_matrix));
-    VkMappedMemoryRange memoryRange = {};
-    memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memoryRange.memory = _uniform_buffer.vk_memory;
-    memoryRange.size = sizeof(glm::mat4);
-    memoryRange.offset = offset;
-    vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
-
     const VkDeviceSize vert_buffer_offset = 0;
     vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
@@ -606,7 +610,7 @@ bool DynamicUniformApp::Draw(float diff_ms) {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw(diff_ms);
+    return GlobeApp::Draw();
 }
 
 static DynamicUniformApp *g_app = nullptr;

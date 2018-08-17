@@ -34,14 +34,14 @@ class GlobeWindowLinux : public GlobeWindow {
                                             void **next) override;
     virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface);
 
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    void HandleXlibEvent();
-    void HandleAllXlibEvents();
-#endif
 #if defined(VK_USE_PLATFORM_XCB_KHR)
     void HandlePausedXcbEvent();
     void HandleActiveXcbEvent();
     void HandleAllXcbEvents();
+#endif
+#if defined(VK_USE_PLATFORM_XLIB_KHR)
+    void HandleXlibEvent();
+    void HandleAllXlibEvents();
 #endif
 #if defined(VK_USE_PLATFORM_WAYLAND_KHR)
     void MoveSurface(uint32_t serial);
@@ -55,19 +55,17 @@ class GlobeWindowLinux : public GlobeWindow {
    private:
 #ifdef VK_USE_PLATFORM_XCB_KHR
     void HandleXcbEvent(xcb_generic_event_t *xcb_event);
-#endif
 
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-    Display *_display;
-    Window _xlib_window;
-    Atom _xlib_wm_delete_window;
-#endif
-#ifdef VK_USE_PLATFORM_XCB_KHR
     Display *_display;
     xcb_connection_t *_connection;
     xcb_screen_t *_screen;
     xcb_window_t _xcb_window;
     xcb_intern_atom_reply_t *_atom_wm_delete_window;
+#endif
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+    Display *_display;
+    Window _xlib_window;
+    Atom _xlib_wm_delete_window;
 #endif
 #ifdef VK_USE_PLATFORM_WAYLAND_KHR
     struct wl_display *_display;

@@ -53,7 +53,8 @@ class TriangleApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw(float diff_ms);
+    virtual bool Update(float diff_ms);
+    virtual bool Draw();
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
@@ -504,7 +505,11 @@ bool TriangleApp::Setup() {
     return true;
 }
 
-bool TriangleApp::Draw(float diff_ms) {
+bool TriangleApp::Update(float diff_ms) {
+    return true;
+}
+
+bool TriangleApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -577,7 +582,7 @@ bool TriangleApp::Draw(float diff_ms) {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw(diff_ms);
+    return GlobeApp::Draw();
 }
 
 static TriangleApp *g_app = nullptr;

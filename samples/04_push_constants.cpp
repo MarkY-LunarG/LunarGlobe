@@ -57,7 +57,8 @@ class PushConstantApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw(float diff_ms);
+    virtual bool Update(float diff_ms);
+    virtual bool Draw();
     void UpdateEllipseCenter();
 
    private:
@@ -642,7 +643,21 @@ bool PushConstantApp::Setup() {
     return true;
 }
 
-void PushConstantApp::UpdateEllipseCenter() {
+bool PushConstantApp::Update(float diff_ms) {
+    static float cur_time_diff = 0;
+    cur_time_diff += diff_ms;
+    if (cur_time_diff > 2000.f) {
+        int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
+        *selection = *selection + 1;
+        if (*selection > 3) {
+            *selection = 0;
+        }
+        float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
+        *rad_x_sqd = ((rand() % 110) + 1) * 0.001f;
+        float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
+        *rad_y_sqd = ((rand() % 110) + 1) * 0.003f;
+        cur_time_diff = 0.f;
+    }
     bool boundary_hit = false;
     _ellipse_center += _movement_dir;
     if (_ellipse_center.x > 1.0f) {
@@ -671,9 +686,10 @@ void PushConstantApp::UpdateEllipseCenter() {
             _movement_dir.y = -_movement_dir.y;
         }
     }
+    return true;
 }
 
-bool PushConstantApp::Draw(float diff_ms) {
+bool PushConstantApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -737,21 +753,6 @@ bool PushConstantApp::Draw(float diff_ms) {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    static float cur_time_diff = 0;
-    cur_time_diff += diff_ms;
-    if (cur_time_diff > 2000.f) {
-        int32_t *selection = reinterpret_cast<int32_t *>(_push_constants);
-        *selection = *selection + 1;
-        if (*selection > 3) {
-            *selection = 0;
-        }
-        float *rad_x_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t)]);
-        *rad_x_sqd = ((rand() % 110) + 1) * 0.001f;
-        float *rad_y_sqd = reinterpret_cast<float *>(&_push_constants[sizeof(int32_t) + sizeof(float)]);
-        *rad_y_sqd = ((rand() % 110) + 1) * 0.003f;
-        cur_time_diff = 0.f;
-    }
-    UpdateEllipseCenter();
     VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
@@ -775,7 +776,7 @@ bool PushConstantApp::Draw(float diff_ms) {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw(diff_ms);
+    return GlobeApp::Draw();
 }
 
 static PushConstantApp *g_app = nullptr;

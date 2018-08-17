@@ -35,7 +35,7 @@
 
 static void registry_handle_global(void *data, wl_registry *registry, uint32_t id, const char *interface,
                                    uint32_t version) {
-    GlobeWindow *window = reinterpret_cast<GlobeWindow *>(data);
+    GlobeWindowLinux *window = reinterpret_cast<GlobeWindowLinux *>(data);
     window->HandleGlobalRegistration(data, registry, id, interface, version);
 }
 static void registry_handle_global_remove(void *data, wl_registry *registry, uint32_t name) {
@@ -90,13 +90,13 @@ GlobeWindowLinux::GlobeWindowLinux(GlobeApp *app, const std::string &name) : Glo
 }
 
 GlobeWindowLinux::~GlobeWindowLinux() {
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-    XDestroyWindow(_display, _xlib_window);
-    XCloseDisplay(_display);
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
+#if defined(VK_USE_PLATFORM_XCB_KHR)
     xcb_destroy_window(_connection, _xcb_window);
     xcb_disconnect(_connection);
     free(_atom_wm_delete_window);
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+    XDestroyWindow(_display, _xlib_window);
+    XCloseDisplay(_display);
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
     wl_keyboard_destroy(_keyboard);
     wl_pointer_destroy(_pointer);
@@ -138,13 +138,13 @@ bool GlobeWindowLinux::PrepareCreateInstanceItems(std::vector<std::string> &laye
             found_surface_ext = true;
             extensions.push_back(extension_properties[i].extensionName);
         }
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-        if (!strcmp(VK_KHR_XLIB_SURFACE_EXTENSION_NAME, extension_properties[i].extensionName)) {
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+        if (!strcmp(VK_KHR_XCB_SURFACE_EXTENSION_NAME, extension_properties[i].extensionName)) {
             found_platform_surface_ext = 1;
             extensions.push_back(extension_properties[i].extensionName);
         }
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-        if (!strcmp(VK_KHR_XCB_SURFACE_EXTENSION_NAME, extension_properties[i].extensionName)) {
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+        if (!strcmp(VK_KHR_XLIB_SURFACE_EXTENSION_NAME, extension_properties[i].extensionName)) {
             found_platform_surface_ext = 1;
             extensions.push_back(extension_properties[i].extensionName);
         }
@@ -168,6 +168,12 @@ bool GlobeWindowLinux::PrepareCreateInstanceItems(std::vector<std::string> &laye
             " extension.\n\n"
             "Do you have a compatible Vulkan installable client driver (ICD) installed?\n"
             "Please look at the Getting Started guide for additional information.");
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+        logger.LogFatalError(
+            "vkEnumerateInstanceExtensionProperties failed to find the " VK_KHR_XLIB_SURFACE_EXTENSION_NAME
+            " extension.\n\n"
+            "Do you have a compatible Vulkan installable client driver (ICD) installed?\n"
+            "Please look at the Getting Started guide for additional information.");
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
         logger.LogFatalError(
             "vkEnumerateInstanceExtensionProperties failed to find the " VK_KHR_WAYLAND_SURFACE_EXTENSION_NAME
@@ -179,12 +185,6 @@ bool GlobeWindowLinux::PrepareCreateInstanceItems(std::vector<std::string> &laye
                              " extension.\n\n"
                              "Do you have a compatible Vulkan installable client driver (ICD) installed?\n"
                              "Please look at the Getting Started guide for additional information.");
-#elif defined(VK_USE_PLATFORM_XLIB_KHR)
-        logger.LogFatalError(
-            "vkEnumerateInstanceExtensionProperties failed to find the " VK_KHR_XLIB_SURFACE_EXTENSION_NAME
-            " extension.\n\n"
-            "Do you have a compatible Vulkan installable client driver (ICD) installed?\n"
-            "Please look at the Getting Started guide for additional information.");
 #endif
     }
 
@@ -201,18 +201,18 @@ bool GlobeWindowLinux::CreateVkSurface(VkInstance instance, VkPhysicalDevice phy
     }
 
 // Create a WSI surface for the window:
-#if defined(VK_USE_PLATFORM_WAYLAND_KHR)
-    VkWaylandSurfaceCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
+#if defined(VK_USE_PLATFORM_XCB_KHR)
+    VkXcbSurfaceCreateInfoKHR createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
     createInfo.pNext = NULL;
     createInfo.flags = 0;
-    createInfo.display = _display;
-    createInfo.surface = _window;
+    createInfo.connection = _connection;
+    createInfo.window = _xcb_window;
 
-    PFN_vkCreateWaylandSurfaceKHR fpCreateSurface =
-        reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(vkGetInstanceProcAddr(instance, "vkCreateWaylandSurfaceKHR"));
+    PFN_vkCreateXcbSurfaceKHR fpCreateSurface =
+        reinterpret_cast<PFN_vkCreateXcbSurfaceKHR>(vkGetInstanceProcAddr(instance, "vkCreateXcbSurfaceKHR"));
     if (nullptr == fpCreateSurface || VK_SUCCESS != fpCreateSurface(instance, &createInfo, nullptr, &surface)) {
-        logger.LogError("Failed call to vkCreateWaylandSurfaceKHR");
+        logger.LogError("Failed call to vkCreateXcbSurfaceKHR");
         return false;
     }
 #elif defined(VK_USE_PLATFORM_XLIB_KHR)
@@ -229,18 +229,18 @@ bool GlobeWindowLinux::CreateVkSurface(VkInstance instance, VkPhysicalDevice phy
         logger.LogError("Failed call to vkCreateXlibSurfaceKHR");
         return false;
     }
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
-    VkXcbSurfaceCreateInfoKHR createInfo = {};
-    createInfo.sType = VK_STRUCTURE_TYPE_XCB_SURFACE_CREATE_INFO_KHR;
+#elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
+    VkWaylandSurfaceCreateInfoKHR createInfo = {};
+    createInfo.sType = VK_STRUCTURE_TYPE_WAYLAND_SURFACE_CREATE_INFO_KHR;
     createInfo.pNext = NULL;
     createInfo.flags = 0;
-    createInfo.connection = _connection;
-    createInfo.window = _xcb_window;
+    createInfo.display = _display;
+    createInfo.surface = _window;
 
-    PFN_vkCreateXcbSurfaceKHR fpCreateSurface =
-        reinterpret_cast<PFN_vkCreateXcbSurfaceKHR>(vkGetInstanceProcAddr(instance, "vkCreateXcbSurfaceKHR"));
+    PFN_vkCreateWaylandSurfaceKHR fpCreateSurface =
+        reinterpret_cast<PFN_vkCreateWaylandSurfaceKHR>(vkGetInstanceProcAddr(instance, "vkCreateWaylandSurfaceKHR"));
     if (nullptr == fpCreateSurface || VK_SUCCESS != fpCreateSurface(instance, &createInfo, nullptr, &surface)) {
-        logger.LogError("Failed call to vkCreateXcbSurfaceKHR");
+        logger.LogError("Failed call to vkCreateWaylandSurfaceKHR");
         return false;
     }
 #endif
@@ -248,83 +248,6 @@ bool GlobeWindowLinux::CreateVkSurface(VkInstance instance, VkPhysicalDevice phy
     return true;
 }
 
-#ifdef VK_USE_PLATFORM_XLIB_KHR
-
-void GlobeWindowLinux::HandleXlibEvent() {
-    XEvent xlib_event;
-    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
-    XNextEvent(_display, &xlib_event);
-    switch (xlib_event.type) {
-        case ClientMessage:
-            if ((Atom)xlib_event.xclient.data.l[0] == _xlib_wm_delete_window) {
-                GlobeEvent event(GLOBE_EVENT_QUIT);
-                GlobeEventList::getInstance().InsertEvent(event);
-            }
-            break;
-        case KeyPress:
-            globe_event_type = GLOBE_EVENT_KEY_PRESS;
-            break;
-        case KeyRelease:
-            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
-            break;
-        case ConfigureNotify: {
-            uint32_t xlib_width = static_cast<uint32_t>(xlib_event.xconfigure.width);
-            uint32_t xlib_height = static_cast<uint32_t>(xlib_event.xconfigure.height);
-            if ((_width != xlib_width) || (_height != xlib_height)) {
-                GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_WINDOW_RESIZE);
-                _width = xlib_width;
-                _height = xlib_height;
-                event->_data.resize.width = _width;
-                event->_data.resize.height = _height;
-                GlobeEventList::getInstance().InsertEvent(*event);
-                delete event;
-            }
-            break;
-        }
-        default:
-            break;
-    }
-    if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
-        switch (xlib_event.xkey.keycode) {
-            case 0x9:  // Escape
-            {
-                GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_ESCAPE;
-                GlobeEventList::getInstance().InsertEvent(*event);
-                delete event;
-            } break;
-            case 0x71:  // left arrow key
-            {
-                GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
-                GlobeEventList::getInstance().InsertEvent(*event);
-                delete event;
-            } break;
-            case 0x72:  // right arrow key
-            {
-                GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
-                GlobeEventList::getInstance().InsertEvent(*event);
-                delete event;
-            } break;
-            case 0x41:  // space bar
-            {
-                GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_SPACE;
-                GlobeEventList::getInstance().InsertEvent(*event);
-                delete event;
-            } break;
-        }
-    }
-}
-
-void GlobeWindowLinux::HandleAllXlibEvents() {
-    while (XPending(_display) > 0) {
-        HandleXlibEvent();
-    }
-}
-
-#endif
 #ifdef VK_USE_PLATFORM_XCB_KHR
 
 void GlobeWindowLinux::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
@@ -418,6 +341,84 @@ void GlobeWindowLinux::HandleAllXcbEvents() {
     while (nullptr != (event = xcb_poll_for_event(_connection))) {
         HandleXcbEvent(event);
         free(event);
+    }
+}
+
+#endif
+
+#ifdef VK_USE_PLATFORM_XLIB_KHR
+
+void GlobeWindowLinux::HandleXlibEvent() {
+    XEvent xlib_event;
+    GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
+    XNextEvent(_display, &xlib_event);
+    switch (xlib_event.type) {
+        case ClientMessage:
+            if ((Atom)xlib_event.xclient.data.l[0] == _xlib_wm_delete_window) {
+                GlobeEvent event(GLOBE_EVENT_QUIT);
+                GlobeEventList::getInstance().InsertEvent(event);
+            }
+            break;
+        case KeyPress:
+            globe_event_type = GLOBE_EVENT_KEY_PRESS;
+            break;
+        case KeyRelease:
+            globe_event_type = GLOBE_EVENT_KEY_RELEASE;
+            break;
+        case ConfigureNotify: {
+            uint32_t xlib_width = static_cast<uint32_t>(xlib_event.xconfigure.width);
+            uint32_t xlib_height = static_cast<uint32_t>(xlib_event.xconfigure.height);
+            if ((_width != xlib_width) || (_height != xlib_height)) {
+                GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_WINDOW_RESIZE);
+                _width = xlib_width;
+                _height = xlib_height;
+                event->_data.resize.width = _width;
+                event->_data.resize.height = _height;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            }
+            break;
+        }
+        default:
+            break;
+    }
+    if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
+        switch (xlib_event.xkey.keycode) {
+            case 0x9:  // Escape
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ESCAPE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x71:  // left arrow key
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x72:  // right arrow key
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x41:  // space bar
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_SPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+        }
+    }
+}
+
+void GlobeWindowLinux::HandleAllXlibEvents() {
+    while (XPending(_display) > 0) {
+        HandleXlibEvent();
     }
 }
 

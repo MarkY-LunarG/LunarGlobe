@@ -57,7 +57,8 @@ class MultiTexApp : public GlobeApp {
 
    protected:
     virtual bool Setup();
-    virtual bool Draw(float diff_ms);
+    virtual bool Update(float diff_ms);
+    virtual bool Draw();
     void UpdateEllipseCenter(float diff_ms);
 
    private:
@@ -593,7 +594,7 @@ bool MultiTexApp::Setup() {
     return true;
 }
 
-void MultiTexApp::UpdateEllipseCenter(float diff_ms) {
+bool MultiTexApp::Update(float diff_ms) {
     bool boundary_hit = false;
     _ellipse_center += _movement_dir * (diff_ms * 0.07f);
     if (_ellipse_center.x > 1.0f) {
@@ -622,9 +623,10 @@ void MultiTexApp::UpdateEllipseCenter(float diff_ms) {
             _movement_dir.y = -_movement_dir.y;
         }
     }
+    return true;
 }
 
-bool MultiTexApp::Draw(float diff_ms) {
+bool MultiTexApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -685,7 +687,6 @@ bool MultiTexApp::Draw(float diff_ms) {
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
 
-    UpdateEllipseCenter(diff_ms);
     VkDeviceSize offset = (_vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
@@ -709,7 +710,7 @@ bool MultiTexApp::Draw(float diff_ms) {
 
     _globe_submit_mgr->SubmitAndPresent();
 
-    return GlobeApp::Draw(diff_ms);
+    return GlobeApp::Draw();
 }
 
 static MultiTexApp *g_app = nullptr;

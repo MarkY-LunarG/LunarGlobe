@@ -509,16 +509,16 @@ bool GlobeApp::Run() {
         float comp_diff = 0;
         float game_diff = 0;
         _globe_clock->GetTimeDiffMS(comp_diff, game_diff);
-#if defined(VK_USE_PLATFORM_XLIB_KHR)
-        if (_is_paused) {
-            _globe_window->HandleXlibEvent();
-        }
-        _globe_window->HandleAllXlibEvents();
-#elif defined(VK_USE_PLATFORM_XCB_KHR)
+#if defined(VK_USE_PLATFORM_XCB_KHR)
         if (_is_paused) {
             _globe_window->HandlePausedXcbEvent();
         }
         _globe_window->HandleAllXcbEvents();
+#elif defined(VK_USE_PLATFORM_XLIB_KHR)
+        if (_is_paused) {
+            _globe_window->HandleXlibEvent();
+        }
+        _globe_window->HandleAllXlibEvents();
 #elif defined(VK_USE_PLATFORM_WAYLAND_KHR)
         if (_is_paused) {
             _globe_window->HandlePausedWaylandEvent();
@@ -557,21 +557,23 @@ bool GlobeApp::Run() {
             if (!ProcessEvents()) {
                 return false;
             }
-            Draw(game_diff);
+            Update(game_diff);
+            Draw();
         }
 #else
         if (!ProcessEvents()) {
             return false;
         }
         if (_focused) {
-            Draw(game_diff);
+            Update(game_diff);
+            Draw();
         }
 #endif
     }
     return true;
 }
 
-bool GlobeApp::Draw(float diff_ms) {
+bool GlobeApp::Draw() {
     _current_frame++;
     if (_exit_on_frame && _current_frame == _exit_frame) {
         GlobeEvent quit_event(GLOBE_EVENT_QUIT);
@@ -681,7 +683,7 @@ void GlobeApp::HandleEvent(GlobeEvent &event) {
             break;
         case GLOBE_EVENT_WINDOW_DRAW:
             if (_focused) {
-                Draw(0);
+                Draw();
             }
             break;
         case GLOBE_EVENT_WINDOW_RESIZE:

@@ -78,7 +78,8 @@ class GlobeApp {
     virtual bool Init(GlobeInitStruct &init_struct);
     virtual void Resize();
     virtual bool Run();
-    virtual bool Draw(float diff_ms);
+    virtual bool Update(float diff_ms) = 0;
+    virtual bool Draw();
     void PreCleanup();
     void PostCleanup();
     virtual void Cleanup();
