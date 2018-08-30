@@ -56,9 +56,9 @@ class MultiTexApp : public GlobeApp {
     virtual void Cleanup() override;
 
    protected:
-    virtual bool Setup();
-    virtual bool Update(float diff_ms);
-    virtual bool Draw();
+    virtual bool Setup() override;
+    virtual bool Update(float diff_ms) override;
+    virtual bool Draw() override;
     void UpdateEllipseCenter(float diff_ms);
 
    private:

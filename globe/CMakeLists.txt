@@ -47,7 +47,7 @@ endif()
 
 target_compile_options(globe
                         PUBLIC
-                           -std=c++17
+                           -std=c++11
                       )
 
 target_compile_definitions(globe

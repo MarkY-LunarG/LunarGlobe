@@ -33,12 +33,13 @@ class GlobeWindowWindows : public GlobeWindow {
     void RedrawOsWindow() { RedrawWindow(_window_handle, NULL, NULL, RDW_INTERNALPAINT); }
     POINT Minsize() { return _minsize; }
 
-    virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height);
+    virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width,
+                                      uint32_t height) override;
     virtual bool DestroyPlatformWindow();
     virtual bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
                                             void **next) override;
 
-    virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface);
+    virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) override;
 
    private:
     HINSTANCE _instance_handle;

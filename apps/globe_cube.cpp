@@ -689,6 +689,8 @@ void CubeApp::HandleEvent(GlobeEvent &event) {
                 case GLOBE_KEYNAME_ARROW_RIGHT:
                     _spin_angle += _spin_increment;
                     break;
+                default:
+                    break;
             }
             break;
         default:

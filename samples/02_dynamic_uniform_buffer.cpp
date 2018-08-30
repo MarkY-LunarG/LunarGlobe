@@ -58,9 +58,9 @@ class DynamicUniformApp : public GlobeApp {
     virtual void Cleanup() override;
 
    protected:
-    virtual bool Setup();
-    virtual bool Update(float diff_ms);
-    virtual bool Draw();
+    virtual bool Setup() override;
+    virtual bool Update(float diff_ms) override;
+    virtual bool Draw() override;
 
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;

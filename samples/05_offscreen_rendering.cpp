@@ -60,9 +60,9 @@ class OffscreenRenderingApp : public GlobeApp {
    protected:
     bool CreateOffscreenTarget(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
                                VkFormat vk_color_format, VkFormat vk_depth_stencil_format);
-    virtual bool Setup();
-    virtual bool Update(float diff_ms);
-    virtual bool Draw();
+    virtual bool Setup() override;
+    virtual bool Update(float diff_ms) override;
+    virtual bool Draw() override;
     void UpdateEllipseCenter();
 
    private:

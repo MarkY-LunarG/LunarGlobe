@@ -29,10 +29,11 @@ class GlobeWindowLinux : public GlobeWindow {
     GlobeWindowLinux(GlobeApp *associated_app, const std::string &name, bool start_fullscreen);
     virtual ~GlobeWindowLinux();
 
-    virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width, uint32_t height);
+    virtual bool CreatePlatformWindow(VkInstance, VkPhysicalDevice phys_device, uint32_t width,
+                                      uint32_t height) override;
     virtual bool PrepareCreateInstanceItems(std::vector<std::string> &layers, std::vector<std::string> &extensions,
                                             void **next) override;
-    virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface);
+    virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) override;
 
 #if defined(VK_USE_PLATFORM_XCB_KHR)
     void HandlePausedXcbEvent();

@@ -98,7 +98,7 @@ macro(SINGLE_SOURCE_EXECUTABLE test_name)
                               )
     target_compile_options(globe
                             PUBLIC
-                               -std=c++17
+                               -std=c++11
                           )
     target_link_libraries(${test_name}
                           PUBLIC
