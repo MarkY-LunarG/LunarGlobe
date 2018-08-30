@@ -96,6 +96,10 @@ macro(SINGLE_SOURCE_EXECUTABLE test_name)
                                PUBLIC
                                   ${PROJECT_SOURCE_DIR}
                               )
+    target_compile_options(globe
+                            PUBLIC
+                               -std=c++17
+                          )
     target_link_libraries(${test_name}
                           PUBLIC
                               globe

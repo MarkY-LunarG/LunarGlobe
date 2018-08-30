@@ -45,6 +45,11 @@ elseif(${GLOBE_WAYLAND_ENABLED})
     target_include_directories(globe PUBLIC ${WAYLAND_CLIENT_INCLUDE_DIR})
 endif()
 
+target_compile_options(globe
+                        PUBLIC
+                           -std=c++17
+                      )
+
 target_compile_definitions(globe
                             PUBLIC
                                 $<${GLOBE_WINDOWS_ENABLED}: -DWIN32 >
