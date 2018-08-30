@@ -75,19 +75,6 @@ script:
       cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=install ..
       cmake --build . --target install -- -j $core_count
       popd
-      git clone https://github.com/KhronosGroup/Vulkan-ValidationLayers.git
-      pushd Vulkan-ValidationLayers
-      git clone https://github.com/google/googletest.git external/googletest
-      mkdir build
-      cd build
-      cmake -DCMAKE_BUILD_TYPE=Debug \
-        -DCMAKE_INSTALL_PREFIX=install \
-        -DVULKAN_HEADERS_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install" \
-        -DVULKAN_LOADER_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Loader/build/install" \
-        -DGLSLANG_INSTALL_DIR="$TRAVIS_BUILD_DIR/glslang/build/install" \
-        ..
-      cmake --build . --target install -- -j $core_count
-      popd
       git clone https://github.com/KhronosGroup/Vulkan-Tools.git
       pushd Vulkan-Tools
       mkdir build
@@ -110,7 +97,6 @@ script:
       cmake -DCMAKE_BUILD_TYPE=Debug \
           -DVULKAN_HEADERS_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install \
           -DVULKAN_LOADER_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-Loader/build/install \
-          -DVULKAN_VALIDATIONLAYERS_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-ValidationLayers/build/install \
           ..
       cmake --build . -- -j $core_count
       export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/layers:$PWD/layersvt

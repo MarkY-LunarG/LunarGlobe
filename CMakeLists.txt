@@ -31,45 +31,6 @@ find_package(Vulkan)
 set(LIBVK "Vulkan::Vulkan")
 MESSAGE(STATUS "Vulkan -> ${LIBVK}")
 
-# Cmake command line option overrides environment variable
-if(NOT GLSLANG_INSTALL_DIR)
-    set(GLSLANG_INSTALL_DIR $ENV{GLSLANG_INSTALL_DIR})
-endif()
-message(STATUS "Using glslang install located at ${GLSLANG_INSTALL_DIR}")
-set(SPIRV_TOOLS_BINARY_ROOT "${GLSLANG_INSTALL_DIR}/lib"
-    CACHE PATH "User defined path to the SPIRV-Tools binaries for this project")
-set(SPIRV_TOOLS_OPT_BINARY_ROOT "${GLSLANG_INSTALL_DIR}/lib"
-    CACHE PATH "User defined path to the SPIRV-Tools-opt binaries for this project")
-set(GLSLANG_SPIRV_INCLUDE_DIR "${GLSLANG_INSTALL_DIR}/include" CACHE PATH "Path to glslang spirv headers")
-set(SPIRV_TOOLS_INCLUDE_DIR "${GLSLANG_INSTALL_DIR}/include" CACHE PATH "Path to spirv tools headers")
-set(GLSLANG_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-set(GLSLANG_DEBUG_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-set(SPIRV_TOOLS_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-set(SPIRV_TOOLS_DEBUG_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-set(SPIRV_TOOLS_OPT_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-set(SPIRV_TOOLS_OPT_DEBUG_SEARCH_PATH "${GLSLANG_INSTALL_DIR}/lib")
-
-find_library(GLSLANG_LIB NAMES glslang HINTS ${GLSLANG_SEARCH_PATH})
-find_library(OGLCompiler_LIB NAMES OGLCompiler HINTS ${GLSLANG_SEARCH_PATH})
-find_library(OSDependent_LIB NAMES OSDependent HINTS ${GLSLANG_SEARCH_PATH})
-find_library(HLSL_LIB NAMES HLSL HINTS ${GLSLANG_SEARCH_PATH})
-find_library(SPIRV_LIB NAMES SPIRV HINTS ${GLSLANG_SEARCH_PATH})
-find_library(SPIRV_REMAPPER_LIB NAMES SPVRemapper HINTS ${GLSLANG_SEARCH_PATH})
-find_library(SPIRV_TOOLS_LIB NAMES SPIRV-Tools HINTS ${SPIRV_TOOLS_SEARCH_PATH})
-find_library(SPIRV_TOOLS_OPT_LIB NAMES SPIRV-Tools-opt HINTS ${SPIRV_TOOLS_OPT_SEARCH_PATH})
-
-if(NOT DEFINED GLSLANG_INSTALL_DIR)
-    message(STATUS "Using cmake find_program to look for glslangValidator")
-    find_program(GLSLANG_VALIDATOR NAMES glslangValidator
-        HINTS "$ENV{VULKAN_SDK}/bin"
-        )
-else()
-    message(STATUS "Using GLSLANG_INSTALL_DIR to look for glslangValidator")
-    find_program(GLSLANG_VALIDATOR names glslangValidator
-        HINTS "${GLSLANG_INSTALL_DIR}/bin"
-        )
-endif()
-
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     include(FindPkgConfig)
     option(BUILD_WSI_XCB_SUPPORT "Build XCB WSI support" ON)
