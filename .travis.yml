@@ -1,0 +1,138 @@
+# Build Configuration for Travis CI
+# https://travis-ci.org
+
+dist: trusty
+sudo: required
+language: cpp
+
+matrix:
+  # Show final status immediately if a test fails.
+  fast_finish: true
+  include:
+    # Linux GCC debug build.
+    - os: linux
+      compiler: gcc
+      env: VULKAN_BUILD_TARGET=LINUX
+    # Linux clang debug build.
+    - os: linux
+      compiler: clang
+      env: VULKAN_BUILD_TARGET=LINUX
+    # Check for proper clang formatting in the pull request.
+    - env: CHECK_FORMAT=ON
+
+cache: ccache
+
+# Use set -e so that the build fails when a command fails.
+# The default action for Travis-CI is to continue running even if a command fails.
+# See https://github.com/travis-ci/travis-ci/issues/1066.
+# Use the YAML block scalar header (|) to allow easier multiline script coding.
+
+before_install:
+  - set -e
+  # Install the appropriate Linux packages.
+  - |
+    if [[ "$VULKAN_BUILD_TARGET" == "LINUX" ]]; then
+      sudo apt-get -qq update
+      sudo apt-get -y install libxkbcommon-dev libwayland-dev libmirclient-dev libxrandr-dev libx11-xcb-dev libxcb-keysyms1 libxcb-keysyms1-dev libxcb-ewmh-dev
+      # Needed for devsim test
+      sudo apt-get -y install jq
+    fi
+  # Install the clang format diff tool, but only for pull requests.
+  - |
+    if [[ "$CHECK_FORMAT" == "ON" && "$TRAVIS_PULL_REQUEST" != "false" ]]; then
+      curl -L http://llvm.org/svn/llvm-project/cfe/trunk/tools/clang-format/clang-format-diff.py -o scripts/clang-format-diff.py;
+    fi
+  # Misc setup
+  - |
+  - export core_count=$(nproc || echo 4) && echo core_count = $core_count
+  - set +e
+
+script:
+  - set -e
+  - |
+    if [[ "$VULKAN_BUILD_TARGET" == "LINUX" ]]; then
+      # Build VulkanTools deps
+      git clone https://github.com/KhronosGroup/Vulkan-Headers.git
+      pushd Vulkan-Headers
+      mkdir build
+      cd build
+      cmake -DCMAKE_INSTALL_PREFIX=install ..
+      cmake --build . --target install
+      popd
+      git clone https://github.com/KhronosGroup/Vulkan-Loader.git
+      pushd Vulkan-Loader
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=Debug -DVULKAN_HEADERS_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install -DCMAKE_INSTALL_PREFIX=install ..
+      cmake --build . --target install
+      export LD_LIBRARY_PATH=$PWD/install/lib
+      popd
+      git clone https://github.com/KhronosGroup/glslang.git
+      pushd glslang
+      ./update_glslang_sources.py
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=Debug -DCMAKE_INSTALL_PREFIX=install ..
+      cmake --build . --target install -- -j $core_count
+      popd
+      git clone https://github.com/KhronosGroup/Vulkan-ValidationLayers.git
+      pushd Vulkan-ValidationLayers
+      git clone https://github.com/google/googletest.git external/googletest
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_INSTALL_PREFIX=install \
+        -DVULKAN_HEADERS_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install" \
+        -DVULKAN_LOADER_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Loader/build/install" \
+        -DGLSLANG_INSTALL_DIR="$TRAVIS_BUILD_DIR/glslang/build/install" \
+        ..
+      cmake --build . --target install -- -j $core_count
+      popd
+      git clone https://github.com/KhronosGroup/Vulkan-Tools.git
+      pushd Vulkan-Tools
+      mkdir build
+      cd build
+      cmake -DCMAKE_BUILD_TYPE=Debug \
+        -DCMAKE_INSTALL_PREFIX=install \
+        -DVULKAN_HEADERS_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install" \
+        -DVULKAN_LOADER_INSTALL_DIR="$TRAVIS_BUILD_DIR/Vulkan-Loader/build/install" \
+        ..
+      cmake --build . --target install -- -j $core_count
+      export VULKAN_TOOLS_BUILD_DIR="$PWD"
+      popd
+    fi
+  - |
+    if [[ "$VULKAN_BUILD_TARGET" == "LINUX" ]]; then
+      # Build VulkanTools
+      ./update_external_sources.sh
+      mkdir dbuild
+      pushd dbuild
+      cmake -DCMAKE_BUILD_TYPE=Debug \
+          -DVULKAN_HEADERS_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-Headers/build/install \
+          -DVULKAN_LOADER_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-Loader/build/install \
+          -DVULKAN_VALIDATIONLAYERS_INSTALL_DIR=$TRAVIS_BUILD_DIR/Vulkan-ValidationLayers/build/install \
+          ..
+      cmake --build . -- -j $core_count
+      export LD_LIBRARY_PATH=$LD_LIBRARY_PATH:$PWD/layers:$PWD/layersvt
+      export VK_LAYER_PATH=$PWD/layers:$PWD/layersvt
+      popd
+    fi
+  # Run the clang format check only for pull request builds because the
+  # master branch is needed to do the git diff.
+  - |
+    if [[ "$CHECK_FORMAT" == "ON" ]]; then
+      if [[ "$TRAVIS_PULL_REQUEST" != "false" ]]; then
+        echo "Checking clang-format between TRAVIS_BRANCH=$TRAVIS_BRANCH and TRAVIS_PULL_REQUEST_BRANCH=$TRAVIS_PULL_REQUEST_BRANCH"
+        ./check_code_format.sh
+      else
+        echo "Skipping clang-format check since this is not a pull request."
+      fi
+    fi
+  - set +e
+
+notifications:
+  email:
+    recipients:
+      - marky@lunarg.com
+    on_success: change
+    on_failure: always
