@@ -7,6 +7,13 @@ Overall, I'd like to eventually create a "demoscene" style application
 that can be used to showcase Vulkan features.
 
 
+## CI Build Status
+| Platform | Build Status |
+|:--------:|:------------:|
+| Linux/Clang | [![Build Status](https://travis-ci.org/MarkY-LunarG/LunarGlobe.svg?branch=master)](https://travis-ci.org/MarkY-LunarG/LunarGlobe) |
+
+
+
 ## License
 
 This project is licensed under the Apache License Version 2.0 dated
