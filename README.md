@@ -10,7 +10,7 @@ that can be used to showcase Vulkan features.
 ## CI Build Status
 | Platform | Build Status |
 |:--------:|:------------:|
-| Linux/Clang | [![Build Status](https://travis-ci.org/MarkY-LunarG/LunarGlobe.svg?branch=master)](https://travis-ci.org/MarkY-LunarG/LunarGlobe) |
+| Linux/Clang | [![Build Status](https://travis-ci.com/MarkY-LunarG/LunarGlobe.svg?branch=master)](https://travis-ci.com/MarkY-LunarG/LunarGlobe) |
 
 
 
