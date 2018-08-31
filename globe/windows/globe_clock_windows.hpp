@@ -20,6 +20,10 @@
 
 #pragma once
 
+#ifdef VK_USE_PLATFORM_WIN32_KHR
+#include <windows.h>
+#endif // VK_USE_PLATFORM_WIN32_KHR
+
 #include <time.h>
 
 #include "globe_clock.hpp"

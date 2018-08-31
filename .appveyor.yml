@@ -12,7 +12,7 @@ version: "{build}"
 max_jobs: 4
 
 os:
-  - Visual Studio 2015
+  - Visual Studio 2017
 
 environment:
   PYTHON_PATH: "C:/Python35"
