@@ -11,8 +11,7 @@ that can be used to showcase Vulkan features.
 | Platform | Build Status |
 |:--------:|:------------:|
 | Linux/Clang | [![Build Status](https://travis-ci.com/MarkY-LunarG/LunarGlobe.svg?branch=master)](https://travis-ci.com/MarkY-LunarG/LunarGlobe) |
-
-
+| Windows | [![Build status](https://ci.appveyor.com/api/projects/status/ifpbda8eb0e47764/branch/master?svg=true)](https://ci.appveyor.com/project/MarkY-LunarG/lunarglobe/branch/master) |
 
 ## License
 
