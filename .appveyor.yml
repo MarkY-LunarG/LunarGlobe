@@ -22,6 +22,9 @@ branches:
   only:
     - master
 
+install:
+ - git submodule update --init --recursive
+ 
 before_build:
   - "SET PATH=C:\\Python35;C:\\Python35\\Scripts;%PATH%"
   - echo.
@@ -48,7 +51,6 @@ before_build:
   - cmake --build . --config %CONFIGURATION% --target install
   # Generate build files using CMake for the build step.
   - echo Generating CMake files for %GENERATOR%
-  - git submodule update --init --recursive
   - cd %APPVEYOR_BUILD_FOLDER%
   - mkdir build
   - cd build
