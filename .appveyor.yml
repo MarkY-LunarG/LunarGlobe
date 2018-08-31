@@ -53,6 +53,7 @@ before_build:
   - cd build
   - cmake -G %GENERATOR% -DVULKAN_HEADERS_INSTALL_DIR=%APPVEYOR_BUILD_FOLDER%\Vulkan-Headers\build\install -DVULKAN_LOADER_INSTALL_DIR=%APPVEYOR_BUILD_FOLDER%\Vulkan-Loader\build\install ..
   - echo Building platform=%PLATFORM% configuration=%CONFIGURATION%
+  - cmake --build . --config %CONFIGURATION%
 
 platform:
   - Win32
