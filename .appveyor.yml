@@ -30,8 +30,8 @@ before_build:
   - echo.
   - echo Starting build for %APPVEYOR_REPO_NAME%
   # Determine the appropriate CMake generator for the current version of Visual Studio
-  - if %PLATFORM% == Win32 (set GENERATOR="Visual Studio 14 2015")
-  - if %PLATFORM% == x64 (set GENERATOR="Visual Studio 14 2015 Win64")
+  - if %PLATFORM% == Win32 (set GENERATOR="Visual Studio 15 2017")
+  - if %PLATFORM% == x64 (set GENERATOR="Visual Studio 15 2017 Win64")
   ## Build VulkanTools deps
   # Vulkan-Headers
   - cd %APPVEYOR_BUILD_FOLDER%
