@@ -572,9 +572,9 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
     descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = NULL;
-    descriptor_set_allocate_info.descriptorPool = _vk_descriptor_pool;
+    descriptor_set_allocate_info.descriptorPool = _offscreen_vk_descriptor_pool;
     descriptor_set_allocate_info.descriptorSetCount = 1;
-    descriptor_set_allocate_info.pSetLayouts = &_vk_descriptor_set_layout;
+    descriptor_set_allocate_info.pSetLayouts = &_offscreen_vk_descriptor_set_layout;
     if (VK_SUCCESS !=
         vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_offscreen_vk_descriptor_set)) {
         logger.LogFatalError("Failed to allocate offscreen descriptor set");
@@ -590,7 +590,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkWriteDescriptorSet write_set = {};
     write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_set.pNext = nullptr;
-    write_set.dstSet = _vk_descriptor_set;
+    write_set.dstSet = _offscreen_vk_descriptor_set;
     write_set.dstBinding = 0;
     write_set.descriptorCount = 1;
     write_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -723,10 +723,6 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     _globe_resource_mgr->FreeShader(position_color_shader);
 
     vkCmdEndRenderPass(vk_command_buffer);
-
-    if (VK_SUCCESS != vkEndCommandBuffer(vk_command_buffer)) {
-        logger.LogFatalError("Failed to end command buffer for draw offscreen commands");
-    }
 
     return true;
 }
