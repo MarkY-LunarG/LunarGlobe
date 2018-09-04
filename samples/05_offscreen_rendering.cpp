@@ -50,6 +50,25 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
+struct VulkanTarget {
+    uint32_t width;
+    uint32_t height;
+    VkRenderPass vk_render_pass;
+    VkFramebuffer vk_framebuffer;
+    VkSemaphore vk_semaphore;
+    VkDescriptorSetLayout vk_descriptor_set_layout;
+    VkPipelineLayout vk_pipeline_layout;
+    VkDescriptorPool vk_descriptor_pool;
+    VkDescriptorSet vk_descriptor_set;
+    VkPipeline vk_pipeline;
+    VulkanBuffer vertex_buffer;
+    VulkanBuffer index_buffer;
+    VkDeviceSize vk_uniform_vec4_alignment;
+    VulkanBuffer uniform_buffer;
+    uint8_t *uniform_mapped_data;
+    uint32_t num_vertices;
+};
+
 class OffscreenRenderingApp : public GlobeApp {
    public:
     OffscreenRenderingApp();
@@ -66,140 +85,77 @@ class OffscreenRenderingApp : public GlobeApp {
     void UpdateEllipseCenter();
 
    private:
-    VkDescriptorSetLayout _vk_descriptor_set_layout;
-    VkPipelineLayout _vk_pipeline_layout;
-    VkRenderPass _vk_render_pass;
-    VulkanBuffer _vertex_buffer;
-    VulkanBuffer _index_buffer;
-    VkDescriptorPool _vk_descriptor_pool;
-    VkDescriptorSet _vk_descriptor_set;
-    VkPipeline _vk_pipeline;
-    uint32_t _offscreen_width;
-    uint32_t _offscreen_height;
+    void CleanupVulkanTarget(VulkanTarget& target);
+
+    VulkanTarget _onscreen_target;
+    VulkanTarget _offscreen_target;
     GlobeTexture *_offscreen_color;
     GlobeTexture *_offscreen_depth;
-    VkRenderPass _offscreen_vk_render_pass;
-    VkFramebuffer _offscreen_vk_framebuffer;
-    VkSemaphore _offscreen_vk_semaphore;
-    VkDescriptorSetLayout _offscreen_vk_descriptor_set_layout;
-    VkPipelineLayout _offscreen_vk_pipeline_layout;
-    VulkanBuffer _offscreen_vertex_buffer;
-    VulkanBuffer _offscreen_index_buffer;
-    VkDeviceSize _offscreen_vk_uniform_vec4_alignment;
-    VulkanBuffer _offscreen_uniform_buffer;
-    uint8_t *_offscreen_uniform_mapped_data;
-    VkDescriptorPool _offscreen_vk_descriptor_pool;
-    VkDescriptorSet _offscreen_vk_descriptor_set;
-    VkPipeline _offscreen_vk_pipeline;
     glm::vec4 _ellipse_center;
     glm::vec4 _movement_dir;
 };
 
 OffscreenRenderingApp::OffscreenRenderingApp() {
-    _vk_descriptor_set_layout = VK_NULL_HANDLE;
-    _vk_pipeline_layout = VK_NULL_HANDLE;
-    _vk_render_pass = VK_NULL_HANDLE;
-    _vertex_buffer.vk_size = 0;
-    _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    _vertex_buffer.vk_memory = VK_NULL_HANDLE;
-    _index_buffer.vk_size = 0;
-    _index_buffer.vk_buffer = VK_NULL_HANDLE;
-    _index_buffer.vk_memory = VK_NULL_HANDLE;
-    _vk_descriptor_pool = VK_NULL_HANDLE;
-    _vk_descriptor_set = VK_NULL_HANDLE;
-    _vk_pipeline = VK_NULL_HANDLE;
+    _onscreen_target = {};
+    _offscreen_target = {};
     _offscreen_color = nullptr;
     _offscreen_depth = nullptr;
-    _offscreen_vk_framebuffer = VK_NULL_HANDLE;
-    _offscreen_vk_render_pass = VK_NULL_HANDLE;
-    _offscreen_vk_semaphore = VK_NULL_HANDLE;
-    _offscreen_vk_pipeline_layout = VK_NULL_HANDLE;
-    _offscreen_vertex_buffer.vk_size = 0;
-    _offscreen_vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    _offscreen_vertex_buffer.vk_memory = VK_NULL_HANDLE;
-    _offscreen_index_buffer.vk_size = 0;
-    _offscreen_index_buffer.vk_buffer = VK_NULL_HANDLE;
-    _offscreen_index_buffer.vk_memory = VK_NULL_HANDLE;
-    _offscreen_uniform_buffer.vk_size = 0;
-    _offscreen_uniform_buffer.vk_buffer = VK_NULL_HANDLE;
-    _offscreen_uniform_buffer.vk_memory = VK_NULL_HANDLE;
-    _offscreen_vk_pipeline = VK_NULL_HANDLE;
 }
 
 OffscreenRenderingApp::~OffscreenRenderingApp() { Cleanup(); }
 
+void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget& target) {
+    if (VK_NULL_HANDLE != target.vk_pipeline) {
+        vkDestroyPipeline(_vk_device, target.vk_pipeline, nullptr);
+        target.vk_pipeline = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_semaphore) {
+        vkDestroySemaphore(_vk_device, target.vk_semaphore, nullptr);
+        target.vk_semaphore = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_framebuffer) {
+        vkDestroyFramebuffer(_vk_device, target.vk_framebuffer, nullptr);
+        target.vk_framebuffer = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_render_pass) {
+        vkDestroyRenderPass(_vk_device, target.vk_render_pass, nullptr);
+        target.vk_render_pass = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_pipeline_layout) {
+        vkDestroyPipelineLayout(_vk_device, target.vk_pipeline_layout, nullptr);
+        target.vk_pipeline_layout = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.uniform_buffer.vk_buffer) {
+        vkUnmapMemory(_vk_device, target.uniform_buffer.vk_memory);
+        vkDestroyBuffer(_vk_device, target.uniform_buffer.vk_buffer, nullptr);
+        target.uniform_buffer.vk_buffer = VK_NULL_HANDLE;
+    }
+    if (nullptr != target.index_buffer.vk_memory) {
+        _globe_resource_mgr->FreeDeviceMemory(target.index_buffer.vk_memory);
+        target.index_buffer.vk_memory = nullptr;
+    }
+    if (nullptr != target.vertex_buffer.vk_memory) {
+        _globe_resource_mgr->FreeDeviceMemory(target.vertex_buffer.vk_memory);
+        target.vertex_buffer.vk_memory = nullptr;
+    }
+    if (VK_NULL_HANDLE != target.index_buffer.vk_buffer) {
+        vkDestroyBuffer(_vk_device, target.index_buffer.vk_buffer, nullptr);
+        target.index_buffer.vk_buffer = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vertex_buffer.vk_buffer) {
+        vkDestroyBuffer(_vk_device, target.vertex_buffer.vk_buffer, nullptr);
+        target.vertex_buffer.vk_buffer = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_descriptor_set_layout) {
+        vkDestroyDescriptorSetLayout(_vk_device, target.vk_descriptor_set_layout, nullptr);
+        target.vk_descriptor_set_layout = VK_NULL_HANDLE;
+    }
+}
+
 void OffscreenRenderingApp::Cleanup() {
     GlobeApp::PreCleanup();
-    if (VK_NULL_HANDLE != _offscreen_vk_pipeline) {
-        vkDestroyPipeline(_vk_device, _offscreen_vk_pipeline, nullptr);
-        _offscreen_vk_pipeline = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_vk_semaphore) {
-        vkDestroySemaphore(_vk_device, _offscreen_vk_semaphore, nullptr);
-        _offscreen_vk_semaphore = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_vk_framebuffer) {
-        vkDestroyFramebuffer(_vk_device, _offscreen_vk_framebuffer, nullptr);
-        _offscreen_vk_framebuffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_vk_render_pass) {
-        vkDestroyRenderPass(_vk_device, _offscreen_vk_render_pass, nullptr);
-        _offscreen_vk_render_pass = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_vk_pipeline_layout) {
-        vkDestroyPipelineLayout(_vk_device, _offscreen_vk_pipeline_layout, nullptr);
-        _offscreen_vk_pipeline_layout = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_uniform_buffer.vk_buffer) {
-        vkUnmapMemory(_vk_device, _offscreen_uniform_buffer.vk_memory);
-        vkDestroyBuffer(_vk_device, _offscreen_uniform_buffer.vk_buffer, nullptr);
-        _offscreen_uniform_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    _globe_resource_mgr->FreeDeviceMemory(_offscreen_index_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_offscreen_index_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_offscreen_vertex_buffer.vk_memory);
-    if (VK_NULL_HANDLE != _offscreen_index_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _offscreen_index_buffer.vk_buffer, nullptr);
-        _offscreen_index_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _offscreen_vertex_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _offscreen_vertex_buffer.vk_buffer, nullptr);
-        _offscreen_vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_pipeline) {
-        vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
-        _vk_pipeline = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set) {
-        vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
-        _vk_descriptor_set = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_pool) {
-        vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
-        _vk_descriptor_pool = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _index_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _index_buffer.vk_buffer, nullptr);
-        _index_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vertex_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
-        _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
-    if (VK_NULL_HANDLE != _vk_render_pass) {
-        vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
-        _vk_render_pass = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_pipeline_layout) {
-        vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
-        _vk_pipeline_layout = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
-        _vk_descriptor_set_layout = VK_NULL_HANDLE;
-    }
+    CleanupVulkanTarget(_offscreen_target);
+    CleanupVulkanTarget(_onscreen_target);
     GlobeApp::PostCleanup();
 }
 
@@ -246,33 +202,25 @@ static const uint32_t g_offscreen_color_quad_index_data[] = {0, 2,  1,  0, 3,  2
                                                              0, 7,  6,  0, 8,  7,  0, 1,  8,  9, 1,  10, 9, 10, 11,
                                                              9, 11, 12, 9, 12, 13, 9, 13, 14, 9, 14, 15, 9, 15, 16};
 
-static const float g_quad_vertex_buffer_data[] = {
-    1.0f,  -1.0f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vertex 0 Pos/Texture Coord
-    -1.0f, -1.0f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vertex 1 Pos/Texture Coord
-    -1.0f, 1.0f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vertex 2 Pos/Texture Coord
-    1.0f,  1.0f,  0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vertex 3 Pos/Texture Coord
-};
-static const uint32_t g_quad_index_buffer_data[] = {0, 1, 2, 2, 3, 0};
-
 bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
                                                   VkFormat vk_color_format, VkFormat vk_depth_stencil_format) {
     GlobeLogger &logger = GlobeLogger::getInstance();
     uint8_t *mapped_data;
 
-    _offscreen_width = width;
-    _offscreen_height = height;
+    _offscreen_target.width = width;
+    _offscreen_target.height = height;
 
     // Create an offscreen color and depth render target
-    _offscreen_color = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_width,
-                                                                      _offscreen_height, vk_color_format);
+    _offscreen_color = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_target.width,
+                                                                      _offscreen_target.height, vk_color_format);
     if (nullptr == _offscreen_color) {
         logger.LogError("Failed creating color render target texture");
         return false;
     }
 
     if (VK_FORMAT_UNDEFINED != vk_depth_stencil_format) {
-        _offscreen_depth = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_width,
-                                                                          _offscreen_height, vk_depth_stencil_format);
+        _offscreen_depth = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_target.width,
+                                                                          _offscreen_target.height, vk_depth_stencil_format);
         if (nullptr == _offscreen_depth) {
             logger.LogError("Failed creating depth render target texture");
             return false;
@@ -333,7 +281,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     offscreen_render_pass_create_info.dependencyCount = static_cast<uint32_t>(offscreen_subpass_dependencies.size());
     offscreen_render_pass_create_info.pDependencies = offscreen_subpass_dependencies.data();
     if (VK_SUCCESS !=
-        vkCreateRenderPass(_vk_device, &offscreen_render_pass_create_info, nullptr, &_offscreen_vk_render_pass)) {
+        vkCreateRenderPass(_vk_device, &offscreen_render_pass_create_info, nullptr, &_offscreen_target.vk_render_pass)) {
         logger.LogFatalError("Failed to create offscreen render pass");
         return false;
     }
@@ -347,14 +295,14 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkFramebufferCreateInfo offscreen_framebuf_create_info = {};
     offscreen_framebuf_create_info.sType = VK_STRUCTURE_TYPE_FRAMEBUFFER_CREATE_INFO;
     offscreen_framebuf_create_info.pNext = nullptr;
-    offscreen_framebuf_create_info.renderPass = _offscreen_vk_render_pass;
+    offscreen_framebuf_create_info.renderPass = _offscreen_target.vk_render_pass;
     offscreen_framebuf_create_info.attachmentCount = static_cast<uint32_t>(image_views.size());
     offscreen_framebuf_create_info.pAttachments = image_views.data();
-    offscreen_framebuf_create_info.width = _offscreen_width;
-    offscreen_framebuf_create_info.height = _offscreen_height;
+    offscreen_framebuf_create_info.width = _offscreen_target.width;
+    offscreen_framebuf_create_info.height = _offscreen_target.height;
     offscreen_framebuf_create_info.layers = 1;
     if (VK_SUCCESS !=
-        vkCreateFramebuffer(_vk_device, &offscreen_framebuf_create_info, nullptr, &_offscreen_vk_framebuffer)) {
+        vkCreateFramebuffer(_vk_device, &offscreen_framebuf_create_info, nullptr, &_offscreen_target.vk_framebuffer)) {
         logger.LogFatalError("Failed to create offscreen framebuffer");
         return false;
     }
@@ -364,7 +312,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
     semaphore_create_info.pNext = nullptr;
     semaphore_create_info.flags = 0;
-    if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_offscreen_vk_semaphore)) {
+    if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_offscreen_target.vk_semaphore)) {
         logger.LogFatalError("Failed to create offscreen semaphore");
         return false;
     }
@@ -381,28 +329,28 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkRenderPassBeginInfo render_pass_begin_info = {};
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.pNext = nullptr;
-    render_pass_begin_info.renderPass = _offscreen_vk_render_pass;
-    render_pass_begin_info.framebuffer = _offscreen_vk_framebuffer;
+    render_pass_begin_info.renderPass = _offscreen_target.vk_render_pass;
+    render_pass_begin_info.framebuffer = _offscreen_target.vk_framebuffer;
     render_pass_begin_info.renderArea.offset.x = 0;
     render_pass_begin_info.renderArea.offset.y = 0;
-    render_pass_begin_info.renderArea.extent.width = _offscreen_width;
-    render_pass_begin_info.renderArea.extent.height = _offscreen_height;
+    render_pass_begin_info.renderArea.extent.width = _offscreen_target.width;
+    render_pass_begin_info.renderArea.extent.height = _offscreen_target.height;
     render_pass_begin_info.clearValueCount = 2;
     render_pass_begin_info.pClearValues = clear_values;
     vkCmdBeginRenderPass(vk_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
     // Update dynamic viewport state
     VkViewport viewport = {};
-    viewport.height = (float)_offscreen_height;
-    viewport.width = (float)_offscreen_width;
+    viewport.height = (float)_offscreen_target.height;
+    viewport.width = (float)_offscreen_target.width;
     viewport.minDepth = (float)0.0f;
     viewport.maxDepth = (float)1.0f;
     vkCmdSetViewport(vk_command_buffer, 0, 1, &viewport);
 
     // Update dynamic scissor state
     VkRect2D scissor = {};
-    scissor.extent.width = _offscreen_width;
-    scissor.extent.height = _offscreen_height;
+    scissor.extent.width = _offscreen_target.width;
+    scissor.extent.height = _offscreen_target.height;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_command_buffer, 0, 1, &scissor);
@@ -422,7 +370,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     descriptor_set_layout.bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
     descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
     if (VK_SUCCESS != vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr,
-                                                  &_offscreen_vk_descriptor_set_layout)) {
+                                                  &_offscreen_target.vk_descriptor_set_layout)) {
         logger.LogFatalError("Failed to create offscreen render target descriptor set layout");
         return false;
     }
@@ -433,9 +381,9 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     pipeline_layout_create_info.pushConstantRangeCount = 0;
     pipeline_layout_create_info.pPushConstantRanges = nullptr;
     pipeline_layout_create_info.setLayoutCount = 1;
-    pipeline_layout_create_info.pSetLayouts = &_offscreen_vk_descriptor_set_layout;
+    pipeline_layout_create_info.pSetLayouts = &_offscreen_target.vk_descriptor_set_layout;
     if (VK_SUCCESS !=
-        vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_offscreen_vk_pipeline_layout)) {
+        vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_offscreen_target.vk_pipeline_layout)) {
         logger.LogFatalError("Failed to create offscreen render target pipeline layout layout");
         return false;
     }
@@ -450,26 +398,26 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     buffer_create_info.pQueueFamilyIndices = nullptr;
     buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     buffer_create_info.flags = 0;
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_vertex_buffer.vk_buffer)) {
+    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.vertex_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create vertex buffer");
         return false;
     }
     if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-            _offscreen_vertex_buffer.vk_buffer,
+            _offscreen_target.vertex_buffer.vk_buffer,
             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-            _offscreen_vertex_buffer.vk_memory, _offscreen_vertex_buffer.vk_size)) {
+            _offscreen_target.vertex_buffer.vk_memory, _offscreen_target.vertex_buffer.vk_size)) {
         logger.LogFatalError("Failed to allocate offscreen vertex buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_vertex_buffer.vk_memory, 0, _offscreen_vertex_buffer.vk_size,
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.vertex_buffer.vk_memory, 0, _offscreen_target.vertex_buffer.vk_size,
                                   0, (void **)&mapped_data)) {
         logger.LogFatalError("Failed to map offscreen vertex buffer memory");
         return false;
     }
     memcpy(mapped_data, g_offscreen_color_quad_data, sizeof(g_offscreen_color_quad_data));
-    vkUnmapMemory(_vk_device, _offscreen_vertex_buffer.vk_memory);
+    vkUnmapMemory(_vk_device, _offscreen_target.vertex_buffer.vk_memory);
     if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_vertex_buffer.vk_buffer, _offscreen_vertex_buffer.vk_memory, 0)) {
+        vkBindBufferMemory(_vk_device, _offscreen_target.vertex_buffer.vk_buffer, _offscreen_target.vertex_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen vertex buffer memory");
         return false;
     }
@@ -477,57 +425,58 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     // Create the offscreen index buffer
     buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     buffer_create_info.size = sizeof(g_offscreen_color_quad_index_data);
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_index_buffer.vk_buffer)) {
+    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.index_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create offscreen index buffer");
         return false;
     }
+    _offscreen_target.num_vertices = sizeof(g_offscreen_color_quad_index_data) / sizeof(uint32_t);
     if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-            _offscreen_index_buffer.vk_buffer,
+            _offscreen_target.index_buffer.vk_buffer,
             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-            _offscreen_index_buffer.vk_memory, _offscreen_index_buffer.vk_size)) {
+            _offscreen_target.index_buffer.vk_memory, _offscreen_target.index_buffer.vk_size)) {
         logger.LogFatalError("Failed to allocate offscreen index buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_index_buffer.vk_memory, 0, _offscreen_index_buffer.vk_size, 0,
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.index_buffer.vk_memory, 0, _offscreen_target.index_buffer.vk_size, 0,
                                   (void **)&mapped_data)) {
         logger.LogFatalError("Failed to map offscreen index buffer memory");
         return false;
     }
     memcpy(mapped_data, g_offscreen_color_quad_index_data, sizeof(g_offscreen_color_quad_index_data));
-    vkUnmapMemory(_vk_device, _offscreen_index_buffer.vk_memory);
+    vkUnmapMemory(_vk_device, _offscreen_target.index_buffer.vk_memory);
     if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_index_buffer.vk_buffer, _offscreen_index_buffer.vk_memory, 0)) {
+        vkBindBufferMemory(_vk_device, _offscreen_target.index_buffer.vk_buffer, _offscreen_target.index_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen index buffer memory");
         return false;
     }
 
     VkDeviceSize required_data_size = sizeof(float) * 8 + sizeof(uint32_t);
     VkDeviceSize vk_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
-    _offscreen_vk_uniform_vec4_alignment =
+    _offscreen_target.vk_uniform_vec4_alignment =
         (required_data_size + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
 
     // The smallest submit size is an atom, so we need to make sure we're at least as big as that per
     // uniform buffer submission.
-    if (_offscreen_vk_uniform_vec4_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
-        _offscreen_vk_uniform_vec4_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
+    if (_offscreen_target.vk_uniform_vec4_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
+        _offscreen_target.vk_uniform_vec4_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
     }
 
     // Create the uniform buffer containing the mvp matrix
     buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
-    buffer_create_info.size = _offscreen_vk_uniform_vec4_alignment * _swapchain_count;
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_uniform_buffer.vk_buffer)) {
+    buffer_create_info.size = _offscreen_target.vk_uniform_vec4_alignment * _swapchain_count;
+    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.uniform_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create offscreen uniform buffer");
         return false;
     }
     if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-            _offscreen_uniform_buffer.vk_buffer,
+            _offscreen_target.uniform_buffer.vk_buffer,
             (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-            _offscreen_uniform_buffer.vk_memory, _offscreen_uniform_buffer.vk_size)) {
+            _offscreen_target.uniform_buffer.vk_memory, _offscreen_target.uniform_buffer.vk_size)) {
         logger.LogFatalError("Failed to allocate offscreen uniform buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_uniform_buffer.vk_memory, 0, _offscreen_uniform_buffer.vk_size,
-                                  0, (void **)&_offscreen_uniform_mapped_data)) {
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.uniform_buffer.vk_memory, 0, _offscreen_target.uniform_buffer.vk_size,
+                                  0, (void **)&_offscreen_target.uniform_mapped_data)) {
         logger.LogFatalError("Failed to map offscreen uniform buffer memory");
         return false;
     }
@@ -542,11 +491,11 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     *float_data++ = 0.f;
     *float_data++ = 1.f;
     uint32_t *int_data = reinterpret_cast<uint32_t *>(float_data);
-    memcpy(_offscreen_uniform_mapped_data, data, required_data_size);
+    memcpy(_offscreen_target.uniform_mapped_data, data, required_data_size);
     delete[] data;
 
     if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_uniform_buffer.vk_buffer, _offscreen_uniform_buffer.vk_memory, 0)) {
+        vkBindBufferMemory(_vk_device, _offscreen_target.uniform_buffer.vk_buffer, _offscreen_target.uniform_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen uniform buffer memory");
         return false;
     }
@@ -564,7 +513,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
     descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
     if (VK_SUCCESS !=
-        vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_offscreen_vk_descriptor_pool)) {
+        vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_offscreen_target.vk_descriptor_pool)) {
         logger.LogFatalError("Failed to create offscreen descriptor pool");
         return false;
     }
@@ -572,17 +521,17 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
     descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
     descriptor_set_allocate_info.pNext = NULL;
-    descriptor_set_allocate_info.descriptorPool = _offscreen_vk_descriptor_pool;
+    descriptor_set_allocate_info.descriptorPool = _offscreen_target.vk_descriptor_pool;
     descriptor_set_allocate_info.descriptorSetCount = 1;
-    descriptor_set_allocate_info.pSetLayouts = &_offscreen_vk_descriptor_set_layout;
+    descriptor_set_allocate_info.pSetLayouts = &_offscreen_target.vk_descriptor_set_layout;
     if (VK_SUCCESS !=
-        vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_offscreen_vk_descriptor_set)) {
+        vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_offscreen_target.vk_descriptor_set)) {
         logger.LogFatalError("Failed to allocate offscreen descriptor set");
         return false;
     }
 
     VkDescriptorBufferInfo descriptor_buffer_info = {};
-    descriptor_buffer_info.buffer = _offscreen_uniform_buffer.vk_buffer;
+    descriptor_buffer_info.buffer = _offscreen_target.uniform_buffer.vk_buffer;
     descriptor_buffer_info.offset = 0;
     descriptor_buffer_info.range = required_data_size;
 
@@ -590,7 +539,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkWriteDescriptorSet write_set = {};
     write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
     write_set.pNext = nullptr;
-    write_set.dstSet = _offscreen_vk_descriptor_set;
+    write_set.dstSet = _offscreen_target.vk_descriptor_set;
     write_set.dstBinding = 0;
     write_set.descriptorCount = 1;
     write_set.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
@@ -657,13 +606,13 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     VkRect2D scissor_rect = {};
     scissor_rect.offset.x = 0;
     scissor_rect.offset.y = 0;
-    scissor_rect.extent.width = _offscreen_width;
-    scissor_rect.extent.height = _offscreen_height;
+    scissor_rect.extent.width = _offscreen_target.width;
+    scissor_rect.extent.height = _offscreen_target.height;
     viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)_offscreen_width;
-    viewport.height = (float)_offscreen_height;
+    viewport.width = (float)_offscreen_target.width;
+    viewport.height = (float)_offscreen_target.height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     VkPipelineViewportStateCreateInfo pipeline_viewport_state_create_info = {};
@@ -702,7 +651,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
 
     VkGraphicsPipelineCreateInfo gfx_pipeline_create_info = {};
     gfx_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-    gfx_pipeline_create_info.layout = _offscreen_vk_pipeline_layout;
+    gfx_pipeline_create_info.layout = _offscreen_target.vk_pipeline_layout;
     gfx_pipeline_create_info.pVertexInputState = &pipline_vert_input_state_create_info;
     gfx_pipeline_create_info.pInputAssemblyState = &pipline_input_assembly_state_create_info;
     gfx_pipeline_create_info.pRasterizationState = &pipeline_raster_state_create_info;
@@ -712,10 +661,10 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     gfx_pipeline_create_info.pDepthStencilState = &pipeline_depth_stencil_state_create_info;
     gfx_pipeline_create_info.stageCount = static_cast<uint32_t>(pipeline_shader_stage_create_info.size());
     gfx_pipeline_create_info.pStages = pipeline_shader_stage_create_info.data();
-    gfx_pipeline_create_info.renderPass = _offscreen_vk_render_pass;
+    gfx_pipeline_create_info.renderPass = _offscreen_target.vk_render_pass;
     gfx_pipeline_create_info.pDynamicState = &pipeline_dynamic_state_create_info;
     if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, VK_NULL_HANDLE, 1, &gfx_pipeline_create_info, nullptr,
-                                                &_offscreen_vk_pipeline)) {
+                                                &_offscreen_target.vk_pipeline)) {
         logger.LogFatalError("Failed to create graphics pipeline");
         return false;
     }
@@ -774,7 +723,7 @@ bool OffscreenRenderingApp::Setup() {
         descriptor_set_layout.bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
         if (VK_SUCCESS !=
-            vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
+            vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_onscreen_target.vk_descriptor_set_layout)) {
             logger.LogFatalError("Failed to create descriptor set layout");
             return false;
         }
@@ -785,9 +734,9 @@ bool OffscreenRenderingApp::Setup() {
         pipeline_layout_create_info.pushConstantRangeCount = 0;
         pipeline_layout_create_info.pPushConstantRanges = nullptr;
         pipeline_layout_create_info.setLayoutCount = 1;
-        pipeline_layout_create_info.pSetLayouts = &_vk_descriptor_set_layout;
+        pipeline_layout_create_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
         if (VK_SUCCESS !=
-            vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_vk_pipeline_layout)) {
+            vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_onscreen_target.vk_pipeline_layout)) {
             logger.LogFatalError("Failed to create pipeline layout layout");
             return false;
         }
@@ -848,7 +797,7 @@ bool OffscreenRenderingApp::Setup() {
         render_pass_create_info.pSubpasses = &subpass_description;
         render_pass_create_info.dependencyCount = 0;
         render_pass_create_info.pDependencies = nullptr;
-        if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_vk_render_pass)) {
+        if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_onscreen_target.vk_render_pass)) {
             logger.LogFatalError("Failed to create renderpass");
             return false;
         }
@@ -858,54 +807,55 @@ bool OffscreenRenderingApp::Setup() {
         buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
         buffer_create_info.pNext = nullptr;
         buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_quad_vertex_buffer_data);
+        buffer_create_info.size = sizeof(g_screen_textured_quad_data);
         buffer_create_info.queueFamilyIndexCount = 0;
         buffer_create_info.pQueueFamilyIndices = nullptr;
         buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         buffer_create_info.flags = 0;
-        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_vertex_buffer.vk_buffer)) {
+        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.vertex_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create vertex buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _vertex_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                _vertex_buffer.vk_memory, _vertex_buffer.vk_size)) {
+                _onscreen_target.vertex_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.vertex_buffer.vk_memory, _onscreen_target.vertex_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate vertex buffer memory");
             return false;
         }
         if (VK_SUCCESS !=
-            vkMapMemory(_vk_device, _vertex_buffer.vk_memory, 0, _vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
+            vkMapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory, 0, _onscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map vertex buffer memory");
             return false;
         }
-        memcpy(mapped_data, g_quad_vertex_buffer_data, sizeof(g_quad_vertex_buffer_data));
-        vkUnmapMemory(_vk_device, _vertex_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _vertex_buffer.vk_buffer, _vertex_buffer.vk_memory, 0)) {
+        memcpy(mapped_data, g_screen_textured_quad_data, sizeof(g_screen_textured_quad_data));
+        vkUnmapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory);
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.vertex_buffer.vk_buffer, _onscreen_target.vertex_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind vertex buffer memory");
             return false;
         }
 
         // Create the index buffer
         buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_quad_index_buffer_data);
-        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_index_buffer.vk_buffer)) {
+        buffer_create_info.size = sizeof(g_screen_textured_quad_index_data);
+        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.index_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create index buffer");
             return false;
         }
+        _onscreen_target.num_vertices = sizeof(g_screen_textured_quad_index_data) / sizeof(uint32_t);
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _index_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                _index_buffer.vk_memory, _index_buffer.vk_size)) {
+                _onscreen_target.index_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.index_buffer.vk_memory, _onscreen_target.index_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate index buffer memory");
             return false;
         }
         if (VK_SUCCESS !=
-            vkMapMemory(_vk_device, _index_buffer.vk_memory, 0, _index_buffer.vk_size, 0, (void **)&mapped_data)) {
+            vkMapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory, 0, _onscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map index buffer memory");
             return false;
         }
-        memcpy(mapped_data, g_quad_index_buffer_data, sizeof(g_quad_index_buffer_data));
-        vkUnmapMemory(_vk_device, _index_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _index_buffer.vk_buffer, _index_buffer.vk_memory, 0)) {
+        memcpy(mapped_data, g_screen_textured_quad_index_data, sizeof(g_screen_textured_quad_index_data));
+        vkUnmapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory);
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.index_buffer.vk_buffer, _onscreen_target.index_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind index buffer memory");
             return false;
         }
@@ -926,7 +876,7 @@ bool OffscreenRenderingApp::Setup() {
         descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
         descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
         if (VK_SUCCESS !=
-            vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
+            vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_onscreen_target.vk_descriptor_pool)) {
             logger.LogFatalError("Failed to create descriptor pool");
             return false;
         }
@@ -934,10 +884,10 @@ bool OffscreenRenderingApp::Setup() {
         VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
         descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
         descriptor_set_allocate_info.pNext = NULL;
-        descriptor_set_allocate_info.descriptorPool = _vk_descriptor_pool;
+        descriptor_set_allocate_info.descriptorPool = _onscreen_target.vk_descriptor_pool;
         descriptor_set_allocate_info.descriptorSetCount = 1;
-        descriptor_set_allocate_info.pSetLayouts = &_vk_descriptor_set_layout;
-        if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_vk_descriptor_set)) {
+        descriptor_set_allocate_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
+        if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_onscreen_target.vk_descriptor_set)) {
             logger.LogFatalError("Failed to allocate descriptor set");
             return false;
         }
@@ -953,7 +903,7 @@ bool OffscreenRenderingApp::Setup() {
         VkWriteDescriptorSet write_set = {};
         write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
         write_set.pNext = nullptr;
-        write_set.dstSet = _vk_descriptor_set;
+        write_set.dstSet = _onscreen_target.vk_descriptor_set;
         write_set.dstBinding = 1;
         write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         write_set.descriptorCount = static_cast<uint32_t>(descriptor_image_infos.size());
@@ -1071,7 +1021,7 @@ bool OffscreenRenderingApp::Setup() {
 
         VkGraphicsPipelineCreateInfo gfx_pipeline_create_info = {};
         gfx_pipeline_create_info.sType = VK_STRUCTURE_TYPE_GRAPHICS_PIPELINE_CREATE_INFO;
-        gfx_pipeline_create_info.layout = _vk_pipeline_layout;
+        gfx_pipeline_create_info.layout = _onscreen_target.vk_pipeline_layout;
         gfx_pipeline_create_info.pVertexInputState = &pipline_vert_input_state_create_info;
         gfx_pipeline_create_info.pInputAssemblyState = &pipline_input_assembly_state_create_info;
         gfx_pipeline_create_info.pRasterizationState = &pipeline_raster_state_create_info;
@@ -1081,10 +1031,10 @@ bool OffscreenRenderingApp::Setup() {
         gfx_pipeline_create_info.pDepthStencilState = &pipeline_depth_stencil_state_create_info;
         gfx_pipeline_create_info.stageCount = static_cast<uint32_t>(pipeline_shader_stage_create_info.size());
         gfx_pipeline_create_info.pStages = pipeline_shader_stage_create_info.data();
-        gfx_pipeline_create_info.renderPass = _vk_render_pass;
+        gfx_pipeline_create_info.renderPass = _onscreen_target.vk_render_pass;
         gfx_pipeline_create_info.pDynamicState = &pipeline_dynamic_state_create_info;
         if (VK_SUCCESS != vkCreateGraphicsPipelines(_vk_device, VK_NULL_HANDLE, 1, &gfx_pipeline_create_info, nullptr,
-                                                    &_vk_pipeline)) {
+                                                    &_onscreen_target.vk_pipeline)) {
             logger.LogFatalError("Failed to create graphics pipeline");
             return false;
         }
@@ -1095,7 +1045,7 @@ bool OffscreenRenderingApp::Setup() {
     if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
-    _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
+    _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_onscreen_target.vk_render_pass, _depth_buffer.vk_image_view);
     _current_buffer = 0;
 
     return true;
@@ -1135,12 +1085,12 @@ bool OffscreenRenderingApp::Draw() {
     clear_values[1].depthStencil.stencil = 0;
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.pNext = nullptr;
-    render_pass_begin_info.renderPass = _offscreen_vk_render_pass;
-    render_pass_begin_info.framebuffer = _offscreen_vk_framebuffer;
+    render_pass_begin_info.renderPass = _offscreen_target.vk_render_pass;
+    render_pass_begin_info.framebuffer = _offscreen_target.vk_framebuffer;
     render_pass_begin_info.renderArea.offset.x = 0;
     render_pass_begin_info.renderArea.offset.y = 0;
-    render_pass_begin_info.renderArea.extent.width = _offscreen_width;
-    render_pass_begin_info.renderArea.extent.height = _offscreen_height;
+    render_pass_begin_info.renderArea.extent.width = _offscreen_target.width;
+    render_pass_begin_info.renderArea.extent.height = _offscreen_target.height;
     render_pass_begin_info.clearValueCount = 2;
     render_pass_begin_info.pClearValues = clear_values;
     if (VK_SUCCESS != vkBeginCommandBuffer(vk_render_command_buffer, &command_buffer_begin_info)) {
@@ -1149,40 +1099,40 @@ bool OffscreenRenderingApp::Draw() {
 
     vkCmdBeginRenderPass(vk_render_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
 
-    VkDeviceSize offset = (_offscreen_vk_uniform_vec4_alignment * _current_buffer);
-    memcpy(_offscreen_uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
+    VkDeviceSize offset = (_offscreen_target.vk_uniform_vec4_alignment * _current_buffer);
+    memcpy(_offscreen_target.uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
     VkMappedMemoryRange memoryRange = {};
     memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
-    memoryRange.memory = _offscreen_uniform_buffer.vk_memory;
-    memoryRange.size = _offscreen_vk_uniform_vec4_alignment;
+    memoryRange.memory = _offscreen_target.uniform_buffer.vk_memory;
+    memoryRange.size = _offscreen_target.vk_uniform_vec4_alignment;
     memoryRange.offset = offset;
     vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
 
     // Update dynamic viewport state
     VkViewport viewport = {};
-    viewport.height = (float)_offscreen_height;
-    viewport.width = (float)_offscreen_width;
+    viewport.height = (float)_offscreen_target.height;
+    viewport.width = (float)_offscreen_target.width;
     viewport.minDepth = (float)0.0f;
     viewport.maxDepth = (float)1.0f;
     vkCmdSetViewport(vk_render_command_buffer, 0, 1, &viewport);
 
     // Update dynamic scissor state
     VkRect2D scissor = {};
-    scissor.extent.width = _offscreen_width;
-    scissor.extent.height = _offscreen_height;
+    scissor.extent.width = _offscreen_target.width;
+    scissor.extent.height = _offscreen_target.height;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * static_cast<uint32_t>(_offscreen_vk_uniform_vec4_alignment);
-    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_vk_pipeline_layout, 0,
-                            1, &_offscreen_vk_descriptor_set, 1, &dynamic_offset);
-    vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_vk_pipeline);
+    uint32_t dynamic_offset = _current_buffer * static_cast<uint32_t>(_offscreen_target.vk_uniform_vec4_alignment);
+    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_target.vk_pipeline_layout, 0,
+                            1, &_offscreen_target.vk_descriptor_set, 1, &dynamic_offset);
+    vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_target.vk_pipeline);
 
     const VkDeviceSize vert_buffer_offset = 0;
-    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_offscreen_vertex_buffer.vk_buffer, &vert_buffer_offset);
-    vkCmdBindIndexBuffer(vk_render_command_buffer, _offscreen_index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(vk_render_command_buffer, 6, 1, 0, 0, 1);
+    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_offscreen_target.vertex_buffer.vk_buffer, &vert_buffer_offset);
+    vkCmdBindIndexBuffer(vk_render_command_buffer, _offscreen_target.index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(vk_render_command_buffer, _offscreen_target.num_vertices, 1, 0, 0, 1);
 
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
@@ -1207,7 +1157,7 @@ bool OffscreenRenderingApp::Draw() {
     clear_values[1].depthStencil.stencil = 0;
     render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
     render_pass_begin_info.pNext = nullptr;
-    render_pass_begin_info.renderPass = _vk_render_pass;
+    render_pass_begin_info.renderPass = _onscreen_target.vk_render_pass;
     render_pass_begin_info.framebuffer = vk_framebuffer;
     render_pass_begin_info.renderArea.offset.x = 0;
     render_pass_begin_info.renderArea.offset.y = 0;
@@ -1238,13 +1188,13 @@ bool OffscreenRenderingApp::Draw() {
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
     dynamic_offset = offset;
-    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
-                            &_vk_descriptor_set, 1, &dynamic_offset);
-    vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
+    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _onscreen_target.vk_pipeline_layout, 0, 1,
+                            &_onscreen_target.vk_descriptor_set, 1, &dynamic_offset);
+    vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _onscreen_target.vk_pipeline);
 
-    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
-    vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(vk_render_command_buffer, 6, 1, 0, 0, 1);
+    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_onscreen_target.vertex_buffer.vk_buffer, &vert_buffer_offset);
+    vkCmdBindIndexBuffer(vk_render_command_buffer, _onscreen_target.index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(vk_render_command_buffer, _onscreen_target.num_vertices, 1, 0, 0, 1);
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
         logger.LogFatalError("Failed to end command buffer");
