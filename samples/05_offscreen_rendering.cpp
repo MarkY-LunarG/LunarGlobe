@@ -130,13 +130,13 @@ void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget& target) {
         vkDestroyBuffer(_vk_device, target.uniform_buffer.vk_buffer, nullptr);
         target.uniform_buffer.vk_buffer = VK_NULL_HANDLE;
     }
-    if (nullptr != target.index_buffer.vk_memory) {
+    if (VK_NULL_HANDLE != target.index_buffer.vk_memory) {
         _globe_resource_mgr->FreeDeviceMemory(target.index_buffer.vk_memory);
-        target.index_buffer.vk_memory = nullptr;
+        target.index_buffer.vk_memory = VK_NULL_HANDLE;
     }
-    if (nullptr != target.vertex_buffer.vk_memory) {
+    if (VK_NULL_HANDLE != target.vertex_buffer.vk_memory) {
         _globe_resource_mgr->FreeDeviceMemory(target.vertex_buffer.vk_memory);
-        target.vertex_buffer.vk_memory = nullptr;
+        target.vertex_buffer.vk_memory = VK_NULL_HANDLE;
     }
     if (VK_NULL_HANDLE != target.index_buffer.vk_buffer) {
         vkDestroyBuffer(_vk_device, target.index_buffer.vk_buffer, nullptr);
