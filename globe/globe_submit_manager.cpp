@@ -976,10 +976,10 @@ bool GlobeSubmitManager::SubmitAndPresent() {
         // simple that it doesn't do either of those.
     }
 
-    // Wait for the image acquired semaphore to be signaled to ensure
-    // that the image won't be rendered to until the presentation
-    // engine has fully released ownership to the application, and it is
-    // okay to render to the image.
+    // The `VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT` is the stage where the final color
+    // values are output from the pipeline.  We use the `imageAcquiredSemaphore` to wait
+    // at the color attachment output stage until the swapchain image is available before
+    // writing colors to it.
     VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
