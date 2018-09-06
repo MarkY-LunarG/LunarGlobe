@@ -181,21 +181,21 @@ bool MultiTexApp::Setup() {
 
         std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings;
         VkDescriptorSetLayoutBinding cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         cur_binding.pImmutableSamplers = nullptr;
         descriptor_set_layout_bindings.push_back(cur_binding);
         cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         cur_binding.pImmutableSamplers = nullptr;
         descriptor_set_layout_bindings.push_back(cur_binding);
         cur_binding = {};
-        cur_binding.binding = descriptor_set_layout_bindings.size();
+        cur_binding.binding = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         cur_binding.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
         cur_binding.descriptorCount = 1;
         cur_binding.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
@@ -205,7 +205,7 @@ bool MultiTexApp::Setup() {
         VkDescriptorSetLayoutCreateInfo descriptor_set_layout = {};
         descriptor_set_layout.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_LAYOUT_CREATE_INFO;
         descriptor_set_layout.pNext = nullptr;
-        descriptor_set_layout.bindingCount = descriptor_set_layout_bindings.size();
+        descriptor_set_layout.bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
         if (VK_SUCCESS !=
             vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
@@ -390,7 +390,7 @@ bool MultiTexApp::Setup() {
         descriptor_pool_create_info.pNext = nullptr;
         descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
         descriptor_pool_create_info.maxSets = 2;
-        descriptor_pool_create_info.poolSizeCount = descriptor_pool_sizes.size();
+        descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
         descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
         if (VK_SUCCESS !=
             vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
@@ -442,11 +442,11 @@ bool MultiTexApp::Setup() {
         write_set.dstSet = _vk_descriptor_set;
         write_set.dstBinding = 1;
         write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_set.descriptorCount = descriptor_image_infos.size();
+        write_set.descriptorCount = static_cast<uint32_t>(descriptor_image_infos.size());
         write_set.pImageInfo = descriptor_image_infos.data();
         write_descriptor_sets.push_back(write_set);
 
-        vkUpdateDescriptorSets(_vk_device, write_descriptor_sets.size(), write_descriptor_sets.data(), 0, nullptr);
+        vkUpdateDescriptorSets(_vk_device, static_cast<uint32_t>(write_descriptor_sets.size()), write_descriptor_sets.data(), 0, nullptr);
 
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
@@ -682,7 +682,7 @@ bool MultiTexApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_vec4_alignment;
+    uint32_t dynamic_offset = _current_buffer * static_cast<uint32_t>(_vk_uniform_vec4_alignment);
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);

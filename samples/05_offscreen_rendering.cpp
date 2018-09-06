@@ -224,7 +224,7 @@ void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget &target) {
         target.vk_descriptor_set_layout = VK_NULL_HANDLE;
     }
     if (target._vk_command_buffers.size() > 0) {
-        vkFreeCommandBuffers(_vk_device, target._vk_command_pool, target._vk_command_buffers.size(),
+        vkFreeCommandBuffers(_vk_device, target._vk_command_pool, static_cast<uint32_t>(target._vk_command_buffers.size()),
                              target._vk_command_buffers.data());
         target._vk_command_buffers.clear();
     }
@@ -566,7 +566,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         return false;
     }
     for (uint32_t index = 0; index < _swapchain_count; ++index) {
-        uint32_t offset = index * _offscreen_target.vk_uniform_vec4_alignment;
+        uint32_t offset = index * static_cast<uint32_t>(_offscreen_target.vk_uniform_vec4_alignment);
         uint8_t* mapped_addr = _offscreen_target.uniform_mapped_data + offset;
         memcpy(mapped_addr, &_color_0, sizeof(glm::vec4));
         memcpy(mapped_addr + sizeof(glm::vec4), &_color_1, sizeof(glm::vec4));
@@ -1322,7 +1322,7 @@ bool OffscreenRenderingApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    dynamic_offset = offset;
+    dynamic_offset = static_cast<uint32_t>(offset);
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
                             _onscreen_target.vk_pipeline_layout, 0, 1, &_onscreen_target.vk_descriptor_set, 1,
                             &dynamic_offset);

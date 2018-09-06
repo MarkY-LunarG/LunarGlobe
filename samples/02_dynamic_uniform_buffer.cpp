@@ -591,7 +591,7 @@ bool DynamicUniformApp::Draw() {
     scissor.offset.y = 0;
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
-    uint32_t dynamic_offset = _current_buffer * _vk_uniform_matrix_alignment;
+    uint32_t dynamic_offset = _current_buffer * static_cast<uint32_t>(_vk_uniform_matrix_alignment);
     vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 1, &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
