@@ -993,20 +993,26 @@ bool GlobeSubmitManager::SubmitAndPresent(VkSemaphore wait_semaphore) {
     // values are output from the pipeline.  We use the `imageAcquiredSemaphore` to wait
     // at the color attachment output stage until the swapchain image is available before
     // writing colors to it.
-    VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+    VkPipelineStageFlags pipe_stage_flags[2];
+    pipe_stage_flags[0] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
     if (VK_NULL_HANDLE == wait_semaphore) {
         submit_info.waitSemaphoreCount = 1;
         submit_info.pWaitSemaphores = &_image_acquired_semaphores[_cur_wait_index];
+        submit_info.pWaitDstStageMask = pipe_stage_flags;
     } else {
-        submit_info.waitSemaphoreCount = 1;
-        submit_info.pWaitSemaphores = &wait_semaphore;
+        VkSemaphore wait_semaphores[2];
+        pipe_stage_flags[1] = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        wait_semaphores[0] = _image_acquired_semaphores[_cur_wait_index];
+        wait_semaphores[1] = wait_semaphore;
+        submit_info.waitSemaphoreCount = 2;
+        submit_info.pWaitSemaphores = wait_semaphores;
+        submit_info.pWaitDstStageMask = pipe_stage_flags;
     }
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &_draw_complete_semaphores[_cur_wait_index];
-    submit_info.pWaitDstStageMask = &pipe_stage_flags;
     submit_info.commandBufferCount = 1;
     submit_info.pCommandBuffers = &_vk_render_command_buffers[_cur_image];
     if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, _vk_fences[_cur_wait_index])) {

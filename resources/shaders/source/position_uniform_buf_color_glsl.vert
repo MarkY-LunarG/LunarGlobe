@@ -21,17 +21,17 @@ layout(std140, binding = 0) uniform buf {
     vec4 color_1;
     vec4 color_2;
     uint color_1_index;
-} my_uniform_buf;
+} uniform_buf;
 
 layout (location = 0) in vec4 in_position;
 layout (location = 0) out vec4 out_color;
 
 void main() 
 {
-    if (gl_VertexIndex <= my_uniform_buf.color_1_index) {
-        out_color = my_uniform_buf.color_1;
+    if (gl_VertexIndex < uniform_buf.color_1_index) {
+        out_color = uniform_buf.color_1;
     } else {
-        out_color = my_uniform_buf.color_2;
+        out_color = uniform_buf.color_2;
     }
     gl_Position = in_position;
 }

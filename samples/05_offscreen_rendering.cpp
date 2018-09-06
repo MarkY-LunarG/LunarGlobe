@@ -88,21 +88,91 @@ class OffscreenRenderingApp : public GlobeApp {
 
    private:
     void CleanupVulkanTarget(VulkanTarget &target);
+    void DetermineNewColor();
 
     uint32_t _last_buffer;
     VulkanTarget _onscreen_target;
     VulkanTarget _offscreen_target;
     GlobeTexture *_offscreen_color;
     GlobeTexture *_offscreen_depth;
-    glm::vec4 _ellipse_center;
-    glm::vec4 _movement_dir;
+    int32_t _color_index;
+    int32_t _selected_index;
+    glm::vec4 _color_0;
+    glm::vec4 _color_1;
 };
+
+void OffscreenRenderingApp::DetermineNewColor() {
+    if (++_selected_index >= 18) {
+        _selected_index = 0;
+        if (++_color_index > 12) {
+            _color_index = 0;
+        }
+        switch (_color_index) {
+            case 0:
+            default:
+                _color_0 = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+                break;
+            case 1:
+                _color_0 = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+                break;
+            case 2:
+                _color_0 = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+                break;
+            case 3:
+                _color_0 = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
+                break;
+            case 4:
+                _color_0 = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                break;
+            case 5:
+                _color_0 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+                break;
+            case 6:
+                _color_0 = glm::vec4(1.0f, 1.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
+                break;
+            case 7:
+                _color_0 = glm::vec4(0.0f, 1.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                break;
+            case 8:
+                _color_0 = glm::vec4(1.0f, 0.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+                break;
+            case 9:
+                _color_0 = glm::vec4(1.0f, 1.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+                break;
+            case 10:
+                _color_0 = glm::vec4(1.0f, 0.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+                break;
+            case 11:
+                _color_0 = glm::vec4(0.0f, 1.0f, 0.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+                break;
+            case 12:
+                _color_0 = glm::vec4(0.0f, 0.0f, 1.0f, 1.0f);
+                _color_1 = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+                break;
+        }
+    }
+}
 
 OffscreenRenderingApp::OffscreenRenderingApp() {
     _onscreen_target = {};
     _offscreen_target = {};
     _offscreen_color = nullptr;
     _offscreen_depth = nullptr;
+    _selected_index = -1;
+    _color_index = -1;
+    DetermineNewColor();
 }
 
 OffscreenRenderingApp::~OffscreenRenderingApp() { Cleanup(); }
@@ -180,7 +250,6 @@ static const float g_screen_textured_quad_data[] = {
     0.0f,  0.0f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 5
     0.0f,  0.7f,  0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 6
     0.7f,  0.4f,  0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 7
-
     0.0f,  -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vert 8
     -0.7f, -0.3f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 9
     0.0f,  0.0f,  0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 10
@@ -199,7 +268,6 @@ static float g_offscreen_color_quad_data[] = {
     0.9f,  0.4f,  0.0f, 1.0f,  // 6
     0.5f,  0.5f,  0.0f, 1.0f,  // 7
     0.1f,  0.4f,  0.0f, 1.0f,  // 8
-
     -0.5f, 0.0f,  0.0f, 1.0f,  // 9 (left center)
     -0.1f, -0.4f, 0.0f, 1.0f,  // 10
     -0.5f, -0.5f, 0.0f, 1.0f,  // 11
@@ -208,10 +276,12 @@ static float g_offscreen_color_quad_data[] = {
     -0.9f, 0.4f,  0.0f, 1.0f,  // 14
     -0.5f, 0.5f,  0.0f, 1.0f,  // 15
     -0.1f, 0.4f,  0.0f, 1.0f,  // 16
+    0.0f,  0.0f,  0.0f, 1.0f,  // 17
 };
 static const uint32_t g_offscreen_color_quad_index_data[] = {0, 2,  1,  0, 3,  2,  0, 4,  3,  0, 5,  4,  0, 6,  5,
                                                              0, 7,  6,  0, 8,  7,  0, 1,  8,  9, 1,  10, 9, 10, 11,
-                                                             9, 11, 12, 9, 12, 13, 9, 13, 14, 9, 14, 15, 9, 15, 16};
+                                                             9, 11, 12, 9, 12, 13, 9, 13, 14, 9, 14, 15, 9, 15, 16,
+                                                             9, 16, 17};
 
 bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
                                                   VkFormat vk_color_format, VkFormat vk_depth_stencil_format) {
@@ -463,7 +533,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         return false;
     }
 
-    VkDeviceSize required_data_size = sizeof(float) * 8 + sizeof(uint32_t);
+    VkDeviceSize required_data_size = sizeof(float) * 8 + sizeof(int32_t);
     VkDeviceSize vk_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
     _offscreen_target.vk_uniform_vec4_alignment =
         (required_data_size + vk_uniform_alignment - 1) & ~(vk_uniform_alignment - 1);
@@ -495,20 +565,13 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         logger.LogFatalError("Failed to map offscreen uniform buffer memory");
         return false;
     }
-    uint8_t *data = new uint8_t[required_data_size];
-    float *float_data = reinterpret_cast<float *>(data);
-    *float_data++ = 0.f;
-    *float_data++ = 0.f;
-    *float_data++ = 0.f;
-    *float_data++ = 1.f;
-    *float_data++ = 0.f;
-    *float_data++ = 0.f;
-    *float_data++ = 0.f;
-    *float_data++ = 1.f;
-    uint32_t *int_data = reinterpret_cast<uint32_t *>(float_data);
-    memcpy(_offscreen_target.uniform_mapped_data, data, required_data_size);
-    delete[] data;
-
+    for (uint32_t index = 0; index < _swapchain_count; ++index) {
+        uint32_t offset = index * _offscreen_target.vk_uniform_vec4_alignment;
+        uint8_t* mapped_addr = _offscreen_target.uniform_mapped_data + offset;
+        memcpy(mapped_addr, &_color_0, sizeof(glm::vec4));
+        memcpy(mapped_addr + sizeof(glm::vec4), &_color_1, sizeof(glm::vec4));
+        memcpy(mapped_addr + (2 * sizeof(glm::vec4)), &_selected_index, sizeof(int32_t));
+    }
     if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _offscreen_target.uniform_buffer.vk_buffer,
                                          _offscreen_target.uniform_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen uniform buffer memory");
@@ -1111,6 +1174,8 @@ bool OffscreenRenderingApp::Update(float diff_ms) {
     static float cur_time_diff = 0;
     cur_time_diff += diff_ms;
     if (cur_time_diff > 2000.f) {
+        DetermineNewColor();
+        cur_time_diff = 0.f;
     }
     return true;
 }
@@ -1159,7 +1224,10 @@ bool OffscreenRenderingApp::Draw() {
                          VK_SUBPASS_CONTENTS_INLINE);
 
     VkDeviceSize offset = (_offscreen_target.vk_uniform_vec4_alignment * _current_buffer);
-    memcpy(_offscreen_target.uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
+    uint8_t* uniform_map = _offscreen_target.uniform_mapped_data + offset;
+    memcpy(uniform_map, &_color_0, sizeof(glm::vec4));
+    memcpy(uniform_map + sizeof(glm::vec4), &_color_1, sizeof(glm::vec4));
+    memcpy(uniform_map + (2 * sizeof(glm::vec4)), &_selected_index, sizeof(int32_t));
     VkMappedMemoryRange memoryRange = {};
     memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _offscreen_target.uniform_buffer.vk_memory;
