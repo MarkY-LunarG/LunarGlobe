@@ -224,17 +224,7 @@ bool PushConstantApp::Setup() {
         VkPushConstantRange push_constant_range = {};
         push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
         push_constant_range.offset = 0;
-        push_constant_range.size = 4;
-        push_constant_ranges.push_back(push_constant_range);
-        push_constant_range = {};
-        push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        push_constant_range.offset = 4;
-        push_constant_range.size = 4;
-        push_constant_ranges.push_back(push_constant_range);
-        push_constant_range = {};
-        push_constant_range.stageFlags = VK_SHADER_STAGE_FRAGMENT_BIT;
-        push_constant_range.offset = 8;
-        push_constant_range.size = 4;
+        push_constant_range.size = 12;
         push_constant_ranges.push_back(push_constant_range);
 
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
