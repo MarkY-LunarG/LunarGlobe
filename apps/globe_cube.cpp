@@ -675,7 +675,7 @@ bool CubeApp::Update(float diff_ms) {
 }
 
 bool CubeApp::Draw() {
-    _globe_submit_mgr->SubmitAndPresent();
+    _globe_submit_mgr->SubmitAndPresent(VK_NULL_HANDLE);
     return GlobeApp::Draw();
 }
 

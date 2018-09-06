@@ -67,6 +67,8 @@ struct VulkanTarget {
     VulkanBuffer uniform_buffer;
     uint8_t *uniform_mapped_data;
     uint32_t num_vertices;
+    VkCommandPool _vk_command_pool;
+    std::vector<VkCommandBuffer> _vk_command_buffers;
 };
 
 class OffscreenRenderingApp : public GlobeApp {
@@ -85,8 +87,9 @@ class OffscreenRenderingApp : public GlobeApp {
     void UpdateEllipseCenter();
 
    private:
-    void CleanupVulkanTarget(VulkanTarget& target);
+    void CleanupVulkanTarget(VulkanTarget &target);
 
+    uint32_t _last_buffer;
     VulkanTarget _onscreen_target;
     VulkanTarget _offscreen_target;
     GlobeTexture *_offscreen_color;
@@ -104,7 +107,7 @@ OffscreenRenderingApp::OffscreenRenderingApp() {
 
 OffscreenRenderingApp::~OffscreenRenderingApp() { Cleanup(); }
 
-void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget& target) {
+void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget &target) {
     if (VK_NULL_HANDLE != target.vk_pipeline) {
         vkDestroyPipeline(_vk_device, target.vk_pipeline, nullptr);
         target.vk_pipeline = VK_NULL_HANDLE;
@@ -150,6 +153,13 @@ void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget& target) {
         vkDestroyDescriptorSetLayout(_vk_device, target.vk_descriptor_set_layout, nullptr);
         target.vk_descriptor_set_layout = VK_NULL_HANDLE;
     }
+    if (target._vk_command_buffers.size() > 0) {
+        vkFreeCommandBuffers(_vk_device, target._vk_command_pool, target._vk_command_buffers.size(),
+                             target._vk_command_buffers.data());
+        target._vk_command_buffers.clear();
+    }
+    vkDestroyCommandPool(_vk_device, target._vk_command_pool, nullptr);
+    target._vk_command_pool = VK_NULL_HANDLE;
 }
 
 void OffscreenRenderingApp::Cleanup() {
@@ -162,18 +172,19 @@ void OffscreenRenderingApp::Cleanup() {
 // Textured triangles drawn in a cube-isometric style view (using the texture from the offscreen
 // render target).
 static const float g_screen_textured_quad_data[] = {
-    0.0f,  0.0f,  0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 0
-    -0.7f, -0.3f, 0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 1
-    -0.7f, 0.4f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 2
-    0.0f,  0.7f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 3
+    0.0f,  0.0f,  0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vert 0
+    -0.7f, -0.3f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 1
+    -0.7f, 0.4f,  0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 2
+    0.0f,  0.7f,  0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 3
     0.7f,  -0.3f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vert 4
     0.0f,  0.0f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 5
     0.0f,  0.7f,  0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 6
-    0.7f,  0.4f,  0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 7
+    0.7f,  0.4f,  0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 7
+
     0.0f,  -0.5f, 0.0f, 1.0f, 1.0f, 1.0f, 0.0f, 0.0f,  // Vert 8
     -0.7f, -0.3f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 9
-    0.0f,  0.0f,  0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 10
-    0.7f,  -0.3f, 0.0f, 1.0f, 0.0f, 1.0f, 0.0f, 0.0f,  // Vert 11
+    0.0f,  0.0f,  0.0f, 1.0f, 0.0f, 0.0f, 0.0f, 0.0f,  // Vert 10
+    0.7f,  -0.3f, 0.0f, 1.0f, 1.0f, 0.0f, 0.0f, 0.0f,  // Vert 11
 };
 static const uint32_t g_screen_textured_quad_index_data[] = {0, 1, 2, 0, 2, 3, 4, 5, 6, 4, 6, 7, 8, 9, 10, 8, 10, 11};
 
@@ -219,8 +230,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     }
 
     if (VK_FORMAT_UNDEFINED != vk_depth_stencil_format) {
-        _offscreen_depth = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_target.width,
-                                                                          _offscreen_target.height, vk_depth_stencil_format);
+        _offscreen_depth = _globe_resource_mgr->CreateRenderTargetTexture(
+            vk_command_buffer, _offscreen_target.width, _offscreen_target.height, vk_depth_stencil_format);
         if (nullptr == _offscreen_depth) {
             logger.LogError("Failed creating depth render target texture");
             return false;
@@ -280,8 +291,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     offscreen_render_pass_create_info.pSubpasses = &offscreen_subpass_description;
     offscreen_render_pass_create_info.dependencyCount = static_cast<uint32_t>(offscreen_subpass_dependencies.size());
     offscreen_render_pass_create_info.pDependencies = offscreen_subpass_dependencies.data();
-    if (VK_SUCCESS !=
-        vkCreateRenderPass(_vk_device, &offscreen_render_pass_create_info, nullptr, &_offscreen_target.vk_render_pass)) {
+    if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &offscreen_render_pass_create_info, nullptr,
+                                         &_offscreen_target.vk_render_pass)) {
         logger.LogFatalError("Failed to create offscreen render pass");
         return false;
     }
@@ -382,8 +393,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     pipeline_layout_create_info.pPushConstantRanges = nullptr;
     pipeline_layout_create_info.setLayoutCount = 1;
     pipeline_layout_create_info.pSetLayouts = &_offscreen_target.vk_descriptor_set_layout;
-    if (VK_SUCCESS !=
-        vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_offscreen_target.vk_pipeline_layout)) {
+    if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr,
+                                             &_offscreen_target.vk_pipeline_layout)) {
         logger.LogFatalError("Failed to create offscreen render target pipeline layout layout");
         return false;
     }
@@ -398,7 +409,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     buffer_create_info.pQueueFamilyIndices = nullptr;
     buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
     buffer_create_info.flags = 0;
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.vertex_buffer.vk_buffer)) {
+    if (VK_SUCCESS !=
+        vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.vertex_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create vertex buffer");
         return false;
     }
@@ -409,15 +421,15 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         logger.LogFatalError("Failed to allocate offscreen vertex buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.vertex_buffer.vk_memory, 0, _offscreen_target.vertex_buffer.vk_size,
-                                  0, (void **)&mapped_data)) {
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.vertex_buffer.vk_memory, 0,
+                                  _offscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
         logger.LogFatalError("Failed to map offscreen vertex buffer memory");
         return false;
     }
     memcpy(mapped_data, g_offscreen_color_quad_data, sizeof(g_offscreen_color_quad_data));
     vkUnmapMemory(_vk_device, _offscreen_target.vertex_buffer.vk_memory);
-    if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_target.vertex_buffer.vk_buffer, _offscreen_target.vertex_buffer.vk_memory, 0)) {
+    if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _offscreen_target.vertex_buffer.vk_buffer,
+                                         _offscreen_target.vertex_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen vertex buffer memory");
         return false;
     }
@@ -425,7 +437,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     // Create the offscreen index buffer
     buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
     buffer_create_info.size = sizeof(g_offscreen_color_quad_index_data);
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.index_buffer.vk_buffer)) {
+    if (VK_SUCCESS !=
+        vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.index_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create offscreen index buffer");
         return false;
     }
@@ -437,15 +450,15 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         logger.LogFatalError("Failed to allocate offscreen index buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.index_buffer.vk_memory, 0, _offscreen_target.index_buffer.vk_size, 0,
-                                  (void **)&mapped_data)) {
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.index_buffer.vk_memory, 0,
+                                  _offscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
         logger.LogFatalError("Failed to map offscreen index buffer memory");
         return false;
     }
     memcpy(mapped_data, g_offscreen_color_quad_index_data, sizeof(g_offscreen_color_quad_index_data));
     vkUnmapMemory(_vk_device, _offscreen_target.index_buffer.vk_memory);
-    if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_target.index_buffer.vk_buffer, _offscreen_target.index_buffer.vk_memory, 0)) {
+    if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _offscreen_target.index_buffer.vk_buffer,
+                                         _offscreen_target.index_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen index buffer memory");
         return false;
     }
@@ -464,7 +477,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     // Create the uniform buffer containing the mvp matrix
     buffer_create_info.usage = VK_BUFFER_USAGE_UNIFORM_BUFFER_BIT;
     buffer_create_info.size = _offscreen_target.vk_uniform_vec4_alignment * _swapchain_count;
-    if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.uniform_buffer.vk_buffer)) {
+    if (VK_SUCCESS !=
+        vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_offscreen_target.uniform_buffer.vk_buffer)) {
         logger.LogFatalError("Failed to create offscreen uniform buffer");
         return false;
     }
@@ -475,8 +489,9 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         logger.LogFatalError("Failed to allocate offscreen uniform buffer memory");
         return false;
     }
-    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.uniform_buffer.vk_memory, 0, _offscreen_target.uniform_buffer.vk_size,
-                                  0, (void **)&_offscreen_target.uniform_mapped_data)) {
+    if (VK_SUCCESS != vkMapMemory(_vk_device, _offscreen_target.uniform_buffer.vk_memory, 0,
+                                  _offscreen_target.uniform_buffer.vk_size, 0,
+                                  (void **)&_offscreen_target.uniform_mapped_data)) {
         logger.LogFatalError("Failed to map offscreen uniform buffer memory");
         return false;
     }
@@ -494,8 +509,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     memcpy(_offscreen_target.uniform_mapped_data, data, required_data_size);
     delete[] data;
 
-    if (VK_SUCCESS !=
-        vkBindBufferMemory(_vk_device, _offscreen_target.uniform_buffer.vk_buffer, _offscreen_target.uniform_buffer.vk_memory, 0)) {
+    if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _offscreen_target.uniform_buffer.vk_buffer,
+                                         _offscreen_target.uniform_buffer.vk_memory, 0)) {
         logger.LogFatalError("Failed to bind offscreen uniform buffer memory");
         return false;
     }
@@ -512,8 +527,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     descriptor_pool_create_info.maxSets = 2;
     descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
     descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
-    if (VK_SUCCESS !=
-        vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_offscreen_target.vk_descriptor_pool)) {
+    if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr,
+                                             &_offscreen_target.vk_descriptor_pool)) {
         logger.LogFatalError("Failed to create offscreen descriptor pool");
         return false;
     }
@@ -673,6 +688,39 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
 
     vkCmdEndRenderPass(vk_command_buffer);
 
+    // Create the command pool to be used by the offscreen surfaces.
+    VkCommandPoolCreateInfo cmd_pool_create_info = {};
+    cmd_pool_create_info.sType = VK_STRUCTURE_TYPE_COMMAND_POOL_CREATE_INFO;
+    cmd_pool_create_info.pNext = nullptr;
+    cmd_pool_create_info.queueFamilyIndex = _globe_submit_mgr->GetGraphicsQueueIndex();
+    cmd_pool_create_info.flags = VK_COMMAND_POOL_CREATE_RESET_COMMAND_BUFFER_BIT;
+    if (VK_SUCCESS !=
+        vkCreateCommandPool(_vk_device, &cmd_pool_create_info, NULL, &_offscreen_target._vk_command_pool)) {
+        logger.LogFatalError("Failed to create offscreen command pool");
+        return false;
+    }
+
+    // Create a custom command buffer per swapchain image for the offscreen surface to
+    // perform its command prior to be submitted, synced up, and then used
+    uint32_t num_swapchain_images = _globe_submit_mgr->NumSwapchainImages();
+    VkCommandBufferAllocateInfo command_buffer_allocate_info = {};
+    command_buffer_allocate_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_ALLOCATE_INFO;
+    command_buffer_allocate_info.pNext = nullptr;
+    command_buffer_allocate_info.commandPool = _offscreen_target._vk_command_pool;
+    command_buffer_allocate_info.level = VK_COMMAND_BUFFER_LEVEL_PRIMARY;
+    command_buffer_allocate_info.commandBufferCount = num_swapchain_images;
+    _offscreen_target._vk_command_buffers.resize(num_swapchain_images);
+    for (uint32_t cmd_buf = 0; cmd_buf < num_swapchain_images; ++cmd_buf) {
+        if (VK_SUCCESS != vkAllocateCommandBuffers(_vk_device, &command_buffer_allocate_info,
+                                                   &_offscreen_target._vk_command_buffers[cmd_buf])) {
+            std::string error_msg = "Failed to allocate offscreen render command buffer ";
+            error_msg += std::to_string(cmd_buf);
+            logger.LogFatalError(error_msg);
+            _offscreen_target._vk_command_buffers.resize(cmd_buf);
+            return false;
+        }
+    }
+
     return true;
 }
 
@@ -722,8 +770,8 @@ bool OffscreenRenderingApp::Setup() {
         descriptor_set_layout.pNext = nullptr;
         descriptor_set_layout.bindingCount = static_cast<uint32_t>(descriptor_set_layout_bindings.size());
         descriptor_set_layout.pBindings = descriptor_set_layout_bindings.data();
-        if (VK_SUCCESS !=
-            vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_onscreen_target.vk_descriptor_set_layout)) {
+        if (VK_SUCCESS != vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr,
+                                                      &_onscreen_target.vk_descriptor_set_layout)) {
             logger.LogFatalError("Failed to create descriptor set layout");
             return false;
         }
@@ -735,8 +783,8 @@ bool OffscreenRenderingApp::Setup() {
         pipeline_layout_create_info.pPushConstantRanges = nullptr;
         pipeline_layout_create_info.setLayoutCount = 1;
         pipeline_layout_create_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
-        if (VK_SUCCESS !=
-            vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_onscreen_target.vk_pipeline_layout)) {
+        if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr,
+                                                 &_onscreen_target.vk_pipeline_layout)) {
             logger.LogFatalError("Failed to create pipeline layout layout");
             return false;
         }
@@ -797,7 +845,8 @@ bool OffscreenRenderingApp::Setup() {
         render_pass_create_info.pSubpasses = &subpass_description;
         render_pass_create_info.dependencyCount = 0;
         render_pass_create_info.pDependencies = nullptr;
-        if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_onscreen_target.vk_render_pass)) {
+        if (VK_SUCCESS !=
+            vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_onscreen_target.vk_render_pass)) {
             logger.LogFatalError("Failed to create renderpass");
             return false;
         }
@@ -812,24 +861,27 @@ bool OffscreenRenderingApp::Setup() {
         buffer_create_info.pQueueFamilyIndices = nullptr;
         buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         buffer_create_info.flags = 0;
-        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.vertex_buffer.vk_buffer)) {
+        if (VK_SUCCESS !=
+            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.vertex_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create vertex buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _onscreen_target.vertex_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.vertex_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 _onscreen_target.vertex_buffer.vk_memory, _onscreen_target.vertex_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate vertex buffer memory");
             return false;
         }
-        if (VK_SUCCESS !=
-            vkMapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory, 0, _onscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
+        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory, 0,
+                                      _onscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map vertex buffer memory");
             return false;
         }
         memcpy(mapped_data, g_screen_textured_quad_data, sizeof(g_screen_textured_quad_data));
         vkUnmapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.vertex_buffer.vk_buffer, _onscreen_target.vertex_buffer.vk_memory, 0)) {
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.vertex_buffer.vk_buffer,
+                                             _onscreen_target.vertex_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind vertex buffer memory");
             return false;
         }
@@ -837,25 +889,28 @@ bool OffscreenRenderingApp::Setup() {
         // Create the index buffer
         buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         buffer_create_info.size = sizeof(g_screen_textured_quad_index_data);
-        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.index_buffer.vk_buffer)) {
+        if (VK_SUCCESS !=
+            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.index_buffer.vk_buffer)) {
             logger.LogFatalError("Failed to create index buffer");
             return false;
         }
         _onscreen_target.num_vertices = sizeof(g_screen_textured_quad_index_data) / sizeof(uint32_t);
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _onscreen_target.index_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.index_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 _onscreen_target.index_buffer.vk_memory, _onscreen_target.index_buffer.vk_size)) {
             logger.LogFatalError("Failed to allocate index buffer memory");
             return false;
         }
-        if (VK_SUCCESS !=
-            vkMapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory, 0, _onscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
+        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory, 0,
+                                      _onscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
             logger.LogFatalError("Failed to map index buffer memory");
             return false;
         }
         memcpy(mapped_data, g_screen_textured_quad_index_data, sizeof(g_screen_textured_quad_index_data));
         vkUnmapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.index_buffer.vk_buffer, _onscreen_target.index_buffer.vk_memory, 0)) {
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.index_buffer.vk_buffer,
+                                             _onscreen_target.index_buffer.vk_memory, 0)) {
             logger.LogFatalError("Failed to bind index buffer memory");
             return false;
         }
@@ -875,8 +930,8 @@ bool OffscreenRenderingApp::Setup() {
         descriptor_pool_create_info.maxSets = 2;
         descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
         descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
-        if (VK_SUCCESS !=
-            vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_onscreen_target.vk_descriptor_pool)) {
+        if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr,
+                                                 &_onscreen_target.vk_descriptor_pool)) {
             logger.LogFatalError("Failed to create descriptor pool");
             return false;
         }
@@ -887,7 +942,8 @@ bool OffscreenRenderingApp::Setup() {
         descriptor_set_allocate_info.descriptorPool = _onscreen_target.vk_descriptor_pool;
         descriptor_set_allocate_info.descriptorSetCount = 1;
         descriptor_set_allocate_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
-        if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_onscreen_target.vk_descriptor_set)) {
+        if (VK_SUCCESS !=
+            vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_onscreen_target.vk_descriptor_set)) {
             logger.LogFatalError("Failed to allocate descriptor set");
             return false;
         }
@@ -1062,6 +1118,7 @@ bool OffscreenRenderingApp::Update(float diff_ms) {
 bool OffscreenRenderingApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
+    _last_buffer = _current_buffer;
     VkCommandBuffer vk_render_command_buffer;
     VkFramebuffer vk_framebuffer;
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
@@ -1093,11 +1150,13 @@ bool OffscreenRenderingApp::Draw() {
     render_pass_begin_info.renderArea.extent.height = _offscreen_target.height;
     render_pass_begin_info.clearValueCount = 2;
     render_pass_begin_info.pClearValues = clear_values;
-    if (VK_SUCCESS != vkBeginCommandBuffer(vk_render_command_buffer, &command_buffer_begin_info)) {
+    if (VK_SUCCESS !=
+        vkBeginCommandBuffer(_offscreen_target._vk_command_buffers[_current_buffer], &command_buffer_begin_info)) {
         logger.LogFatalError("Failed to begin command buffer for offscreen draw commands for framebuffer");
     }
 
-    vkCmdBeginRenderPass(vk_render_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
+    vkCmdBeginRenderPass(_offscreen_target._vk_command_buffers[_current_buffer], &render_pass_begin_info,
+                         VK_SUBPASS_CONTENTS_INLINE);
 
     VkDeviceSize offset = (_offscreen_target.vk_uniform_vec4_alignment * _current_buffer);
     memcpy(_offscreen_target.uniform_mapped_data + offset, &_ellipse_center, sizeof(_ellipse_center));
@@ -1114,7 +1173,7 @@ bool OffscreenRenderingApp::Draw() {
     viewport.width = (float)_offscreen_target.width;
     viewport.minDepth = (float)0.0f;
     viewport.maxDepth = (float)1.0f;
-    vkCmdSetViewport(vk_render_command_buffer, 0, 1, &viewport);
+    vkCmdSetViewport(_offscreen_target._vk_command_buffers[_current_buffer], 0, 1, &viewport);
 
     // Update dynamic scissor state
     VkRect2D scissor = {};
@@ -1122,23 +1181,31 @@ bool OffscreenRenderingApp::Draw() {
     scissor.extent.height = _offscreen_target.height;
     scissor.offset.x = 0;
     scissor.offset.y = 0;
-    vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
+    vkCmdSetScissor(_offscreen_target._vk_command_buffers[_current_buffer], 0, 1, &scissor);
 
     uint32_t dynamic_offset = _current_buffer * static_cast<uint32_t>(_offscreen_target.vk_uniform_vec4_alignment);
-    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_target.vk_pipeline_layout, 0,
-                            1, &_offscreen_target.vk_descriptor_set, 1, &dynamic_offset);
-    vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _offscreen_target.vk_pipeline);
+    vkCmdBindDescriptorSets(_offscreen_target._vk_command_buffers[_current_buffer], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            _offscreen_target.vk_pipeline_layout, 0, 1, &_offscreen_target.vk_descriptor_set, 1,
+                            &dynamic_offset);
+    vkCmdBindPipeline(_offscreen_target._vk_command_buffers[_current_buffer], VK_PIPELINE_BIND_POINT_GRAPHICS,
+                      _offscreen_target.vk_pipeline);
 
     const VkDeviceSize vert_buffer_offset = 0;
-    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_offscreen_target.vertex_buffer.vk_buffer, &vert_buffer_offset);
-    vkCmdBindIndexBuffer(vk_render_command_buffer, _offscreen_target.index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
-    vkCmdDrawIndexed(vk_render_command_buffer, _offscreen_target.num_vertices, 1, 0, 0, 1);
+    vkCmdBindVertexBuffers(_offscreen_target._vk_command_buffers[_current_buffer], 0, 1,
+                           &_offscreen_target.vertex_buffer.vk_buffer, &vert_buffer_offset);
+    vkCmdBindIndexBuffer(_offscreen_target._vk_command_buffers[_current_buffer],
+                         _offscreen_target.index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
+    vkCmdDrawIndexed(_offscreen_target._vk_command_buffers[_current_buffer], _offscreen_target.num_vertices, 1, 0, 0,
+                     1);
 
-    vkCmdEndRenderPass(vk_render_command_buffer);
-    if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
+    vkCmdEndRenderPass(_offscreen_target._vk_command_buffers[_current_buffer]);
+    if (VK_SUCCESS != vkEndCommandBuffer(_offscreen_target._vk_command_buffers[_current_buffer])) {
         logger.LogFatalError("Failed to end command buffer");
         return false;
     }
+
+    _globe_submit_mgr->Submit(_offscreen_target._vk_command_buffers[_current_buffer], VK_NULL_HANDLE,
+                              _offscreen_target.vk_semaphore, VK_NULL_HANDLE, false);
 
     command_buffer_begin_info = {};
     clear_values[2];
@@ -1188,11 +1255,13 @@ bool OffscreenRenderingApp::Draw() {
     vkCmdSetScissor(vk_render_command_buffer, 0, 1, &scissor);
 
     dynamic_offset = offset;
-    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _onscreen_target.vk_pipeline_layout, 0, 1,
-                            &_onscreen_target.vk_descriptor_set, 1, &dynamic_offset);
+    vkCmdBindDescriptorSets(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS,
+                            _onscreen_target.vk_pipeline_layout, 0, 1, &_onscreen_target.vk_descriptor_set, 1,
+                            &dynamic_offset);
     vkCmdBindPipeline(vk_render_command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _onscreen_target.vk_pipeline);
 
-    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_onscreen_target.vertex_buffer.vk_buffer, &vert_buffer_offset);
+    vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_onscreen_target.vertex_buffer.vk_buffer,
+                           &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _onscreen_target.index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(vk_render_command_buffer, _onscreen_target.num_vertices, 1, 0, 0, 1);
     vkCmdEndRenderPass(vk_render_command_buffer);
@@ -1203,7 +1272,7 @@ bool OffscreenRenderingApp::Draw() {
 
     _globe_submit_mgr->InsertPresentCommandsToBuffer(vk_render_command_buffer);
 
-    _globe_submit_mgr->SubmitAndPresent();
+    _globe_submit_mgr->SubmitAndPresent(_offscreen_target.vk_semaphore);
 
     return GlobeApp::Draw();
 }

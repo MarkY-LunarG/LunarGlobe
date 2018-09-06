@@ -936,24 +936,37 @@ bool GlobeSubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_b
     return true;
 }
 
-bool GlobeSubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, VkFence &fence, bool immediately_wait) {
+bool GlobeSubmitManager::Submit(VkCommandBuffer command_buffer, VkSemaphore wait_semaphore,
+                                VkSemaphore signal_semaphore, VkFence fence, bool immediately_wait) {
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 0;
-    submit_info.pWaitSemaphores = nullptr;
-    submit_info.pWaitDstStageMask = nullptr;
-    submit_info.commandBufferCount = static_cast<uint32_t>(command_buffers.size());
-    submit_info.pCommandBuffers = command_buffers.data();
-    submit_info.signalSemaphoreCount = 0;
-    submit_info.pSignalSemaphores = nullptr;
+    if (wait_semaphore == VK_NULL_HANDLE) {
+        submit_info.waitSemaphoreCount = 0;
+        submit_info.pWaitSemaphores = nullptr;
+        submit_info.pWaitDstStageMask = nullptr;
+    } else {
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = &wait_semaphore;
+        VkPipelineStageFlags pipe_stage_flags = VK_PIPELINE_STAGE_COLOR_ATTACHMENT_OUTPUT_BIT;
+        submit_info.pWaitDstStageMask = &pipe_stage_flags;
+    }
+    submit_info.commandBufferCount = 1;
+    submit_info.pCommandBuffers = &command_buffer;
+    if (signal_semaphore == VK_NULL_HANDLE) {
+        submit_info.signalSemaphoreCount = 0;
+        submit_info.pSignalSemaphores = nullptr;
+    } else {
+        submit_info.signalSemaphoreCount = 1;
+        submit_info.pSignalSemaphores = &signal_semaphore;
+    }
 
     if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, fence)) {
         GlobeLogger::getInstance().LogError("GlobeSubmitManager::Submit failed to submit to graphics queue");
         return false;
     }
 
-    if (immediately_wait) {
+    if (immediately_wait && VK_NULL_HANDLE != fence) {
         if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &fence, VK_TRUE, UINT64_MAX)) {
             GlobeLogger::getInstance().LogError(
                 "GlobeSubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
@@ -963,7 +976,7 @@ bool GlobeSubmitManager::Submit(std::vector<VkCommandBuffer> command_buffers, Vk
     return true;
 }
 
-bool GlobeSubmitManager::SubmitAndPresent() {
+bool GlobeSubmitManager::SubmitAndPresent(VkSemaphore wait_semaphore) {
     if (_found_google_display_timing_extension) {
         // Look at what happened to previous presents, and make appropriate
         // adjustments in timing:
@@ -984,8 +997,13 @@ bool GlobeSubmitManager::SubmitAndPresent() {
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
-    submit_info.waitSemaphoreCount = 1;
-    submit_info.pWaitSemaphores = &_image_acquired_semaphores[_cur_wait_index];
+    if (VK_NULL_HANDLE == wait_semaphore) {
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = &_image_acquired_semaphores[_cur_wait_index];
+    } else {
+        submit_info.waitSemaphoreCount = 1;
+        submit_info.pWaitSemaphores = &wait_semaphore;
+    }
     submit_info.signalSemaphoreCount = 1;
     submit_info.pSignalSemaphores = &_draw_complete_semaphores[_cur_wait_index];
     submit_info.pWaitDstStageMask = &pipe_stage_flags;

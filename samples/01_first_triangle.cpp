@@ -580,7 +580,7 @@ bool TriangleApp::Draw() {
 
     _globe_submit_mgr->InsertPresentCommandsToBuffer(vk_render_command_buffer);
 
-    _globe_submit_mgr->SubmitAndPresent();
+    _globe_submit_mgr->SubmitAndPresent(VK_NULL_HANDLE);
 
     return GlobeApp::Draw();
 }

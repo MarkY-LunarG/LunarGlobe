@@ -424,9 +424,7 @@ bool GlobeApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &
             return false;
         }
 
-        std::vector<VkCommandBuffer> command_buffers;
-        command_buffers.push_back(_vk_setup_command_buffer);
-        _globe_submit_mgr->Submit(command_buffers, vk_fence, true);
+        _globe_submit_mgr->Submit(_vk_setup_command_buffer, VK_NULL_HANDLE, VK_NULL_HANDLE, vk_fence, true);
         vkFreeCommandBuffers(_vk_device, _vk_setup_command_pool, 1, &_vk_setup_command_buffer);
         vkDestroyFence(_vk_device, vk_fence, nullptr);
         _vk_setup_command_buffer = VK_NULL_HANDLE;
