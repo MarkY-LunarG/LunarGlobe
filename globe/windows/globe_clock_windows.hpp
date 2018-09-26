@@ -58,7 +58,7 @@ class GlobeClockWindows : public GlobeClock {
             m_last_game_time.QuadPart = current.QuadPart;
 
             // To get duration in milliseconds
-            comp_diff = (float)llTimeDiff * 1000.0f / (float)m_frequency.QuadPart;
+            game_diff = (float)llTimeDiff * 1000.0f / (float)m_frequency.QuadPart;
         }
     }
 

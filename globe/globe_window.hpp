@@ -42,6 +42,7 @@ class GlobeWindow {
     virtual bool ReleaseCreateInstanceItems(void **next) { return true; }
     virtual bool CreateVkSurface(VkInstance instance, VkPhysicalDevice phys_device, VkSurfaceKHR &surface) = 0;
     virtual bool DestroyVkSurface(VkInstance instance, VkSurfaceKHR &surface);
+    VkSurfaceKHR GetVkSurface() { return _vk_surface; }
 
     bool IsValid() { return _window_created; }
     bool IsFullScreen() { return _is_fullscreen; }

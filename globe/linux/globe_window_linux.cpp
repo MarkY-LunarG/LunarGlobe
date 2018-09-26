@@ -723,8 +723,7 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
 
     _window_created = true;
 
-    VkSurfaceKHR vk_surface = VK_NULL_HANDLE;
-    if (!CreateVkSurface(instance, phys_device, vk_surface)) {
+    if (!CreateVkSurface(instance, phys_device, _vk_surface)) {
         logger.LogError("Failed to create vulkan surface for window");
         return false;
     }

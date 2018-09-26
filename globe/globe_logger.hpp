@@ -66,14 +66,12 @@ class GlobeLogger {
     bool CreateInstanceDebugInfo(VkInstance instance);
     bool DestroyInstanceDebugInfo(VkInstance instance);
 
-    bool CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
-                                          std::vector<std::string> &extensions);
-
     // Output targets
     void SetCommandLineOutput(bool enable) { _output_cmdline = enable; }
     void SetFileOutput(std::string output_file);
 
     void EnableValidation(bool enable) { _enable_validation = enable; }
+    void EnableApiDump(bool enable) { _enable_api_dump = enable; }
     bool BreakOnError() { return _enable_break_on_error; }
     void EnableBreakOnError(bool enable) { _enable_break_on_error = enable; }
     GlobeLogLevel GetLogLevel() { return _log_level; }
@@ -96,6 +94,7 @@ class GlobeLogger {
     void LogMessage(const std::string &prefix, const std::string &message);
 
     bool _enable_validation;
+    bool _enable_api_dump;
     bool _enable_break_on_error;
     bool _output_cmdline;
     bool _output_file;

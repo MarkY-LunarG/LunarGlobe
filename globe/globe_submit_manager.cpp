@@ -34,7 +34,6 @@ GlobeSubmitManager::GlobeSubmitManager(GlobeApp *app, GlobeWindow *window, VkIns
     _vk_instance = instance;
     _vk_physical_device = phys_device;
     _vk_present_mode = VK_PRESENT_MODE_FIFO_KHR;
-    _vk_surface = VK_NULL_HANDLE;
     _vk_swapchain = VK_NULL_HANDLE;
     _num_images = 0;
     _cur_image = 0;
@@ -92,8 +91,9 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
     }
 
     // Only create the surface the first time
-    if (VK_NULL_HANDLE == _vk_surface) {
-        if (!_window->CreateVkSurface(_vk_instance, _vk_physical_device, _vk_surface)) {
+    VkSurfaceKHR vk_surface = _window->GetVkSurface();
+    if (VK_NULL_HANDLE == vk_surface) {
+        if (!_window->CreateVkSurface(_vk_instance, _vk_physical_device, vk_surface)) {
             logger.LogFatalError("Failed to create vk surface!");
             return false;
         }
@@ -119,7 +119,7 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
     std::vector<VkBool32> supports_present;
     supports_present.resize(32);
     for (uint32_t i = 0; i < queue_family_count; i++) {
-        fpGetPhysicalDeviceSurfaceSupportKHR(_vk_physical_device, i, _vk_surface, &supports_present[i]);
+        fpGetPhysicalDeviceSurfaceSupportKHR(_vk_physical_device, i, vk_surface, &supports_present[i]);
     }
 
     // Search for a graphics and a present queue in the array of queue
@@ -169,13 +169,13 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
         return false;
     }
 
-    float queue_priorities[1] = {0.0};
+    float queue_priority = 0.0f;
     VkDeviceQueueCreateInfo *queues = new VkDeviceQueueCreateInfo[2];
     queues[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queues[0].pNext = NULL;
     queues[0].queueFamilyIndex = _graphics_queue_family_index;
     queues[0].queueCount = 1;
-    queues[0].pQueuePriorities = queue_priorities;
+    queues[0].pQueuePriorities = &queue_priority;
     queues[0].flags = 0;
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.queueCreateInfoCount = 1;
@@ -185,7 +185,7 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
         queues[1].pNext = NULL;
         queues[1].queueFamilyIndex = _present_queue_family_index;
         queues[1].queueCount = 1;
-        queues[1].pQueuePriorities = queue_priorities;
+        queues[1].pQueuePriorities = &queue_priority;
         queues[1].flags = 0;
         device_create_info.queueCreateInfoCount = 2;
     }
@@ -213,14 +213,14 @@ bool GlobeSubmitManager::SelectBestColorFormatAndSpace(VkFormat prefered_format,
         logger.LogError("Failed to get vkGetPhysicalDeviceSurfaceFormatsKHR function pointer");
         return false;
     }
-    if (VK_SUCCESS !=
-        fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _vk_surface, &num_possible_formats, NULL)) {
+    if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _window->GetVkSurface(),
+                                                           &num_possible_formats, NULL)) {
         logger.LogError("Failed to get query number of device surface formats supported");
         return false;
     }
     possible_surface_formats.resize(num_possible_formats);
-    if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _vk_surface, &num_possible_formats,
-                                                           possible_surface_formats.data())) {
+    if (VK_SUCCESS != fpGetPhysicalDeviceSurfaceFormatsKHR(_vk_physical_device, _window->GetVkSurface(),
+                                                           &num_possible_formats, possible_surface_formats.data())) {
         logger.LogError("Failed to get query device surface formats supported");
         return false;
     }
@@ -257,14 +257,15 @@ bool GlobeSubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_images
         logger.LogInfo("Querying if present mode is available.");
         uint32_t count = 0;
         std::vector<VkPresentModeKHR> present_modes;
-        if (VK_SUCCESS != _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _vk_surface, &count, nullptr) ||
+        if (VK_SUCCESS !=
+                _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _window->GetVkSurface(), &count, nullptr) ||
             count == 0) {
             logger.LogError("Failed querying number of surface present modes");
             return false;
         }
         present_modes.resize(count);
-        if (VK_SUCCESS !=
-                _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _vk_surface, &count, present_modes.data()) ||
+        if (VK_SUCCESS != _GetPhysicalDeviceSurfacePresentModes(_vk_physical_device, _window->GetVkSurface(), &count,
+                                                                present_modes.data()) ||
             count == 0) {
             logger.LogError("Failed querying surface present modes");
             return false;
@@ -310,7 +311,8 @@ bool GlobeSubmitManager::PrepareForSwapchain(VkDevice device, uint8_t num_images
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS !=
+        _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _window->GetVkSurface(), &surface_capabilities)) {
         logger.LogError("Failed to query physical device surface capabilities");
         return false;
     }
@@ -369,7 +371,8 @@ bool GlobeSubmitManager::CreateSwapchain() {
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS !=
+        _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _window->GetVkSurface(), &surface_capabilities)) {
         logger.LogError("Failed to query physical device surface capabilities");
         return false;
     }
@@ -385,7 +388,7 @@ bool GlobeSubmitManager::CreateSwapchain() {
     VkSwapchainCreateInfoKHR swapchain_ci = {};
     swapchain_ci.sType = VK_STRUCTURE_TYPE_SWAPCHAIN_CREATE_INFO_KHR;
     swapchain_ci.pNext = nullptr;
-    swapchain_ci.surface = _vk_surface;
+    swapchain_ci.surface = _window->GetVkSurface();
     swapchain_ci.minImageCount = _num_images;
     swapchain_ci.imageFormat = _vk_format;
     swapchain_ci.imageColorSpace = _vk_color_space;
@@ -609,7 +612,6 @@ bool GlobeSubmitManager::DetachSwapchain() {
             vkDestroySemaphore(_vk_device, _image_ownership_semaphores[index], nullptr);
         }
     }
-    _window->DestroyVkSurface(_vk_instance, _vk_surface);
     _vk_images.clear();
     _vk_image_views.clear();
     _image_acquired_semaphores.clear();
@@ -625,7 +627,8 @@ bool GlobeSubmitManager::Resize() {
 
     // Check the surface capabilities and formats
     VkSurfaceCapabilitiesKHR surface_capabilities = {};
-    if (VK_SUCCESS != _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _vk_surface, &surface_capabilities)) {
+    if (VK_SUCCESS !=
+        _GetPhysicalDeviceSurfaceCapabilities(_vk_physical_device, _window->GetVkSurface(), &surface_capabilities)) {
         GlobeLogger::getInstance().LogError("Failed to query physical device surface capabilities");
         return false;
     }

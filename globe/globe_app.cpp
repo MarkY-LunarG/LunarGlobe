@@ -105,6 +105,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
             start_fullscreen = true;
         } else if (init_struct.command_line_args[cur_arg] == "--validate") {
             logger.EnableValidation(true);
+        } else if (init_struct.command_line_args[cur_arg] == "--api_dump") {
+            logger.EnableApiDump(true);
         } else if (init_struct.command_line_args[cur_arg] == "--c" && !_exit_on_frame && not_last_argument) {
             _exit_frame = std::stoi(init_struct.command_line_args[cur_arg + 1], &argument_size);
             if (_exit_frame > 0) {
@@ -668,6 +670,7 @@ void GlobeApp::HandleEvent(GlobeEvent &event) {
             break;
         case GLOBE_EVENT_WINDOW_DRAW:
             if (_focused) {
+                Update(0.0f);
                 Draw();
             }
             break;

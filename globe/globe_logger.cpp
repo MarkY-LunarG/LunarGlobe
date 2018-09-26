@@ -32,14 +32,14 @@
 #include "globe_logger.hpp"
 #include "globe_event.hpp"
 
-GlobeLogger::GlobeLogger() {
-    _output_cmdline = true;
-    _output_file = false;
-    _log_level = GLOBE_LOG_WARN_ERROR;
-    _enable_validation = false;
-    _enable_popups = true;
-    _enable_break_on_error = false;
-}
+GlobeLogger::GlobeLogger()
+    : _enable_validation(false),
+      _enable_api_dump(false),
+      _enable_break_on_error(false),
+      _output_cmdline(false),
+      _output_file(false),
+      _enable_popups(false),
+      _log_level(GLOBE_LOG_WARN_ERROR) {}
 
 GlobeLogger::~GlobeLogger() {
     if (_output_file) {
@@ -175,17 +175,21 @@ bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, s
     uint32_t extension_count = 0;
     uint32_t layer_count = 0;
 
-    if (_enable_validation) {
+    if (_enable_validation || _enable_api_dump) {
         char std_validation_layer_name[] = "VK_LAYER_LUNARG_standard_validation";
         char threading_layer_name[] = "VK_LAYER_GOOGLE_threading";
         char parameter_validation_layer_name[] = "VK_LAYER_LUNARG_parameter_validation";
         char object_tracker_layer_name[] = "VK_LAYER_LUNARG_object_tracker";
         char core_validation_layer_name[] = "VK_LAYER_LUNARG_core_validation";
         char unique_objects_layer_name[] = "VK_LAYER_GOOGLE_unique_objects";
+        char api_dump_layer_name[] = "VK_LAYER_LUNARG_api_dump";
         const uint32_t number_of_individual_layers = 5;
-        char *instance_validation_layers_list[number_of_individual_layers] = {
-            threading_layer_name, parameter_validation_layer_name, object_tracker_layer_name,
-            core_validation_layer_name, unique_objects_layer_name};
+        char *instance_validation_layers_list[number_of_individual_layers];
+        instance_validation_layers_list[0] = threading_layer_name;
+        instance_validation_layers_list[1] = parameter_validation_layer_name;
+        instance_validation_layers_list[2] = object_tracker_layer_name;
+        instance_validation_layers_list[3] = core_validation_layer_name;
+        instance_validation_layers_list[4] = unique_objects_layer_name;
 
         // Look for validation layers
         bool validation_found = false;
@@ -204,83 +208,100 @@ bool GlobeLogger::PrepareCreateInstanceItems(std::vector<std::string> &layers, s
                 return false;
             }
 
-            // Look for standard validation first
-            for (uint32_t layer = 0; layer < layer_count; ++layer) {
-                if (!strcmp(instance_layers[layer].layerName, std_validation_layer_name)) {
-                    validation_found = true;
-                    layers.push_back(std_validation_layer_name);
-                    break;
+            if (_enable_api_dump) {
+                // First, look for API Dump.  We have to because otherwise adding it after validation
+                // layers could reflect additional API calls the validation layers make to perform
+                // their evaluation.
+                for (uint32_t layer = 0; layer < layer_count; ++layer) {
+                    if (_enable_api_dump && !strcmp(instance_layers[layer].layerName, api_dump_layer_name)) {
+                        layers.push_back(api_dump_layer_name);
+                        break;
+                    }
                 }
             }
 
-            if (!validation_found) {
-                uint32_t found_mask = 0;
-                // Look for the individual layers second
-                for (uint32_t inst_layer = 0; inst_layer < layer_count; ++inst_layer) {
-                    for (uint32_t valid_layer = 0; valid_layer < number_of_individual_layers; ++valid_layer) {
-                        if (!strcmp(instance_layers[inst_layer].layerName,
-                                    instance_validation_layers_list[valid_layer])) {
-                            found_mask |= 1 << valid_layer;
-                            break;
-                        }
+            if (_enable_validation) {
+                // Look for the global standard validation meta-layer and API-Dump layers first,
+                // but only if they are enabled.  If validation is enabled and we can't find the
+                // meta-layer, we'll later look for the individual layers.
+                for (uint32_t layer = 0; layer < layer_count; ++layer) {
+                    if (!strcmp(instance_layers[layer].layerName, std_validation_layer_name)) {
+                        validation_found = true;
+                        layers.push_back(std_validation_layer_name);
+                        break;
                     }
                 }
-                if (found_mask == (1 << number_of_individual_layers) - 1) {
-                    validation_found = true;
-                    for (uint32_t valid_layer = 0; valid_layer < number_of_individual_layers; ++valid_layer) {
-                        layers.push_back(instance_validation_layers_list[valid_layer]);
+
+                if (!validation_found) {
+                    uint32_t found_mask = 0;
+
+                    // Look for the individual layers second
+                    for (uint32_t inst_layer = 0; inst_layer < layer_count; ++inst_layer) {
+                        for (uint32_t valid_layer = 0; valid_layer < number_of_individual_layers; ++valid_layer) {
+                            if (!strcmp(instance_layers[inst_layer].layerName,
+                                        instance_validation_layers_list[valid_layer])) {
+                                found_mask |= 1 << valid_layer;
+                                break;
+                            }
+                        }
+                    }
+                    if (found_mask == (1 << number_of_individual_layers) - 1) {
+                        validation_found = true;
+                        for (uint32_t valid_layer = 0; valid_layer < number_of_individual_layers; ++valid_layer) {
+                            layers.push_back(instance_validation_layers_list[valid_layer]);
+                        }
                     }
                 }
             }
         }
 
-        if (!validation_found) {
+        if (_enable_validation && !validation_found) {
             LogFatalError(
                 "vkEnumerateInstanceLayerProperties failed to find required validation layer.\n\n"
                 "Please look at the Getting Started guide for additional information.\n");
             // NOTE: The above should exit, but just in case...
             return false;
         }
-
-        // Determine the number of instance extensions supported
-        VkResult result = vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
-        if (VK_SUCCESS != result || 0 >= extension_count) {
-            LogFatalError("vkEnumerateInstanceExtensionProperties failed to find any extensions.\n");
-            return false;
-        }
-
-        // Query the available instance extensions
-        std::vector<VkExtensionProperties> extension_properties;
-        extension_properties.resize(extension_count);
-        result = vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extension_properties.data());
-        if (VK_SUCCESS != result || 0 >= extension_count) {
-            LogFatalError("vkEnumerateInstanceExtensionProperties failed to read any extension information.\n");
-            return false;
-        }
-
-        for (uint32_t i = 0; i < extension_count; i++) {
-            if (!strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, extension_properties[i].extensionName)) {
-                extensions.push_back(extension_properties[i].extensionName);
-            }
-        }
-
-        // This is info for a temp callback to use during CreateInstance.
-        // After the instance is created, we use the instance-based
-        // function to register the final callback.
-        VkDebugUtilsMessengerCreateInfoEXT *dbg_messenger_create_info = new VkDebugUtilsMessengerCreateInfoEXT;
-        // VK_EXT_debug_utils style
-        dbg_messenger_create_info->sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-        dbg_messenger_create_info->pNext = *next;
-        dbg_messenger_create_info->flags = 0;
-        dbg_messenger_create_info->messageSeverity =
-            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-        dbg_messenger_create_info->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                                                 VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                                 VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-        dbg_messenger_create_info->pfnUserCallback = debug_messenger_callback;
-        dbg_messenger_create_info->pUserData = this;
-        *next = dbg_messenger_create_info;
     }
+
+    // Determine the number of instance extensions supported
+    VkResult result = vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, nullptr);
+    if (VK_SUCCESS != result || 0 >= extension_count) {
+        LogFatalError("vkEnumerateInstanceExtensionProperties failed to find any extensions.\n");
+        return false;
+    }
+
+    // Query the available instance extensions
+    std::vector<VkExtensionProperties> extension_properties;
+    extension_properties.resize(extension_count);
+    result = vkEnumerateInstanceExtensionProperties(nullptr, &extension_count, extension_properties.data());
+    if (VK_SUCCESS != result || 0 >= extension_count) {
+        LogFatalError("vkEnumerateInstanceExtensionProperties failed to read any extension information.\n");
+        return false;
+    }
+
+    for (uint32_t i = 0; i < extension_count; i++) {
+        if (!strcmp(VK_EXT_DEBUG_UTILS_EXTENSION_NAME, extension_properties[i].extensionName)) {
+            extensions.push_back(extension_properties[i].extensionName);
+        }
+    }
+
+    // This is info for a temp callback to use during CreateInstance.
+    // After the instance is created, we use the instance-based
+    // function to register the final callback.
+    VkDebugUtilsMessengerCreateInfoEXT *dbg_messenger_create_info = new VkDebugUtilsMessengerCreateInfoEXT;
+    // VK_EXT_debug_utils style
+    dbg_messenger_create_info->sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+    dbg_messenger_create_info->pNext = *next;
+    dbg_messenger_create_info->flags = 0;
+    dbg_messenger_create_info->messageSeverity =
+        VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+    dbg_messenger_create_info->messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                                             VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                             VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+    dbg_messenger_create_info->pfnUserCallback = debug_messenger_callback;
+    dbg_messenger_create_info->pUserData = this;
+    *next = dbg_messenger_create_info;
 
     return true;
 }
@@ -315,60 +336,58 @@ bool GlobeLogger::ReleaseCreateInstanceItems(void **next) {
 bool GlobeLogger::CreateInstanceDebugInfo(VkInstance instance) {
     bool locked = false;
     try {
-        if (_enable_validation) {
-            InstanceDebugInfo instance_debug_info = {};
+        InstanceDebugInfo instance_debug_info = {};
 
-            // Setup VK_EXT_debug_utils function pointers always (we use them for
-            // debug labels and names).
-            instance_debug_info.CreateDebugUtilsMessengerEXT =
-                (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
-            instance_debug_info.DestroyDebugUtilsMessengerEXT =
-                (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
-            instance_debug_info.SubmitDebugUtilsMessageEXT =
-                (PFN_vkSubmitDebugUtilsMessageEXT)vkGetInstanceProcAddr(instance, "vkSubmitDebugUtilsMessageEXT");
-            instance_debug_info.CmdBeginDebugUtilsLabelEXT =
-                (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdBeginDebugUtilsLabelEXT");
-            instance_debug_info.CmdEndDebugUtilsLabelEXT =
-                (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdEndDebugUtilsLabelEXT");
-            instance_debug_info.CmdInsertDebugUtilsLabelEXT =
-                (PFN_vkCmdInsertDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdInsertDebugUtilsLabelEXT");
-            instance_debug_info.SetDebugUtilsObjectNameEXT =
-                (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
-            if (NULL == instance_debug_info.CreateDebugUtilsMessengerEXT ||
-                NULL == instance_debug_info.DestroyDebugUtilsMessengerEXT ||
-                NULL == instance_debug_info.SubmitDebugUtilsMessageEXT ||
-                NULL == instance_debug_info.CmdBeginDebugUtilsLabelEXT ||
-                NULL == instance_debug_info.CmdEndDebugUtilsLabelEXT ||
-                NULL == instance_debug_info.CmdInsertDebugUtilsLabelEXT ||
-                NULL == instance_debug_info.SetDebugUtilsObjectNameEXT) {
-                LogFatalError("GetProcAddr: Failed to init VK_EXT_debug_utils\n");
-                return false;
-            }
-
-            // Create a debug messenger
-            VkDebugUtilsMessengerCreateInfoEXT dbg_messenger_create_info = {};
-            dbg_messenger_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
-            dbg_messenger_create_info.pNext = nullptr;
-            dbg_messenger_create_info.flags = 0;
-            dbg_messenger_create_info.messageSeverity =
-                VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
-            dbg_messenger_create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
-                                                    VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
-                                                    VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
-            dbg_messenger_create_info.pfnUserCallback = debug_messenger_callback;
-            dbg_messenger_create_info.pUserData = this;
-            if (VK_SUCCESS != instance_debug_info.CreateDebugUtilsMessengerEXT(
-                                  instance, &dbg_messenger_create_info, NULL, &instance_debug_info.dbg_messenger)) {
-                LogFatalError("vkCreateDebugUtilsMessengerEXT: Failed to create messenger\n");
-                return false;
-            }
-
-            _instance_debug_mutex.lock();
-            locked = true;
-            _instance_debug_info[instance] = instance_debug_info;
-            _instance_debug_mutex.unlock();
-            locked = false;
+        // Setup VK_EXT_debug_utils function pointers always (we use them for
+        // debug labels and names).
+        instance_debug_info.CreateDebugUtilsMessengerEXT =
+            (PFN_vkCreateDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkCreateDebugUtilsMessengerEXT");
+        instance_debug_info.DestroyDebugUtilsMessengerEXT =
+            (PFN_vkDestroyDebugUtilsMessengerEXT)vkGetInstanceProcAddr(instance, "vkDestroyDebugUtilsMessengerEXT");
+        instance_debug_info.SubmitDebugUtilsMessageEXT =
+            (PFN_vkSubmitDebugUtilsMessageEXT)vkGetInstanceProcAddr(instance, "vkSubmitDebugUtilsMessageEXT");
+        instance_debug_info.CmdBeginDebugUtilsLabelEXT =
+            (PFN_vkCmdBeginDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdBeginDebugUtilsLabelEXT");
+        instance_debug_info.CmdEndDebugUtilsLabelEXT =
+            (PFN_vkCmdEndDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdEndDebugUtilsLabelEXT");
+        instance_debug_info.CmdInsertDebugUtilsLabelEXT =
+            (PFN_vkCmdInsertDebugUtilsLabelEXT)vkGetInstanceProcAddr(instance, "vkCmdInsertDebugUtilsLabelEXT");
+        instance_debug_info.SetDebugUtilsObjectNameEXT =
+            (PFN_vkSetDebugUtilsObjectNameEXT)vkGetInstanceProcAddr(instance, "vkSetDebugUtilsObjectNameEXT");
+        if (NULL == instance_debug_info.CreateDebugUtilsMessengerEXT ||
+            NULL == instance_debug_info.DestroyDebugUtilsMessengerEXT ||
+            NULL == instance_debug_info.SubmitDebugUtilsMessageEXT ||
+            NULL == instance_debug_info.CmdBeginDebugUtilsLabelEXT ||
+            NULL == instance_debug_info.CmdEndDebugUtilsLabelEXT ||
+            NULL == instance_debug_info.CmdInsertDebugUtilsLabelEXT ||
+            NULL == instance_debug_info.SetDebugUtilsObjectNameEXT) {
+            LogFatalError("GetProcAddr: Failed to init VK_EXT_debug_utils\n");
+            return false;
         }
+
+        // Create a debug messenger
+        VkDebugUtilsMessengerCreateInfoEXT dbg_messenger_create_info = {};
+        dbg_messenger_create_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_MESSENGER_CREATE_INFO_EXT;
+        dbg_messenger_create_info.pNext = nullptr;
+        dbg_messenger_create_info.flags = 0;
+        dbg_messenger_create_info.messageSeverity =
+            VK_DEBUG_UTILS_MESSAGE_SEVERITY_WARNING_BIT_EXT | VK_DEBUG_UTILS_MESSAGE_SEVERITY_ERROR_BIT_EXT;
+        dbg_messenger_create_info.messageType = VK_DEBUG_UTILS_MESSAGE_TYPE_GENERAL_BIT_EXT |
+                                                VK_DEBUG_UTILS_MESSAGE_TYPE_VALIDATION_BIT_EXT |
+                                                VK_DEBUG_UTILS_MESSAGE_TYPE_PERFORMANCE_BIT_EXT;
+        dbg_messenger_create_info.pfnUserCallback = debug_messenger_callback;
+        dbg_messenger_create_info.pUserData = this;
+        if (VK_SUCCESS != instance_debug_info.CreateDebugUtilsMessengerEXT(instance, &dbg_messenger_create_info, NULL,
+                                                                           &instance_debug_info.dbg_messenger)) {
+            LogFatalError("vkCreateDebugUtilsMessengerEXT: Failed to create messenger\n");
+            return false;
+        }
+
+        _instance_debug_mutex.lock();
+        locked = true;
+        _instance_debug_info[instance] = instance_debug_info;
+        _instance_debug_mutex.unlock();
+        locked = false;
         return true;
     } catch (...) {
         if (locked) {
@@ -381,22 +400,19 @@ bool GlobeLogger::CreateInstanceDebugInfo(VkInstance instance) {
 bool GlobeLogger::DestroyInstanceDebugInfo(VkInstance instance) {
     bool locked = false;
     try {
-        if (_enable_validation) {
-            _instance_debug_mutex.lock();
-            locked = true;
-            for (auto it = _instance_debug_info.begin(); it != _instance_debug_info.end();) {
-                if (it->first == instance) {
-                    InstanceDebugInfo instance_debug_info = it->second;
-                    instance_debug_info.DestroyDebugUtilsMessengerEXT(instance, instance_debug_info.dbg_messenger,
-                                                                      nullptr);
-                    _instance_debug_info.erase(it++);
-                } else {
-                    ++it;
-                }
+        _instance_debug_mutex.lock();
+        locked = true;
+        for (auto it = _instance_debug_info.begin(); it != _instance_debug_info.end();) {
+            if (it->first == instance) {
+                InstanceDebugInfo instance_debug_info = it->second;
+                instance_debug_info.DestroyDebugUtilsMessengerEXT(instance, instance_debug_info.dbg_messenger, nullptr);
+                _instance_debug_info.erase(it++);
+            } else {
+                ++it;
             }
-            _instance_debug_mutex.unlock();
-            locked = false;
         }
+        _instance_debug_mutex.unlock();
+        locked = false;
         return true;
     } catch (...) {
         if (locked) {
@@ -404,31 +420,6 @@ bool GlobeLogger::DestroyInstanceDebugInfo(VkInstance instance) {
         }
         return false;
     }
-}
-
-bool GlobeLogger::CheckAndRetrieveDeviceExtensions(const VkPhysicalDevice &physical_device,
-                                                   std::vector<std::string> &extensions) {
-    uint32_t extension_count = 0;
-
-    // Determine the number of device extensions supported
-    VkResult result = vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, nullptr);
-    if (VK_SUCCESS != result || 0 >= extension_count) {
-        return false;
-    }
-
-    // Query the available instance extensions
-    std::vector<VkExtensionProperties> extension_properties;
-    extension_properties.resize(extension_count);
-    result =
-        vkEnumerateDeviceExtensionProperties(physical_device, nullptr, &extension_count, extension_properties.data());
-    if (VK_SUCCESS != result || 0 >= extension_count) {
-        return false;
-    }
-
-    for (uint32_t i = 0; i < extension_count; i++) {
-    }
-
-    return true;
 }
 
 void GlobeLogger::SetFileOutput(std::string output_file) {

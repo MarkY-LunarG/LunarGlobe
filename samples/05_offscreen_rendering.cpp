@@ -103,7 +103,7 @@ class OffscreenRenderingApp : public GlobeApp {
 
 void OffscreenRenderingApp::DetermineNewColor() {
     if (++_selected_index >= 18) {
-        _selected_index = 0;
+        _selected_index = -1;
         if (++_color_index > 12) {
             _color_index = 0;
         }
@@ -170,8 +170,8 @@ OffscreenRenderingApp::OffscreenRenderingApp() {
     _offscreen_target = {};
     _offscreen_color = nullptr;
     _offscreen_depth = nullptr;
-    _selected_index = -1;
-    _color_index = -1;
+    _selected_index = 0xFFFF;
+    _color_index = 0xFFFF;
     DetermineNewColor();
 }
 
@@ -269,19 +269,20 @@ static float g_offscreen_color_quad_data[] = {
     0.5f,  0.5f,  0.0f, 1.0f,  // 7
     0.1f,  0.4f,  0.0f, 1.0f,  // 8
     -0.5f, 0.0f,  0.0f, 1.0f,  // 9 (left center)
-    -0.1f, -0.4f, 0.0f, 1.0f,  // 10
-    -0.5f, -0.5f, 0.0f, 1.0f,  // 11
-    -0.9f, -0.4f, 0.0f, 1.0f,  // 12
-    -1.0f, 0.0f,  0.0f, 1.0f,  // 13
-    -0.9f, 0.4f,  0.0f, 1.0f,  // 14
-    -0.5f, 0.5f,  0.0f, 1.0f,  // 15
-    -0.1f, 0.4f,  0.0f, 1.0f,  // 16
-    0.0f,  0.0f,  0.0f, 1.0f,  // 17
+    0.0f,  0.0f,  0.0f, 1.0f,  // 10
+    -0.1f, -0.4f, 0.0f, 1.0f,  // 11
+    -0.5f, -0.5f, 0.0f, 1.0f,  // 12
+    -0.9f, -0.4f, 0.0f, 1.0f,  // 13
+    -1.0f, 0.0f,  0.0f, 1.0f,  // 14
+    -0.9f, 0.4f,  0.0f, 1.0f,  // 15
+    -0.5f, 0.5f,  0.0f, 1.0f,  // 16
+    -0.1f, 0.4f,  0.0f, 1.0f,  // 17
+    0.0f,  0.0f,  0.0f, 1.0f,  // 18
 };
 static const uint32_t g_offscreen_color_quad_index_data[] = {0, 2,  1,  0, 3,  2,  0, 4,  3,  0, 5,  4,  0, 6,  5,
-                                                             0, 7,  6,  0, 8,  7,  0, 1,  8,  9, 1,  10, 9, 10, 11,
-                                                             9, 11, 12, 9, 12, 13, 9, 13, 14, 9, 14, 15, 9, 15, 16,
-                                                             9, 16, 17};
+                                                             0, 7,  6,  0, 8,  7,  0, 1,  8,  9, 10, 11, 9, 11, 12,
+                                                             9, 12, 13, 9, 13, 14, 9, 14, 15, 9, 15, 16, 9, 16, 17,
+                                                             9, 17, 18};
 
 bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
                                                   VkFormat vk_color_format, VkFormat vk_depth_stencil_format) {
@@ -397,44 +398,6 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         logger.LogFatalError("Failed to create offscreen semaphore");
         return false;
     }
-
-    VkClearValue clear_values[2];
-    clear_values[0] = {};
-    clear_values[0].color.float32[0] = 0.3f;
-    clear_values[0].color.float32[1] = 0.3f;
-    clear_values[0].color.float32[2] = 0.3f;
-    clear_values[0].color.float32[3] = 1.0f;
-    clear_values[1] = {};
-    clear_values[1].depthStencil.depth = 1.0f;
-    clear_values[1].depthStencil.stencil = 0;
-    VkRenderPassBeginInfo render_pass_begin_info = {};
-    render_pass_begin_info.sType = VK_STRUCTURE_TYPE_RENDER_PASS_BEGIN_INFO;
-    render_pass_begin_info.pNext = nullptr;
-    render_pass_begin_info.renderPass = _offscreen_target.vk_render_pass;
-    render_pass_begin_info.framebuffer = _offscreen_target.vk_framebuffer;
-    render_pass_begin_info.renderArea.offset.x = 0;
-    render_pass_begin_info.renderArea.offset.y = 0;
-    render_pass_begin_info.renderArea.extent.width = _offscreen_target.width;
-    render_pass_begin_info.renderArea.extent.height = _offscreen_target.height;
-    render_pass_begin_info.clearValueCount = 2;
-    render_pass_begin_info.pClearValues = clear_values;
-    vkCmdBeginRenderPass(vk_command_buffer, &render_pass_begin_info, VK_SUBPASS_CONTENTS_INLINE);
-
-    // Update dynamic viewport state
-    VkViewport viewport = {};
-    viewport.height = (float)_offscreen_target.height;
-    viewport.width = (float)_offscreen_target.width;
-    viewport.minDepth = (float)0.0f;
-    viewport.maxDepth = (float)1.0f;
-    vkCmdSetViewport(vk_command_buffer, 0, 1, &viewport);
-
-    // Update dynamic scissor state
-    VkRect2D scissor = {};
-    scissor.extent.width = _offscreen_target.width;
-    scissor.extent.height = _offscreen_target.height;
-    scissor.offset.x = 0;
-    scissor.offset.y = 0;
-    vkCmdSetScissor(vk_command_buffer, 0, 1, &scissor);
 
     std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings;
     VkDescriptorSetLayoutBinding cur_binding = {};
@@ -569,8 +532,10 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
         uint32_t offset = index * static_cast<uint32_t>(_offscreen_target.vk_uniform_vec4_alignment);
         uint8_t* mapped_addr = _offscreen_target.uniform_mapped_data + offset;
         memcpy(mapped_addr, &_color_0, sizeof(glm::vec4));
-        memcpy(mapped_addr + sizeof(glm::vec4), &_color_1, sizeof(glm::vec4));
-        memcpy(mapped_addr + (2 * sizeof(glm::vec4)), &_selected_index, sizeof(int32_t));
+        mapped_addr += sizeof(glm::vec4);
+        memcpy(mapped_addr, &_color_1, sizeof(glm::vec4));
+        mapped_addr += sizeof(glm::vec4);
+        memcpy(mapped_addr, &_selected_index, sizeof(int32_t));
     }
     if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _offscreen_target.uniform_buffer.vk_buffer,
                                          _offscreen_target.uniform_buffer.vk_memory, 0)) {
@@ -686,7 +651,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     scissor_rect.offset.y = 0;
     scissor_rect.extent.width = _offscreen_target.width;
     scissor_rect.extent.height = _offscreen_target.height;
-    viewport = {};
+    VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
     viewport.width = (float)_offscreen_target.width;
@@ -748,8 +713,6 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     }
 
     _globe_resource_mgr->FreeShader(position_color_shader);
-
-    vkCmdEndRenderPass(vk_command_buffer);
 
     // Create the command pool to be used by the offscreen surfaces.
     VkCommandPoolCreateInfo cmd_pool_create_info = {};
@@ -914,124 +877,6 @@ bool OffscreenRenderingApp::Setup() {
             return false;
         }
 
-        // Create the vertex buffer
-        VkBufferCreateInfo buffer_create_info = {};
-        buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
-        buffer_create_info.pNext = nullptr;
-        buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_screen_textured_quad_data);
-        buffer_create_info.queueFamilyIndexCount = 0;
-        buffer_create_info.pQueueFamilyIndices = nullptr;
-        buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
-        buffer_create_info.flags = 0;
-        if (VK_SUCCESS !=
-            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.vertex_buffer.vk_buffer)) {
-            logger.LogFatalError("Failed to create vertex buffer");
-            return false;
-        }
-        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _onscreen_target.vertex_buffer.vk_buffer,
-                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                _onscreen_target.vertex_buffer.vk_memory, _onscreen_target.vertex_buffer.vk_size)) {
-            logger.LogFatalError("Failed to allocate vertex buffer memory");
-            return false;
-        }
-        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory, 0,
-                                      _onscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
-            logger.LogFatalError("Failed to map vertex buffer memory");
-            return false;
-        }
-        memcpy(mapped_data, g_screen_textured_quad_data, sizeof(g_screen_textured_quad_data));
-        vkUnmapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.vertex_buffer.vk_buffer,
-                                             _onscreen_target.vertex_buffer.vk_memory, 0)) {
-            logger.LogFatalError("Failed to bind vertex buffer memory");
-            return false;
-        }
-
-        // Create the index buffer
-        buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
-        buffer_create_info.size = sizeof(g_screen_textured_quad_index_data);
-        if (VK_SUCCESS !=
-            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.index_buffer.vk_buffer)) {
-            logger.LogFatalError("Failed to create index buffer");
-            return false;
-        }
-        _onscreen_target.num_vertices = sizeof(g_screen_textured_quad_index_data) / sizeof(uint32_t);
-        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
-                _onscreen_target.index_buffer.vk_buffer,
-                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-                _onscreen_target.index_buffer.vk_memory, _onscreen_target.index_buffer.vk_size)) {
-            logger.LogFatalError("Failed to allocate index buffer memory");
-            return false;
-        }
-        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory, 0,
-                                      _onscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
-            logger.LogFatalError("Failed to map index buffer memory");
-            return false;
-        }
-        memcpy(mapped_data, g_screen_textured_quad_index_data, sizeof(g_screen_textured_quad_index_data));
-        vkUnmapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory);
-        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.index_buffer.vk_buffer,
-                                             _onscreen_target.index_buffer.vk_memory, 0)) {
-            logger.LogFatalError("Failed to bind index buffer memory");
-            return false;
-        }
-
-        std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
-        VkDescriptorPoolSize pool_size = {};
-        pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
-        pool_size.descriptorCount = 1;
-        descriptor_pool_sizes.push_back(pool_size);
-        pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        pool_size.descriptorCount = 2;
-        descriptor_pool_sizes.push_back(pool_size);
-        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
-        descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
-        descriptor_pool_create_info.pNext = nullptr;
-        descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
-        descriptor_pool_create_info.maxSets = 2;
-        descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
-        descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
-        if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr,
-                                                 &_onscreen_target.vk_descriptor_pool)) {
-            logger.LogFatalError("Failed to create descriptor pool");
-            return false;
-        }
-
-        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
-        descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
-        descriptor_set_allocate_info.pNext = NULL;
-        descriptor_set_allocate_info.descriptorPool = _onscreen_target.vk_descriptor_pool;
-        descriptor_set_allocate_info.descriptorSetCount = 1;
-        descriptor_set_allocate_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
-        if (VK_SUCCESS !=
-            vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_onscreen_target.vk_descriptor_set)) {
-            logger.LogFatalError("Failed to allocate descriptor set");
-            return false;
-        }
-
-        std::vector<VkDescriptorImageInfo> descriptor_image_infos;
-        VkDescriptorImageInfo image_info = {};
-        image_info.sampler = _offscreen_color->GetVkSampler();
-        image_info.imageView = _offscreen_color->GetVkImageView();
-        image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
-        descriptor_image_infos.push_back(image_info);
-
-        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
-        VkWriteDescriptorSet write_set = {};
-        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
-        write_set.pNext = nullptr;
-        write_set.dstSet = _onscreen_target.vk_descriptor_set;
-        write_set.dstBinding = 1;
-        write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
-        write_set.descriptorCount = static_cast<uint32_t>(descriptor_image_infos.size());
-        write_set.pImageInfo = descriptor_image_infos.data();
-        write_descriptor_sets.push_back(write_set);
-
-        vkUpdateDescriptorSets(_vk_device, static_cast<uint32_t>(write_descriptor_sets.size()),
-                               write_descriptor_sets.data(), 0, nullptr);
-
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
         dynamic_state_enables[0] = VK_DYNAMIC_STATE_VIEWPORT;
@@ -1159,6 +1004,123 @@ bool OffscreenRenderingApp::Setup() {
         }
 
         _globe_resource_mgr->FreeShader(multi_tex_shader);
+        // Create the vertex buffer
+        VkBufferCreateInfo buffer_create_info = {};
+        buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_create_info.pNext = nullptr;
+        buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        buffer_create_info.size = sizeof(g_screen_textured_quad_data);
+        buffer_create_info.queueFamilyIndexCount = 0;
+        buffer_create_info.pQueueFamilyIndices = nullptr;
+        buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        buffer_create_info.flags = 0;
+        if (VK_SUCCESS !=
+            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.vertex_buffer.vk_buffer)) {
+            logger.LogFatalError("Failed to create vertex buffer");
+            return false;
+        }
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
+                _onscreen_target.vertex_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.vertex_buffer.vk_memory, _onscreen_target.vertex_buffer.vk_size)) {
+            logger.LogFatalError("Failed to allocate vertex buffer memory");
+            return false;
+        }
+        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory, 0,
+                                      _onscreen_target.vertex_buffer.vk_size, 0, (void **)&mapped_data)) {
+            logger.LogFatalError("Failed to map vertex buffer memory");
+            return false;
+        }
+        memcpy(mapped_data, g_screen_textured_quad_data, sizeof(g_screen_textured_quad_data));
+        vkUnmapMemory(_vk_device, _onscreen_target.vertex_buffer.vk_memory);
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.vertex_buffer.vk_buffer,
+                                             _onscreen_target.vertex_buffer.vk_memory, 0)) {
+            logger.LogFatalError("Failed to bind vertex buffer memory");
+            return false;
+        }
+
+        // Create the index buffer
+        buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        buffer_create_info.size = sizeof(g_screen_textured_quad_index_data);
+        if (VK_SUCCESS !=
+            vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &_onscreen_target.index_buffer.vk_buffer)) {
+            logger.LogFatalError("Failed to create index buffer");
+            return false;
+        }
+        _onscreen_target.num_vertices = sizeof(g_screen_textured_quad_index_data) / sizeof(uint32_t);
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
+                _onscreen_target.index_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                _onscreen_target.index_buffer.vk_memory, _onscreen_target.index_buffer.vk_size)) {
+            logger.LogFatalError("Failed to allocate index buffer memory");
+            return false;
+        }
+        if (VK_SUCCESS != vkMapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory, 0,
+                                      _onscreen_target.index_buffer.vk_size, 0, (void **)&mapped_data)) {
+            logger.LogFatalError("Failed to map index buffer memory");
+            return false;
+        }
+        memcpy(mapped_data, g_screen_textured_quad_index_data, sizeof(g_screen_textured_quad_index_data));
+        vkUnmapMemory(_vk_device, _onscreen_target.index_buffer.vk_memory);
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, _onscreen_target.index_buffer.vk_buffer,
+                                             _onscreen_target.index_buffer.vk_memory, 0)) {
+            logger.LogFatalError("Failed to bind index buffer memory");
+            return false;
+        }
+
+        std::vector<VkDescriptorPoolSize> descriptor_pool_sizes;
+        VkDescriptorPoolSize pool_size = {};
+        pool_size.type = VK_DESCRIPTOR_TYPE_UNIFORM_BUFFER_DYNAMIC;
+        pool_size.descriptorCount = 1;
+        descriptor_pool_sizes.push_back(pool_size);
+        pool_size.type = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        pool_size.descriptorCount = 2;
+        descriptor_pool_sizes.push_back(pool_size);
+        VkDescriptorPoolCreateInfo descriptor_pool_create_info = {};
+        descriptor_pool_create_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_POOL_CREATE_INFO;
+        descriptor_pool_create_info.pNext = nullptr;
+        descriptor_pool_create_info.flags = VK_DESCRIPTOR_POOL_CREATE_FREE_DESCRIPTOR_SET_BIT;
+        descriptor_pool_create_info.maxSets = 2;
+        descriptor_pool_create_info.poolSizeCount = static_cast<uint32_t>(descriptor_pool_sizes.size());
+        descriptor_pool_create_info.pPoolSizes = descriptor_pool_sizes.data();
+        if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr,
+                                                 &_onscreen_target.vk_descriptor_pool)) {
+            logger.LogFatalError("Failed to create descriptor pool");
+            return false;
+        }
+
+        VkDescriptorSetAllocateInfo descriptor_set_allocate_info = {};
+        descriptor_set_allocate_info.sType = VK_STRUCTURE_TYPE_DESCRIPTOR_SET_ALLOCATE_INFO;
+        descriptor_set_allocate_info.pNext = NULL;
+        descriptor_set_allocate_info.descriptorPool = _onscreen_target.vk_descriptor_pool;
+        descriptor_set_allocate_info.descriptorSetCount = 1;
+        descriptor_set_allocate_info.pSetLayouts = &_onscreen_target.vk_descriptor_set_layout;
+        if (VK_SUCCESS !=
+            vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_onscreen_target.vk_descriptor_set)) {
+            logger.LogFatalError("Failed to allocate descriptor set");
+            return false;
+        }
+
+        std::vector<VkDescriptorImageInfo> descriptor_image_infos;
+        VkDescriptorImageInfo image_info = {};
+        image_info.sampler = _offscreen_color->GetVkSampler();
+        image_info.imageView = _offscreen_color->GetVkImageView();
+        image_info.imageLayout = VK_IMAGE_LAYOUT_GENERAL;
+        descriptor_image_infos.push_back(image_info);
+
+        std::vector<VkWriteDescriptorSet> write_descriptor_sets;
+        VkWriteDescriptorSet write_set = {};
+        write_set.sType = VK_STRUCTURE_TYPE_WRITE_DESCRIPTOR_SET;
+        write_set.pNext = nullptr;
+        write_set.dstSet = _onscreen_target.vk_descriptor_set;
+        write_set.dstBinding = 1;
+        write_set.descriptorType = VK_DESCRIPTOR_TYPE_COMBINED_IMAGE_SAMPLER;
+        write_set.descriptorCount = static_cast<uint32_t>(descriptor_image_infos.size());
+        write_set.pImageInfo = descriptor_image_infos.data();
+        write_descriptor_sets.push_back(write_set);
+
+        vkUpdateDescriptorSets(_vk_device, static_cast<uint32_t>(write_descriptor_sets.size()),
+                               write_descriptor_sets.data(), 0, nullptr);
     }
 
     if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
@@ -1173,7 +1135,7 @@ bool OffscreenRenderingApp::Setup() {
 bool OffscreenRenderingApp::Update(float diff_ms) {
     static float cur_time_diff = 0;
     cur_time_diff += diff_ms;
-    if (cur_time_diff > 2000.f) {
+    if (cur_time_diff > 30.f) {
         DetermineNewColor();
         cur_time_diff = 0.f;
     }
@@ -1226,8 +1188,10 @@ bool OffscreenRenderingApp::Draw() {
     VkDeviceSize offset = (_offscreen_target.vk_uniform_vec4_alignment * _current_buffer);
     uint8_t* uniform_map = _offscreen_target.uniform_mapped_data + offset;
     memcpy(uniform_map, &_color_0, sizeof(glm::vec4));
-    memcpy(uniform_map + sizeof(glm::vec4), &_color_1, sizeof(glm::vec4));
-    memcpy(uniform_map + (2 * sizeof(glm::vec4)), &_selected_index, sizeof(int32_t));
+    uniform_map += sizeof(glm::vec4);
+    memcpy(uniform_map, &_color_1, sizeof(glm::vec4));
+    uniform_map += sizeof(glm::vec4);
+    memcpy(uniform_map, &_selected_index, sizeof(int32_t));
     VkMappedMemoryRange memoryRange = {};
     memoryRange.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;
     memoryRange.memory = _offscreen_target.uniform_buffer.vk_memory;
