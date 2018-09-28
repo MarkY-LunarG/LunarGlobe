@@ -97,6 +97,8 @@ PushConstantApp::PushConstantApp() {
     _vk_descriptor_pool = VK_NULL_HANDLE;
     _vk_descriptor_set = VK_NULL_HANDLE;
     _vk_pipeline = VK_NULL_HANDLE;
+    _texture_1 = nullptr;
+    _texture_2 = nullptr;
 }
 
 PushConstantApp::~PushConstantApp() { Cleanup(); }
@@ -173,16 +175,22 @@ bool PushConstantApp::Setup() {
     if (!_is_minimized) {
         uint8_t *mapped_data;
 
-        _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer);
-        if (nullptr == _texture_1) {
-            logger.LogError("Failed loading kootenay_winter_stream.jpg texture");
-            return false;
+        if (nullptr == _texture_1)
+        {
+            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer);
+            if (nullptr == _texture_1) {
+                logger.LogError("Failed loading kootenay_winter_stream.jpg texture");
+                return false;
+            }
         }
 
-        _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.jpg", vk_setup_command_buffer);
-        if (nullptr == _texture_2) {
-            logger.LogError("Failed loading cks_memorial_taipei_lake.jpg texture");
-            return false;
+        if (nullptr == _texture_2)
+        {
+            _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.jpg", vk_setup_command_buffer);
+            if (nullptr == _texture_2) {
+                logger.LogError("Failed loading cks_memorial_taipei_lake.jpg texture");
+                return false;
+            }
         }
 
         std::vector<VkDescriptorSetLayoutBinding> descriptor_set_layout_bindings;
