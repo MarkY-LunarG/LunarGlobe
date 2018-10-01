@@ -1026,7 +1026,7 @@ bool GlobeSubmitManager::SubmitAndPresent(VkSemaphore wait_semaphore) {
     if (UsesSeparatePresentQueue()) {
         // If we are using separate queues, change image ownership to the
         // present queue before presenting, waiting for the draw complete
-        // semaphore and signalling the ownership released semaphore when finished
+        // semaphore and signaling the ownership released semaphore when finished
         submit_info.pWaitSemaphores = &_draw_complete_semaphores[_cur_wait_index];
         submit_info.pSignalSemaphores = &_image_ownership_semaphores[_cur_wait_index];
         submit_info.pCommandBuffers = &_vk_present_command_buffers[_cur_image];

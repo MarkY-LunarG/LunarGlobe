@@ -25,17 +25,17 @@
 // Include header required for parsing the command line options.
 #include <shellapi.h>
 
-#define GLOBE_APP_MAIN() int WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int nCmdShow)
+#define GLOBE_APP_MAIN() int32_t WINAPI WinMain(HINSTANCE hInstance, HINSTANCE hPrevInstance, LPSTR pCmdLine, int32_t nCmdShow)
 
 #define GLOBE_APP_MAIN_BEGIN(init_struct)                                                                \
-    int argc;                                                                                            \
+    int32_t argc;                                                                                        \
     LPWSTR *commandLineArgs = CommandLineToArgvW(GetCommandLineW(), &argc);                              \
     if (NULL == commandLineArgs) {                                                                       \
         argc = 0;                                                                                        \
     }                                                                                                    \
     if (argc > 1) {                                                                                      \
         init_struct.command_line_args.resize(argc - 1);                                                  \
-        for (int iii = 1; iii < argc; iii++) {                                                           \
+        for (int32_t iii = 1; iii < argc; iii++) {                                                       \
             size_t wideCharLen = wcslen(commandLineArgs[iii]);                                           \
             size_t numConverted = 0;                                                                     \
             char *argv = (char *)malloc(sizeof(char) * (wideCharLen + 1));                               \
@@ -88,14 +88,14 @@ static void demo_main(struct Demo *demo, void *view) {
                     }                                                                               \
                     const char key[] = "args";                                                      \
                     char *appTag = (char *)"Globe App";                                             \
-                    int argc = 0;                                                                   \
+                    int32_t argc = 0;                                                               \
                     char **argv = get_args(app, key, appTag, &argc);                                \
                     __android_log_print(ANDROID_LOG_INFO, appTag, "argc = %i", argc);               \
-                    for (int i = 0; i < argc; i++)                                                  \
+                    for (int32_t i = 0; i < argc; i++)                                              \
                         __android_log_print(ANDROID_LOG_INFO, appTag, "argv[%i] = %s", i, argv[i]); \
                     g_app->SetAndroidNativeWindow(app->window);                                     \
                     g_app->Init();                                                                  \
-                    for (int i = 0; i < argc; i++) free(argv[i]);                                   \
+                    for (int32_t i = 0; i < argc; i++) free(argv[i]);                               \
                 }                                                                                   \
                 break;                                                                              \
             }                                                                                       \
@@ -112,7 +112,7 @@ static void demo_main(struct Demo *demo, void *view) {
     void android_main(struct android_app *app)
 
 #define GLOBE_APP_MAIN_BEGIN(init_struct) \
-    int vulkanSupport = InitVulkan();     \
+    int32_t vulkanSupport = InitVulkan(); \
     if (vulkanSupport == 0) {             \
         return;                           \
     }                                     \
@@ -123,11 +123,11 @@ static void demo_main(struct Demo *demo, void *view) {
 
 #else
 
-#define GLOBE_APP_MAIN() int main(int argc, char **argv)
+#define GLOBE_APP_MAIN() int32_t main(int32_t argc, char **argv)
 
 #define GLOBE_APP_MAIN_BEGIN(init_struct)                   \
     init_struct.command_line_args.resize(argc - 1);         \
-    for (int iii = 1; iii < argc; iii++) {                  \
+    for (int32_t iii = 1; iii < argc; iii++) {              \
         init_struct.command_line_args[iii - 1] = argv[iii]; \
     }
 

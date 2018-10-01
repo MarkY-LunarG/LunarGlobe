@@ -172,6 +172,8 @@ OffscreenRenderingApp::OffscreenRenderingApp() {
     _offscreen_depth = nullptr;
     _selected_index = 0xFFFF;
     _color_index = 0xFFFF;
+    _color_0 = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
+    _color_1 = glm::vec4(0.0f, 0.0f, 0.0f, 1.0f);
     DetermineNewColor();
 }
 
@@ -1240,7 +1242,6 @@ bool OffscreenRenderingApp::Draw() {
                               _offscreen_target.vk_semaphore, VK_NULL_HANDLE, false);
 
     command_buffer_begin_info = {};
-    clear_values[2];
     render_pass_begin_info = {};
     command_buffer_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
     command_buffer_begin_info.pNext = nullptr;

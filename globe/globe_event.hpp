@@ -140,7 +140,10 @@ class GlobeEvent {
         _type = GLOBE_EVENT_NONE;
         memset(&_data, 0, sizeof(GlobeEventData));
     }
-    GlobeEvent(GlobeEventType type) { _type = type; }
+    GlobeEvent(GlobeEventType type) {
+        _type = type;
+        memset(&_data, 0, sizeof(GlobeEventData));
+    }
 
     GlobeEventType Type() { return _type; }
     GlobeEventData _data;

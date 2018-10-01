@@ -1,5 +1,5 @@
 /*
- * LunarGlobe - globeclock.hpp
+ * LunarGlobe - globe_clock.hpp
  *
  * Copyright (C) 2017-2018 LunarG, Inc.
  *
