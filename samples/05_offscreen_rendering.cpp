@@ -1238,8 +1238,20 @@ bool OffscreenRenderingApp::Draw() {
         return false;
     }
 
+    VkFence offscreen_fence;
+    VkFenceCreateInfo fence_create_info = {};
+    fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+    fence_create_info.pNext = nullptr;
+    fence_create_info.flags = VK_FENCE_CREATE_SIGNALED_BIT;
+    if (VK_SUCCESS != vkCreateFence(_vk_device, &fence_create_info, nullptr, &offscreen_fence)) {
+        logger.LogFatalError("Failed to allocate the off-screen fence sync fence");
+        return false;
+    }
+
     _globe_submit_mgr->Submit(_offscreen_target._vk_command_buffers[_current_buffer], VK_NULL_HANDLE,
-                              _offscreen_target.vk_semaphore, VK_NULL_HANDLE, false);
+                              _offscreen_target.vk_semaphore, offscreen_fence, false);
+
+    vkDestroyFence(_vk_device, offscreen_fence, nullptr);
 
     command_buffer_begin_info = {};
     render_pass_begin_info = {};
