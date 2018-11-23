@@ -45,7 +45,7 @@ void GlobeCamera::SetCameraPosition(float camera_x, float camera_y, float camera
 }
 
 void GlobeCamera::SetCameraOrientation(float yaw, float pitch, float roll) {
-    _camera_orientation = glm::vec3(pitch, yaw, roll);
+    _camera_orientation = glm::vec3(glm::radians(pitch), glm::radians(yaw), glm::radians(roll));
 }
 
 glm::mat4 GlobeCamera::ViewMatrix() {
