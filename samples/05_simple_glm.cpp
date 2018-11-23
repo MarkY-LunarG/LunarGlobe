@@ -56,9 +56,10 @@ class CameraApp : public GlobeApp {
     virtual bool Setup() override;
     virtual bool Update(float diff_ms) override;
     virtual bool Draw() override;
-    void CalculateModelMatrices(void);
 
    private:
+    void CalculateModelMatrices(void);
+
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkRenderPass _vk_render_pass;
@@ -72,7 +73,6 @@ class CameraApp : public GlobeApp {
     GlobeCamera _camera;
     float _camera_distance;
     float _camera_step;
-    float *_push_constants;
     uint32_t _vk_uniform_frame_size;
     VkDeviceSize _vk_min_uniform_alignment;
     float _pyramid_orbit_rotation;
@@ -148,10 +148,6 @@ void CameraApp::CalculateModelMatrices(void) {
 
 void CameraApp::Cleanup() {
     GlobeApp::PreCleanup();
-    if (nullptr != _push_constants) {
-        delete[] _push_constants;
-        _push_constants = nullptr;
-    }
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
         _vk_pipeline = VK_NULL_HANDLE;
@@ -209,14 +205,6 @@ bool CameraApp::Setup() {
 
     // Setup the model matrices
     CalculateModelMatrices();
-
-    // Create our push constant data, which matches shader expectations
-    _push_constants = new float[16];
-    if (nullptr == _push_constants) {
-        logger.LogFatalError("Failed to allocate space for push constants");
-        return false;
-    }
-
     _vk_min_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
     if (_vk_min_uniform_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
         _vk_min_uniform_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
@@ -249,7 +237,7 @@ bool CameraApp::Setup() {
         VkPushConstantRange push_constant_range = {};
         push_constant_range.stageFlags = VK_SHADER_STAGE_VERTEX_BIT;
         push_constant_range.offset = 0;
-        push_constant_range.size = 64;
+        push_constant_range.size = sizeof(glm::mat4);
 
         VkPipelineLayoutCreateInfo pipeline_layout_create_info = {};
         pipeline_layout_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_LAYOUT_CREATE_INFO;
@@ -692,14 +680,10 @@ bool CameraApp::Draw() {
     vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
 
-    memcpy(_push_constants, &_diamond_mat, sizeof(glm::mat4));
-    vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64,
-                       _push_constants);
+    vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &_diamond_mat);
     vkCmdDrawIndexed(vk_render_command_buffer, 24, 1, 0, 0, 1);
 
-    memcpy(_push_constants, &_pyramid_mat, sizeof(glm::mat4));
-    vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64,
-                       _push_constants);
+    vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &_pyramid_mat);
     vkCmdDrawIndexed(vk_render_command_buffer, 18, 1, 24, 0, 1);
 
     vkCmdEndRenderPass(vk_render_command_buffer);
