@@ -8,6 +8,8 @@ target_sources(globe
                    globe_vulkan_headers.hpp
                    globe_app.hpp
                    globe_app.cpp
+                   globe_camera.hpp
+                   globe_camera.cpp
                    globe_logger.hpp
                    globe_logger.cpp
                    globe_event.hpp
