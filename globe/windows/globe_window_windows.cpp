@@ -108,6 +108,7 @@ bool GlobeWindowWindows::CreateVkSurface(VkInstance instance, VkPhysicalDevice p
 // MS-Windows event handling function:
 static LRESULT CALLBACK GlobeWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPARAM lParam) {
     GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
+    GlobeMouseButton mouse_button = GLOBE_MOUSEBUTTON_NONE;
     switch (uMsg) {
         case WM_CREATE: {
             CREATESTRUCT *cs = reinterpret_cast<CREATESTRUCT *>(lParam);
@@ -130,14 +131,44 @@ static LRESULT CALLBACK GlobeWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
             if (nullptr != globe_window) {
                 ((MINMAXINFO *)lParam)->ptMinTrackSize = globe_window->Minsize();
             }
-        }
             return 0;
+        }
         case WM_KEYDOWN: {
             globe_event_type = GLOBE_EVENT_KEY_PRESS;
             break;
         }
         case WM_KEYUP: {
             globe_event_type = GLOBE_EVENT_KEY_RELEASE;
+            break;
+        }
+        case WM_LBUTTONDOWN: {
+            globe_event_type = GLOBE_EVENT_MOUSE_PRESS;
+            mouse_button = GLOBE_MOUSEBUTTON_LEFT;
+            break;
+        }
+        case WM_LBUTTONUP: {
+            globe_event_type = GLOBE_EVENT_MOUSE_RELEASE;
+            mouse_button = GLOBE_MOUSEBUTTON_LEFT;
+            break;
+        }
+        case WM_MBUTTONDOWN: {
+            globe_event_type = GLOBE_EVENT_MOUSE_PRESS;
+            mouse_button = GLOBE_MOUSEBUTTON_MIDDLE;
+            break;
+        }
+        case WM_MBUTTONUP: {
+            globe_event_type = GLOBE_EVENT_MOUSE_RELEASE;
+            mouse_button = GLOBE_MOUSEBUTTON_MIDDLE;
+            break;
+        }
+        case WM_RBUTTONDOWN: {
+            globe_event_type = GLOBE_EVENT_MOUSE_PRESS;
+            mouse_button = GLOBE_MOUSEBUTTON_RIGHT;
+            break;
+        }
+        case WM_RBUTTONUP: {
+            globe_event_type = GLOBE_EVENT_MOUSE_RELEASE;
+            mouse_button = GLOBE_MOUSEBUTTON_RIGHT;
             break;
         }
         case WM_SIZE: {
@@ -154,7 +185,11 @@ static LRESULT CALLBACK GlobeWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
         default:
             break;
     }
-    if (globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
+    if (globe_event_type == GLOBE_EVENT_MOUSE_PRESS || globe_event_type == GLOBE_EVENT_MOUSE_RELEASE) {
+        GlobeEvent *event = new GlobeEvent(globe_event_type);
+        event->_data.mouse_button = mouse_button;
+        GlobeEventList::getInstance().InsertEvent(*event);
+    } else if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
         switch (wParam) {
             case VK_ESCAPE: {
                 GlobeEvent *event = new GlobeEvent(globe_event_type);

@@ -36,9 +36,18 @@ enum GlobeEventType {
     GLOBE_EVENT_WINDOW_CLOSE,
     GLOBE_EVENT_KEY_PRESS,
     GLOBE_EVENT_KEY_RELEASE,
+    GLOBE_EVENT_MOUSE_PRESS,
+    GLOBE_EVENT_MOUSE_RELEASE,
     // First app defined event ID, all before this number
     // are reserved for the Globe framework.
     GLOBE_EVENT_FIRST_OPEN = 0x00001000,
+};
+
+enum GlobeMouseButton {
+    GLOBE_MOUSEBUTTON_NONE = 0,
+    GLOBE_MOUSEBUTTON_LEFT,
+    GLOBE_MOUSEBUTTON_MIDDLE,
+    GLOBE_MOUSEBUTTON_RIGHT,
 };
 
 enum GlobeKeyName {
@@ -129,6 +138,7 @@ struct GlobeResizeEventData {
 union GlobeEventData {
     GlobeResizeEventData resize;
     GlobeKeyName key;
+    GlobeMouseButton mouse_button;
     // Provide a pointer for the application to create/release it's
     // own data per event
     void *generic;
