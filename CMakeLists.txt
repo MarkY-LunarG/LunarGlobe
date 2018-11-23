@@ -96,7 +96,7 @@ macro(SINGLE_SOURCE_EXECUTABLE test_name)
                                PUBLIC
                                   ${PROJECT_SOURCE_DIR}
                               )
-    target_compile_options(globe
+    target_compile_options(${test_name}
                             PUBLIC
                                -std=c++11
                           )
