@@ -539,3 +539,15 @@ void GlobeLogger::LogFatalError(std::string message) {
     assert(false);
     exit(-1);
 }
+
+bool GlobeLogger::SetObjectName(VkInstance instance, VkDevice device, uint64_t handle, VkObjectType type,
+                                const std::string &name) {
+    _object_name_map[handle] = name;
+    VkDebugUtilsObjectNameInfoEXT name_info = {};
+    name_info.sType = VK_STRUCTURE_TYPE_DEBUG_UTILS_OBJECT_NAME_INFO_EXT;
+    name_info.objectType = type;
+    name_info.objectHandle = handle;
+    name_info.pObjectName = _object_name_map[handle].data();
+    _instance_debug_info[instance].SetDebugUtilsObjectNameEXT(device, &name_info);
+    return true;
+}

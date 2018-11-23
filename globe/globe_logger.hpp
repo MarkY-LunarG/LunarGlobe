@@ -51,8 +51,8 @@ struct InstanceDebugInfo {
 class GlobeLogger {
    public:
     static GlobeLogger &getInstance() {
-        static GlobeLogger instance;  // Guaranteed to be destroyed. Instantiated on first use.
-        return instance;
+        static GlobeLogger logger_instance;  // Guaranteed to be destroyed. Instantiated on first use.
+        return logger_instance;
     }
 
     GlobeLogger(GlobeLogger const &) = delete;
@@ -79,6 +79,9 @@ class GlobeLogger {
     void EnablePopups(bool enable) { _enable_popups = enable; }
     bool PopupsEnabled() { return _enable_popups; }
 
+    bool SetObjectName(VkInstance instance, VkDevice device, uint64_t handle, VkObjectType type,
+                       const std::string &name);
+
     // Log messages
     void LogDebug(std::string message);
     void LogInfo(std::string message);
@@ -102,5 +105,6 @@ class GlobeLogger {
     std::ofstream _file_stream;
     GlobeLogLevel _log_level;
     std::unordered_map<VkInstance, InstanceDebugInfo> _instance_debug_info;
+    std::unordered_map<uint64_t, std::string> _object_name_map;
     std::mutex _instance_debug_mutex;
 };
