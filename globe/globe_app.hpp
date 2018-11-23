@@ -104,10 +104,6 @@ class GlobeApp {
     bool PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &vk_setup_command_buffer);
     bool ProcessEvents();
     virtual void HandleEvent(GlobeEvent &event);
-    bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                 VkImageLayout old_image_layout, VkImageLayout new_image_layout,
-                                 VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                 VkPipelineStageFlags dest_stages);
 
     std::string _name;
     GlobeVersion _app_version;

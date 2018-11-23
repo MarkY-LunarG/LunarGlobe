@@ -587,63 +587,6 @@ void GlobeApp::Exit() {
     vkDestroyInstance(_vk_instance, nullptr);
 }
 
-bool GlobeApp::TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                       VkImageLayout old_image_layout, VkImageLayout new_image_layout,
-                                       VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                       VkPipelineStageFlags dest_stages) {
-    GlobeLogger &logger = GlobeLogger::getInstance();
-    if (VK_NULL_HANDLE == new_image_layout) {
-        logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
-        return false;
-    }
-
-    VkImageMemoryBarrier image_memory_barrier = {};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.pNext = nullptr;
-    image_memory_barrier.srcAccessMask = src_access_mask;
-    image_memory_barrier.dstAccessMask = 0;
-    image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.oldLayout = old_image_layout;
-    image_memory_barrier.newLayout = new_image_layout;
-    image_memory_barrier.image = image;
-    image_memory_barrier.subresourceRange = {aspect_mask, 0, 1, 0, 1};
-
-    switch (new_image_layout) {
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            /* Make sure anything that was copying from this image has completed */
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-            break;
-
-        default:
-            image_memory_barrier.dstAccessMask = 0;
-            break;
-    }
-
-    vkCmdPipelineBarrier(cmd_buf, src_stages, dest_stages, 0, 0, nullptr, 0, nullptr, 1, &image_memory_barrier);
-    return true;
-}
-
 bool GlobeApp::ProcessEvents() {
     std::vector<GlobeEvent> current_events;
     if (GlobeEventList::getInstance().GetEvents(current_events)) {
