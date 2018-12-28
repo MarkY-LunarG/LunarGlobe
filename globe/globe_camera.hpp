@@ -25,6 +25,8 @@
 #define GLM_FORCE_RADIANS
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
+#include <glm/gtc/matrix_transform.hpp>
+#include <glm/gtc/matrix_inverse.hpp>
 
 class GlobeCamera {
    public:
@@ -35,12 +37,13 @@ class GlobeCamera {
     void SetFrustumProjection(float left, float right, float top, float bottom, float near, float far);
     void SetOrthographicProjection(float left, float right, float top, float bottom, float near, float far);
 
-    void SetViewPosition(float x, float y, float z);
-    void SetViewOrientation(float x, float y, float z);
+    void SetCameraPositions(float camera_x, float camera_y, float camera_z, float focus_x, float focus_y, float focus_z,
+                            float up_x, float up_y, float up_z);
 
-    const glm::mat4* ViewMatrix();
-    const glm::mat4* ProjectionMatrix();
+    const glm::mat4* ViewMatrix() { return &_view_matrix; }
+    const glm::mat4* ProjectionMatrix() { return &_projection_matrix; }
 
    protected:
     glm::mat4 _projection_matrix;
+    glm::mat4 _view_matrix;
 };

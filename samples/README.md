@@ -50,3 +50,16 @@ ellipse.
 The third push constant defines the Y radius of the
 ellipse.
 
+
+## 05 - Simple GLM
+
+<img src="screenshots/05_simple_glm.png" height="256px">
+
+Stepping back, I wanted to setup a simple sample which
+used GLM to define a Camera projection and view as well
+as rotate objects around a scene.  The objects are
+defined in a single vertex/index buffer and rotated
+separately using a Uniform Buffer to define the
+camera projection and view but a Push constant to
+define the model-specific transform matrix.
+
