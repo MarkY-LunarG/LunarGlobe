@@ -70,6 +70,8 @@ class CameraApp : public GlobeApp {
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;
     GlobeCamera _camera;
+    float _camera_distance;
+    float _camera_step;
     float *_push_constants;
     uint32_t _vk_uniform_frame_size;
     VkDeviceSize _vk_min_uniform_alignment;
@@ -99,9 +101,8 @@ static const float g_model_data[] = {
     -0.5f,  0.5f,  0.5f,        0.0f, 0.3f, 1.0f,
     // clang-format on
 };
-static const uint32_t g_model_index_data[] = {
-    0, 2, 1, 0, 3, 2, 0, 4, 3, 0, 1, 4, 5, 1, 2, 5, 2, 3, 5, 3, 4, 5, 4, 1, 
-    6, 8, 7, 6, 9, 8, 6, 10, 9, 6, 7, 10, 10, 7, 9, 9, 7, 8 };
+static const uint32_t g_model_index_data[] = {0, 2, 1, 0, 3, 2, 0, 4, 3, 0, 1,  4, 5, 1, 2,  5,  2, 3, 5, 3, 4,
+                                              5, 4, 1, 6, 8, 7, 6, 9, 8, 6, 10, 9, 6, 7, 10, 10, 7, 9, 9, 7, 8};
 
 CameraApp::CameraApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
@@ -120,8 +121,10 @@ CameraApp::CameraApp() {
     _vk_descriptor_pool = VK_NULL_HANDLE;
     _vk_descriptor_set = VK_NULL_HANDLE;
     _vk_pipeline = VK_NULL_HANDLE;
-    _camera.SetPerspectiveProjection(1.0f, 90.f, 1.0f, 100.f);
-    _camera.SetCameraPositions(0.f, 0.f, -3.0f, 0.f, 0.f, 1.f, 0.f, -1.f, 0.f);
+    _camera_distance = 3.f;
+    _camera_step = 0.05f;
+    _camera.SetPerspectiveProjection(1.0f, 45.f, 1.0f, 100.f);
+    _camera.SetCameraPosition(0.f, 0.f, -_camera_distance);
     _diamond_orbit_rotation = 90.f;
     _diamond_orientation_rotation = 0.f;
     _pyramid_orbit_rotation = 0.f;
@@ -595,6 +598,12 @@ bool CameraApp::Update(float diff_ms) {
     static float cur_time_diff = 0.f;
     cur_time_diff += diff_ms;
     if (cur_time_diff > 9.f) {
+        _camera_distance += _camera_step;
+        if ((_camera_step > 0.f && _camera_distance > 12.f) || (_camera_step < 0.f && _camera_distance < 3.f)) {
+            _camera_step = -_camera_step;
+        }
+        _camera.SetCameraPosition(0.f, 0.f, -_camera_distance);
+
         INCREMENT_ROTATION_VALUE(_pyramid_orbit_rotation, 0.3f);
         INCREMENT_ROTATION_VALUE(_pyramid_orientation_rotation, 0.9f);
         INCREMENT_ROTATION_VALUE(_diamond_orbit_rotation, -0.3f);
@@ -606,7 +615,8 @@ bool CameraApp::Update(float diff_ms) {
     uint8_t *cur_uniform_pointer = _uniform_map + (_vk_uniform_frame_size * _current_buffer);
     memcpy(cur_uniform_pointer, _camera.ProjectionMatrix(), sizeof(glm::mat4));
     cur_uniform_pointer += sizeof(glm::mat4);
-    memcpy(cur_uniform_pointer, _camera.ViewMatrix(), sizeof(glm::mat4));
+    glm::mat4 view_mat = _camera.ViewMatrix();
+    memcpy(cur_uniform_pointer, &view_mat, sizeof(glm::mat4));
 
     VkMappedMemoryRange mapped_range = {};
     mapped_range.sType = VK_STRUCTURE_TYPE_MAPPED_MEMORY_RANGE;

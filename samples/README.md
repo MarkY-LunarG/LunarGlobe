@@ -56,10 +56,13 @@ ellipse.
 <img src="screenshots/05_simple_glm.png" height="256px">
 
 Stepping back, I wanted to setup a simple sample which
-used GLM to define a Camera projection and view as well
-as rotate objects around a scene.  The objects are
-defined in a single vertex/index buffer and rotated
-separately using a Uniform Buffer to define the
-camera projection and view but a Push constant to
-define the model-specific transform matrix.
+used GLM to use a Camera.
 
+The sample does the following:
+ * Use a camera (defined as position and orientation) to
+   generate both a projection and view matrix.
+ * Define multiple objects in a single vertex and index
+   list.
+ * Use a dynamic uniform buffer to pass along the camera
+   projection and view matrices to the shader.
+ * Use push constants to define the current model matrix.
