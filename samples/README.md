@@ -56,7 +56,7 @@ ellipse.
 <img src="screenshots/05_simple_glm.png" height="256px">
 
 Stepping back, I wanted to setup a simple sample which
-used GLM to use a Camera.
+used GLM to setup and move a camera and objects.
 
 The sample does the following:
  * Use a camera (defined as position and orientation) to
