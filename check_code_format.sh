@@ -29,7 +29,7 @@ if [ -z "${FILES_TO_CHECK}" ]; then
   exit 0
 fi
 
-FORMAT_DIFF=$(git diff -U0 master -- ${FILES_TO_CHECK} | python ./scripts/clang-format-diff.py -p1 -style=file)
+FORMAT_DIFF=$(git diff -U0 master -- ${FILES_TO_CHECK} | python ./clang-format-diff.py -p1 -style=file)
 
 if [ -z "${FORMAT_DIFF}" ]; then
   echo -e "${GREEN}All source code in PR properly formatted.${NC}"
