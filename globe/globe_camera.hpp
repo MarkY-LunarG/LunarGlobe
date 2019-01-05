@@ -9,15 +9,7 @@
 
 #pragma once
 
-#include <cstdint>
-
-#define GLM_FORCE_RADIANS
-#define GLM_FORCE_DEPTH_ZERO_TO_ONE
-#define GLM_ENABLE_EXPERIMENTAL
-#include <glm/glm.hpp>
-#include <glm/gtc/matrix_transform.hpp>
-#include <glm/gtc/matrix_inverse.hpp>
-#include <glm/gtx/euler_angles.hpp>
+#include "globe_glm_include.hpp"
 
 class GlobeCamera {
    public:

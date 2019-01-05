@@ -65,7 +65,7 @@ class CameraApp : public GlobeApp {
     float _camera_distance;
     float _camera_step;
     uint32_t _vk_uniform_frame_size;
-    VkDeviceSize _vk_min_uniform_alignment;
+    uint32_t _vk_min_uniform_alignment;
     float _pyramid_orbit_rotation;
     float _pyramid_orientation_rotation;
     glm::mat4 _pyramid_mat;
@@ -196,9 +196,10 @@ bool CameraApp::Setup() {
 
     // Setup the model matrices
     CalculateModelMatrices();
-    _vk_min_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
-    if (_vk_min_uniform_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
-        _vk_min_uniform_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
+    _vk_min_uniform_alignment =
+        static_cast<uint32_t>(_vk_phys_device_properties.limits.minUniformBufferOffsetAlignment);
+    if (_vk_min_uniform_alignment < static_cast<uint32_t>(_vk_phys_device_properties.limits.nonCoherentAtomSize)) {
+        _vk_min_uniform_alignment = static_cast<uint32_t>(_vk_phys_device_properties.limits.nonCoherentAtomSize);
     }
     _vk_uniform_frame_size = sizeof(glm::mat4) * 2;
     _vk_uniform_frame_size += (_vk_min_uniform_alignment - 1);

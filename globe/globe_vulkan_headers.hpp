@@ -11,10 +11,6 @@
 
 #include <vulkan/vulkan_core.h>
 
-#if defined(VK_USE_PLATFORM_MIR_KHR)
-#error "Globe does not have code for Mir at this time"
-#endif
-
 #ifdef VK_USE_PLATFORM_ANDROID_KHR
 #include <vulkan/vulkan_android.h>
 #endif
