@@ -31,6 +31,8 @@ find_package(Vulkan)
 set(LIBVK "Vulkan::Vulkan")
 MESSAGE(STATUS "Vulkan -> ${LIBVK}")
 
+add_subdirectory(submodules)
+
 if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
     include(FindPkgConfig)
     option(BUILD_WSI_XCB_SUPPORT "Build XCB WSI support" ON)
@@ -48,7 +50,6 @@ if(CMAKE_SYSTEM_NAME STREQUAL "Linux")
 
     if (BUILD_WSI_WAYLAND_SUPPORT)
         find_package(Wayland REQUIRED)
-        include_directories(${WAYLAND_CLIENT_INCLUDE_DIR})
     endif()
 endif()
 

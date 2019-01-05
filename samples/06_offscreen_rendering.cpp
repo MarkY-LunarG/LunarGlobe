@@ -81,7 +81,7 @@ class OffscreenRenderingApp : public GlobeApp {
     GlobeTexture *_offscreen_depth;
     uint8_t *_offscreen_constants;
     uint32_t _vk_uniform_frame_size;
-    VkDeviceSize _vk_min_uniform_alignment;
+    uint32_t _vk_min_uniform_alignment;
     GlobeCamera _offscreen_camera;
     float _offscreen_camera_distance;
     float _offscreen_camera_step;
@@ -728,9 +728,10 @@ bool OffscreenRenderingApp::Setup() {
         return false;
     }
 
-    _vk_min_uniform_alignment = _vk_phys_device_properties.limits.minUniformBufferOffsetAlignment;
-    if (_vk_min_uniform_alignment < _vk_phys_device_properties.limits.nonCoherentAtomSize) {
-        _vk_min_uniform_alignment = _vk_phys_device_properties.limits.nonCoherentAtomSize;
+    _vk_min_uniform_alignment =
+        static_cast<uint32_t>(_vk_phys_device_properties.limits.minUniformBufferOffsetAlignment);
+    if (_vk_min_uniform_alignment < static_cast<uint32_t>(_vk_phys_device_properties.limits.nonCoherentAtomSize)) {
+        _vk_min_uniform_alignment = static_cast<uint32_t>(_vk_phys_device_properties.limits.nonCoherentAtomSize);
     }
     _vk_uniform_frame_size = sizeof(glm::mat4) * 2;
     _vk_uniform_frame_size += (_vk_min_uniform_alignment - 1);

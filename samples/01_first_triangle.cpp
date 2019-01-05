@@ -496,9 +496,7 @@ bool TriangleApp::Setup() {
     return true;
 }
 
-bool TriangleApp::Update(float diff_ms) {
-    return true;
-}
+bool TriangleApp::Update(float diff_ms) { return true; }
 
 bool TriangleApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
