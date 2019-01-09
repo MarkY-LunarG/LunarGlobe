@@ -125,6 +125,8 @@ static LRESULT CALLBACK GlobeWindowProc(HWND hWnd, UINT uMsg, WPARAM wParam, LPA
             GlobeEventList::getInstance().InsertEvent(GlobeEvent(GLOBE_EVENT_WINDOW_DRAW));
             break;
         }
+        case WM_ERASEBKGND:
+            return 1;
         case WM_GETMINMAXINFO:  // set window's minimum size
         {
             GlobeWindowWindows *globe_window = reinterpret_cast<GlobeWindowWindows *>(GetWindowLongPtr(hWnd, 0));
