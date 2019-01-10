@@ -1,5 +1,12 @@
+#
+# Project:                 LunarGlobe
+# SPDX-License-Identifier: Apache-2.0
+#
+# File:                    samples/CMakeLists.txt
+# Copyright(C):            2018-2019; LunarG, Inc.
+# Author(s):               Mark Young <marky@lunarg.com>
+#
 
-######################################################################################
 # Resources
 
 file(GLOB RESOURCES
