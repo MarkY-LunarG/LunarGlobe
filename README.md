@@ -18,15 +18,14 @@ that can be used to showcase Vulkan features.
 This project is licensed under the Apache License Version 2.0 dated
 January 2004.
 More information about this license can be read in the provided
-[LICENSE.txt](LICENSE.txt) file as well as at the Apache License
+[LICENSE](LICENSE) file as well as at the Apache License
 website https://www.apache.org/licenses/.
 
 Feel free to use it and release it as allowed under the license.
 
 Several other projects have been included using Git Submodules.
-These projects may have their own licenses.
-Information on these licenses can be found in
-[COPYRIGHT.txt](COPYRIGHT.txt).
+These projects may have their own licenses which can be found in
+the appropriate submodule/<project> folder.
 
 ## Notice of Copyright
 
