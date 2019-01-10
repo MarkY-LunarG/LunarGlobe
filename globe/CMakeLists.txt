@@ -1,5 +1,11 @@
-######################################################################################
-# globe
+#
+# Project:                 LunarGlobe
+# SPDX-License-Identifier: Apache-2.0
+#
+# File:                    globe/CMakeLists.txt
+# Copyright(C):            2018-2019; LunarG, Inc.
+# Author(s):               Mark Young <marky@lunarg.com>
+#
 
 add_library(globe "")
 
