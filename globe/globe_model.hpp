@@ -16,6 +16,7 @@
 #include "vulkan/vulkan_core.h"
 
 #include "globe_glm_include.hpp"
+#include "globe_basic_types.hpp"
 
 class GlobeResourceManager;
 
@@ -27,23 +28,12 @@ class GlobeModel {
         glm::vec4 max = {glm::vec4(std::numeric_limits<float>::min())};
     };
 
-    struct ComponentSizes {
-        uint8_t position;
-        uint8_t normal;
-        uint8_t diffuse_color;
-        uint8_t ambient_color;
-        uint8_t specular_color;
-        uint8_t emissive_color;
-        uint8_t texcoord[3];
-        uint8_t tangent;
-        uint8_t bitangent;
-    };
-
     struct MaterialInfo {
-        float diffuse_color[3];
-        float ambient_color[3];
-        float specular_color[3];
-        float emissive_color[3];
+        float diffuse_color[4];
+        float ambient_color[4];
+        float specular_color[4];
+        float emissive_color[4];
+        float shininess[4];
     };
 
     struct MeshInfo {
@@ -60,12 +50,15 @@ class GlobeModel {
         VkDeviceSize vk_size;
     };
 
-    static GlobeModel* LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                    VkCommandBuffer vk_command_buffer, ComponentSizes sizes,
-                                    const std::string& model_name, const std::string& directory);
+    static GlobeModel* LoadModelFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                     const GlobeComponentSizes& sizes, const std::string& model_name,
+                                     const std::string& directory);
+    static GlobeModel* LoadDaeModelFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                        const GlobeComponentSizes& sizes, const std::string& model_name,
+                                        const std::string& directory);
 
     GlobeModel(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& model_name,
-               ComponentSizes sizes, std::vector<MeshInfo>& meshes, const BoundingBox& bounding_box,
+               const GlobeComponentSizes& sizes, std::vector<MeshInfo>& meshes, const BoundingBox& bounding_box,
                std::vector<float>& vertices, std::vector<uint32_t>& indices);
     ~GlobeModel();
 
@@ -78,7 +71,7 @@ class GlobeModel {
 
    private:
     static void CopyVertexComponentData(std::vector<float>& buffer, float* data, bool data_valid, uint8_t copy_comps,
-                                        uint8_t max_comps);
+                                        uint8_t max_comps, bool flip_y = false);
 
     bool _is_valid;
     VkDevice _vk_device;

@@ -8,6 +8,7 @@
 //
 
 #include <cstring>
+#include <algorithm>
 
 #include "globe_logger.hpp"
 #include "globe_event.hpp"
@@ -21,13 +22,17 @@
 #include <assimp/cimport.h>
 
 void GlobeModel::CopyVertexComponentData(std::vector<float>& buffer, float* data, bool data_valid, uint8_t copy_comps,
-                                         uint8_t max_comps) {
+                                         uint8_t max_comps, bool flip_y) {
     uint8_t comp;
     const float default_values[4] = {0.f, 0.f, 0.f, 1.f};
     if (data_valid) {
         uint8_t max_copy = (max_comps < copy_comps) ? max_comps : copy_comps;
         for (comp = 0; comp < max_copy; ++comp) {
-            buffer.push_back(*data);
+            if (comp == 1 && flip_y) {
+                buffer.push_back(-*data);
+            } else {
+                buffer.push_back(*data);
+            }
             ++data;
         }
         for (; comp < copy_comps; ++comp) {
@@ -40,9 +45,9 @@ void GlobeModel::CopyVertexComponentData(std::vector<float>& buffer, float* data
     }
 }
 
-GlobeModel* GlobeModel::LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                     VkCommandBuffer vk_command_buffer, ComponentSizes sizes,
-                                     const std::string& model_name, const std::string& directory) {
+GlobeModel* GlobeModel::LoadDaeModelFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                         const GlobeComponentSizes& sizes, const std::string& model_name,
+                                         const std::string& directory) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     std::string model_file_name = directory;
     model_file_name += model_name;
@@ -80,45 +85,76 @@ GlobeModel* GlobeModel::LoadFromFile(const GlobeResourceManager* resource_manage
 
         // Grab the main types of color
         memset(meshes[cur_mesh].material_info.diffuse_color, 0, 3 * sizeof(float));
+        meshes[cur_mesh].material_info.diffuse_color[3] = 1.f;
         memset(meshes[cur_mesh].material_info.ambient_color, 0, 3 * sizeof(float));
+        meshes[cur_mesh].material_info.ambient_color[3] = 1.f;
         memset(meshes[cur_mesh].material_info.specular_color, 0, 3 * sizeof(float));
+        meshes[cur_mesh].material_info.specular_color[3] = 1.f;
         memset(meshes[cur_mesh].material_info.emissive_color, 0, 3 * sizeof(float));
-        scene_data->mMaterials[ai_mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_DIFFUSE,
-                                                             meshes[cur_mesh].material_info.diffuse_color);
-        scene_data->mMaterials[ai_mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_AMBIENT,
-                                                             meshes[cur_mesh].material_info.ambient_color);
-        scene_data->mMaterials[ai_mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_SPECULAR,
-                                                             meshes[cur_mesh].material_info.specular_color);
-        scene_data->mMaterials[ai_mesh->mMaterialIndex]->Get(AI_MATKEY_COLOR_EMISSIVE,
-                                                             meshes[cur_mesh].material_info.emissive_color);
+        meshes[cur_mesh].material_info.emissive_color[3] = 1.f;
+
+        aiMaterial* mtl = scene_data->mMaterials[ai_mesh->mMaterialIndex];
+        aiColor4D color = {};
+        aiGetMaterialColor(mtl, AI_MATKEY_COLOR_DIFFUSE, &color);
+        meshes[cur_mesh].material_info.diffuse_color[0] = color[0];
+        meshes[cur_mesh].material_info.diffuse_color[1] = color[1];
+        meshes[cur_mesh].material_info.diffuse_color[2] = color[2];
+        meshes[cur_mesh].material_info.diffuse_color[3] = color[3];
+        color = {};
+        aiGetMaterialColor(mtl, AI_MATKEY_COLOR_AMBIENT, &color);
+        meshes[cur_mesh].material_info.ambient_color[0] = color[0];
+        meshes[cur_mesh].material_info.ambient_color[1] = color[1];
+        meshes[cur_mesh].material_info.ambient_color[2] = color[2];
+        meshes[cur_mesh].material_info.ambient_color[3] = color[3];
+        color = {};
+        aiGetMaterialColor(mtl, AI_MATKEY_COLOR_SPECULAR, &color);
+        meshes[cur_mesh].material_info.specular_color[0] = color[0];
+        meshes[cur_mesh].material_info.specular_color[1] = color[1];
+        meshes[cur_mesh].material_info.specular_color[2] = color[2];
+        meshes[cur_mesh].material_info.specular_color[3] = color[3];
+        color = {};
+        aiGetMaterialColor(mtl, AI_MATKEY_COLOR_EMISSIVE, &color);
+        meshes[cur_mesh].material_info.emissive_color[0] = color[0];
+        meshes[cur_mesh].material_info.emissive_color[1] = color[1];
+        meshes[cur_mesh].material_info.emissive_color[2] = color[2];
+        meshes[cur_mesh].material_info.emissive_color[3] = color[3];
+        ai_real shininess = 0.f;
+        ai_real strength = 0.f;
+        uint32_t item_count = 1;
+        aiGetMaterialFloatArray(mtl, AI_MATKEY_SHININESS, &shininess, &item_count);
+        item_count = 1;
+        aiGetMaterialFloatArray(mtl, AI_MATKEY_SHININESS_STRENGTH, &strength, &item_count);
+        meshes[cur_mesh].material_info.shininess[0] = shininess;
+        meshes[cur_mesh].material_info.shininess[1] = strength;
 
         // Grab the vertex info
         for (uint32_t vert = 0; vert < ai_mesh->mNumVertices; ++vert) {
-            CopyVertexComponentData(vertex_data, &(ai_mesh->mVertices[vert].x), true, sizes.position, 3);
-            CopyVertexComponentData(vertex_data, &(ai_mesh->mNormals[vert].x), true, sizes.normal, 3);
+            CopyVertexComponentData(vertex_data, &(ai_mesh->mVertices[vert].x), true, sizes.position, 3, true);
+            CopyVertexComponentData(vertex_data, &(ai_mesh->mNormals[vert].x), true, sizes.normal, 3, true);
             CopyVertexComponentData(vertex_data, meshes[cur_mesh].material_info.diffuse_color, true,
-                                    sizes.diffuse_color, 3);
+                                    sizes.diffuse_color, 4);
             CopyVertexComponentData(vertex_data, meshes[cur_mesh].material_info.ambient_color, true,
-                                    sizes.ambient_color, 3);
+                                    sizes.ambient_color, 4);
             CopyVertexComponentData(vertex_data, meshes[cur_mesh].material_info.specular_color, true,
-                                    sizes.specular_color, 3);
+                                    sizes.specular_color, 4);
             CopyVertexComponentData(vertex_data, meshes[cur_mesh].material_info.emissive_color, true,
-                                    sizes.emissive_color, 3);
+                                    sizes.emissive_color, 4);
+            CopyVertexComponentData(vertex_data, meshes[cur_mesh].material_info.shininess, true, sizes.shininess, 2);
             for (uint8_t tc = 0; tc < 3; ++tc) {
                 CopyVertexComponentData(vertex_data, &(ai_mesh->mTextureCoords[tc][vert].x),
                                         ai_mesh->HasTextureCoords(tc), sizes.texcoord[tc], 2);
             }
             CopyVertexComponentData(vertex_data, &(ai_mesh->mTangents[vert].x), ai_mesh->HasTangentsAndBitangents(),
-                                    sizes.tangent, 3);
+                                    sizes.tangent, 3, true);
             CopyVertexComponentData(vertex_data, &(ai_mesh->mBitangents[vert].x), ai_mesh->HasTangentsAndBitangents(),
-                                    sizes.bitangent, 3);
+                                    sizes.bitangent, 3, true);
 
             // Update the bounding box if necessary.
             if (bounding_box.min.x > ai_mesh->mVertices[vert].x) {
                 bounding_box.min.x = ai_mesh->mVertices[vert].x;
             }
-            if (bounding_box.min.y > ai_mesh->mVertices[vert].y) {
-                bounding_box.min.y = ai_mesh->mVertices[vert].y;
+            if (bounding_box.min.y > -ai_mesh->mVertices[vert].y) {
+                bounding_box.min.y = -ai_mesh->mVertices[vert].y;
             }
             if (bounding_box.min.z > ai_mesh->mVertices[vert].z) {
                 bounding_box.min.z = ai_mesh->mVertices[vert].z;
@@ -126,8 +162,8 @@ GlobeModel* GlobeModel::LoadFromFile(const GlobeResourceManager* resource_manage
             if (bounding_box.max.x < ai_mesh->mVertices[vert].x) {
                 bounding_box.max.x = ai_mesh->mVertices[vert].x;
             }
-            if (bounding_box.max.y < ai_mesh->mVertices[vert].y) {
-                bounding_box.max.y = ai_mesh->mVertices[vert].y;
+            if (bounding_box.max.y < -ai_mesh->mVertices[vert].y) {
+                bounding_box.max.y = -ai_mesh->mVertices[vert].y;
             }
             if (bounding_box.max.z < ai_mesh->mVertices[vert].z) {
                 bounding_box.max.z = ai_mesh->mVertices[vert].z;
@@ -165,8 +201,31 @@ GlobeModel* GlobeModel::LoadFromFile(const GlobeResourceManager* resource_manage
     return model;
 }
 
+GlobeModel* GlobeModel::LoadModelFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                      const GlobeComponentSizes& sizes, const std::string& model_name,
+                                      const std::string& directory) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    size_t period_pos = model_name.find_last_of(".");
+    std::string model_suffix = model_name.substr(period_pos + 1);
+
+    // Lower-case the suffix for easy comparison
+    std::transform(model_suffix.begin(), model_suffix.end(), model_suffix.begin(), ::tolower);
+
+    if (model_suffix == "dae") {
+        return LoadDaeModelFile(resource_manager, vk_device, sizes, model_name, directory);
+    } else {
+        std::string error_message = "Failed to load unknown model type ";
+        error_message += model_suffix;
+        error_message += " model (";
+        error_message += directory + model_name;
+        error_message += ")";
+        logger.LogFatalError(error_message);
+        return nullptr;
+    }
+}
+
 GlobeModel::GlobeModel(const GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& model_name,
-                       ComponentSizes sizes, std::vector<MeshInfo>& meshes, const BoundingBox& bounding_box,
+                       const GlobeComponentSizes& sizes, std::vector<MeshInfo>& meshes, const BoundingBox& bounding_box,
                        std::vector<float>& vertices, std::vector<uint32_t>& indices)
     : _globe_resource_mgr(resource_manager),
       _vk_device(vk_device),
@@ -268,18 +327,6 @@ GlobeModel::GlobeModel(const GlobeResourceManager* resource_manager, VkDevice vk
     }
 
     // No need to tell it anything about input state right now.
-    uint32_t vertex_stride = sizes.position + sizes.normal + sizes.diffuse_color + sizes.ambient_color +
-                             sizes.specular_color + sizes.emissive_color + sizes.tangent + sizes.bitangent;
-    for (tc = 0; tc < 3; ++tc) {
-        vertex_stride += sizes.texcoord[tc];
-    }
-    vertex_stride *= sizeof(float);
-
-    _vk_vert_binding_desc = {};
-    _vk_vert_binding_desc.binding = 0;
-    _vk_vert_binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    _vk_vert_binding_desc.stride = vertex_stride;
-
     VkFormat data_formats[5] = {VK_FORMAT_UNDEFINED, VK_FORMAT_R32_SFLOAT, VK_FORMAT_R32G32_SFLOAT,
                                 VK_FORMAT_R32G32B32_SFLOAT, VK_FORMAT_R32G32B32A32_SFLOAT};
     uint32_t cur_binding = 0;
@@ -338,6 +385,15 @@ GlobeModel::GlobeModel(const GlobeResourceManager* resource_manager, VkDevice vk
         cur_offset += (sizes.emissive_color * sizeof(float));
         _vk_vert_attrib_desc.push_back(vert_input_attrib_desc);
     }
+    if (sizes.shininess > 0) {
+        vert_input_attrib_desc = {};
+        vert_input_attrib_desc.binding = cur_binding;
+        vert_input_attrib_desc.location = cur_location++;
+        vert_input_attrib_desc.format = data_formats[sizes.shininess];
+        vert_input_attrib_desc.offset = cur_offset;
+        cur_offset += (sizes.shininess * sizeof(float));
+        _vk_vert_attrib_desc.push_back(vert_input_attrib_desc);
+    }
     for (tc = 0; tc < 3; ++tc) {
         if (sizes.texcoord[tc] > 0) {
             vert_input_attrib_desc = {};
@@ -367,6 +423,12 @@ GlobeModel::GlobeModel(const GlobeResourceManager* resource_manager, VkDevice vk
         cur_offset += (sizes.bitangent * sizeof(float));
         _vk_vert_attrib_desc.push_back(vert_input_attrib_desc);
     }
+
+    _vk_vert_binding_desc = {};
+    _vk_vert_binding_desc.binding = 0;
+    _vk_vert_binding_desc.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
+    _vk_vert_binding_desc.stride = cur_offset;
+
     _vk_pipeline_vert_create_info = {};
     _vk_pipeline_vert_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     _vk_pipeline_vert_create_info.pNext = NULL;
@@ -399,9 +461,9 @@ void GlobeModel::GetSize(float& x, float& y, float& z) {
 }
 
 void GlobeModel::GetCenter(float& x, float& y, float& z) {
-    x = _bounding_box.max[0] - _bounding_box.min[0];
-    y = _bounding_box.max[1] - _bounding_box.min[1];
-    z = _bounding_box.max[2] - _bounding_box.min[2];
+    x = (_bounding_box.max[0] + _bounding_box.min[0]) * 0.5f;
+    y = (_bounding_box.max[1] + _bounding_box.min[1]) * 0.5f;
+    z = (_bounding_box.max[2] + _bounding_box.min[2]) * 0.5f;
 }
 
 void GlobeModel::FillInPipelineInfo(VkGraphicsPipelineCreateInfo& graphics_pipeline_c_i) {

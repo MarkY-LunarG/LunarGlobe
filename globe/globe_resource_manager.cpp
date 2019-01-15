@@ -12,6 +12,7 @@
 #include "globe_submit_manager.hpp"
 #include "globe_shader.hpp"
 #include "globe_texture.hpp"
+#include "globe_model.hpp"
 #include "globe_resource_manager.hpp"
 #include "globe_app.hpp"
 
@@ -69,6 +70,21 @@ GlobeShader* GlobeResourceManager::LoadShader(const std::string& shader_prefix) 
     return shader;
 }
 
+GlobeModel* GlobeResourceManager::LoadModel(const std::string& sub_dir, const std::string& model_name,
+                                            const GlobeComponentSizes& sizes) {
+    std::string model_dir = _base_directory;
+    model_dir += directory_symbol;
+    model_dir += "models";
+    model_dir += directory_symbol;
+    model_dir += sub_dir;
+    model_dir += directory_symbol;
+    GlobeModel* model = GlobeModel::LoadModelFile(this, _vk_device, sizes, model_name, model_dir);
+    if (nullptr != model) {
+        _models.push_back(model);
+    }
+    return model;
+}
+
 void GlobeResourceManager::FreeAllTextures() {
     for (auto texture : _textures) {
         delete texture;
@@ -96,6 +112,22 @@ void GlobeResourceManager::FreeShader(GlobeShader* shader) {
         if (_shaders[shd_index] == shader) {
             delete _shaders[shd_index];
             _shaders.erase(_shaders.begin() + shd_index);
+        }
+    }
+}
+
+void GlobeResourceManager::FreeAllModels() {
+    for (auto model : _models) {
+        delete model;
+    }
+    _models.clear();
+}
+
+void GlobeResourceManager::FreeModel(GlobeModel* model) {
+    for (uint32_t model_index = 0; model_index < _models.size(); ++model_index) {
+        if (_models[model_index] == model) {
+            delete _models[model_index];
+            _models.erase(_models.begin() + model_index);
         }
     }
 }
