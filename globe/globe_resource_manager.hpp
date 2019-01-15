@@ -13,9 +13,11 @@
 #include <vector>
 
 #include "vulkan/vulkan_core.h"
+#include "globe_basic_types.hpp"
 
 class GlobeTexture;
 class GlobeShader;
+class GlobeModel;
 
 class GlobeResourceManager {
    public:
@@ -27,9 +29,14 @@ class GlobeResourceManager {
                                             VkFormat vk_format);
     void FreeTexture(GlobeTexture* texture);
     void FreeAllTextures();
+
     GlobeShader* LoadShader(const std::string& shader_prefix);
     void FreeShader(GlobeShader* shader);
     void FreeAllShaders();
+
+    GlobeModel* LoadModel(const std::string& sub_dir, const std::string& model_name, const GlobeComponentSizes& sizes);
+    void FreeModel(GlobeModel* model);
+    void FreeAllModels();
 
     bool AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
                                     VkDeviceMemory& vk_device_memory, VkDeviceSize& vk_allocated_size) const;
@@ -52,4 +59,5 @@ class GlobeResourceManager {
     std::string _base_directory;
     std::vector<GlobeTexture*> _textures;
     std::vector<GlobeShader*> _shaders;
+    std::vector<GlobeModel*> _models;
 };

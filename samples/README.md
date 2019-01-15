@@ -121,3 +121,32 @@ Shader(s) used:
    * position_mvp_color ([vert](../resources/shaders/source/position_mvp_color_glsl.vert) / [frag](../resources/shaders/source/position_mvp_color_glsl.frag))
  * Onscreen view
    * position_mvp_texture ([vert](../resources/shaders/source/position_mvp_texture_glsl.vert) / [frag](../resources/shaders/source/position_mvp_texture_glsl.frag))
+
+
+## 07 - Simple Model Loading
+
+<img src="screenshots/07_simple_model_glm.png" height="256px">
+
+Taking sample 05 "Simple GLM" as a starting point, I
+expanded it to use a model instead of the simple geometry
+I had previously defined.
+I actually used the
+[SaschaWillems/Vulkan repo](https://github.com/SaschaWillems/Vulkan)
+as a reference while hooking up this functionality.
+He's got some amazing code there and I highly recommend you using
+his repo for some advanced learning.
+
+The sample does the following:
+ * Use a camera (defined as position and orientation) to
+   generate both a projection and view matrix.
+ * Load a model file from the resources.
+ * Use a dynamic uniform buffer to pass along the camera
+   projection and view matrices to the shader.
+ * Use push constants to define the current model matrix.
+ * Use a Phong shading model to more accurately rendering the model.
+
+Shader(s) used:
+ * phong ([vert](../resources/shaders/source/phong_glsl.vert) / [frag](../resources/shaders/source/phong_glsl.frag))
+
+Model(s) used:
+ * [Sascha Willems' Chinese Dragon Model](../resources/models/sascha_willems/chinesedragon.dae)

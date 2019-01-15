@@ -14,6 +14,7 @@ add_library(globe STATIC "")
 target_sources(globe PRIVATE
                    globe_vulkan_headers.hpp
                    globe_glm_include.hpp
+                   globe_basic_types.hpp
                    globe_app.hpp
                    globe_app.cpp
                    globe_camera.hpp

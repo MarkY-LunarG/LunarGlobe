@@ -25,7 +25,7 @@ GlobeLogger::GlobeLogger()
     : _enable_validation(false),
       _enable_api_dump(false),
       _enable_break_on_error(false),
-      _output_cmdline(false),
+      _output_cmdline(true),
       _output_file(false),
       _enable_popups(false),
       _log_level(GLOBE_LOG_WARN_ERROR) {}
