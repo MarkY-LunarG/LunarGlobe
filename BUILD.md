@@ -125,7 +125,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 If your build system supports ccache, you can enable that via CMake option `-DUSE_CCACHE=On`
 
-### Building Using Your Own Vulkan Headers and Loader
+## Building Using Your Own Vulkan Headers and Loader
 
 Sometimes, you may want to build using your own Vulkan Headers or Loader.
 This can be because the ones installed by default are out of date.
