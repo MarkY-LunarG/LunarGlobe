@@ -8,6 +8,7 @@ Instructions for building this repository on Linux, and Windows.
 2. [Repository Set-Up](#repository-set-up)
 3. [Windows Build](#building-on-windows)
 4. [Linux Build](#building-on-linux)
+5. [Building with Custom Vulkan Headers and Loader](#building-with-custom-vulkan-headers-and-loader)
 
 ## Contributing to the Repository
 
@@ -125,7 +126,7 @@ cmake -DCMAKE_BUILD_TYPE=Debug ..
 
 If your build system supports ccache, you can enable that via CMake option `-DUSE_CCACHE=On`
 
-## Building Using Your Own Vulkan Headers and Loader
+## Building With Custom Vulkan Headers and Loader
 
 Sometimes, you may want to build using your own Vulkan Headers or Loader.
 This can be because the ones installed by default are out of date.
@@ -134,7 +135,7 @@ pull down and build your own copy of the
 [Vulkan Headers](https://github.com/KhronosGroup/Vulkan-Headers) and
 [Vulkan Loader](https://github.com/KhronosGroup/Vulkan-Loader) repos.
 Then you can point this project to use those when you generate
-the build flies with CMake byd defining the following:
+the build flies with CMake by defining the following:
 
 ```
 -DVULKAN_HEADERS_INSTALL_DIR=absolute_path_to_header_install
