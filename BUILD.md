@@ -61,10 +61,7 @@ Windows 7+ with the following software packages:
 For example, assuming an SDK is installed, for VS2017 (generators for other versions are [specified here](#cmake-visual-studio-generators)):
 
 ```
-cmake "Visual Studio 15 2017 Win64" \
-       -DVULKAN_HEADERS_INSTALL_DIR=absolute_path_to_header_install \
-       -DVULKAN_LOADER_INSTALL_DIR=absolute_path_to_header_install \
-       ..
+cmake "Visual Studio 15 2017 Win64" ..
 ```
 
 This will create a Windows solution file named `LunarGlobe.sln` in the build directory.
@@ -83,12 +80,29 @@ to ensure that the program uses the loader built from this solution.
 ### Linux Build Requirements
 
 This repository has been built and tested on the two most recent Ubuntu LTS versions.
-Currently, the oldest supported version is Ubuntu 14.04, meaning that the minimum supported compiler versions are GCC 4.8.2 and Clang 3.4, although earlier versions may work.
+Currently, the oldest supported version is Ubuntu 14.04, meaning that the minimum
+supported compiler versions are GCC 4.8.2 and Clang 3.4, although earlier versions may work.
 It should be straightforward to adapt this repository to other Linux distributions.
 
-**Required Package List:**
 
-    sudo apt-get install git cmake build-essential
+#### Ubuntu Packages
+
+Install Git, CMake, and the Vulkan SDK packages:
+
+```
+sudo apt-get install git cmake build-essential lunarg-vulkan-sdk
+```
+
+More details about the Vulkan SDK packages can be found on
+[LunarXchange](https://vulkan.lunarg.com/doc/sdk/1.1.92.1/linux/getting_started_ubuntu.html).
+
+#### Fedora Packages
+
+Install Git, CMake, and the Vulkan development packages:
+
+```
+sudo dnf install git cmake @development-tools vulkan-headers vulkan-loader-devel
+```
 
 ### Linux Build
 
@@ -100,11 +114,29 @@ See **Loader and Validation Layer Dependencies** for more information and other 
 2. Execute: `git submodule update --init --recursive` -- this will download in-tree external components
 3. Create a `build` directory, change into that directory, and run cmake:
 
-        mkdir build
-        cd build
-        # If an SDK is installed and the setup-env.sh script has been run,
-        cmake -DCMAKE_BUILD_TYPE=Debug ..
+```
+mkdir build
+cd build
+# If an SDK is installed and the setup-env.sh script has been run,
+cmake -DCMAKE_BUILD_TYPE=Debug ..
+```
 
 4. Run `make -j8` to begin the build
 
 If your build system supports ccache, you can enable that via CMake option `-DUSE_CCACHE=On`
+
+### Building Using Your Own Vulkan Headers and Loader
+
+Sometimes, you may want to build using your own Vulkan Headers or Loader.
+This can be because the ones installed by default are out of date.
+You can always use the Vulkan SDK, but if you don't you will need to
+pull down and build your own copy of the
+[Vulkan Headers](https://github.com/KhronosGroup/Vulkan-Headers) and
+[Vulkan Loader](https://github.com/KhronosGroup/Vulkan-Loader) repos.
+Then you can point this project to use those when you generate
+the build flies with CMake byd defining the following:
+
+```
+-DVULKAN_HEADERS_INSTALL_DIR=absolute_path_to_header_install
+-DVULKAN_LOADER_INSTALL_DIR=absolute_path_to_loader_install
+```

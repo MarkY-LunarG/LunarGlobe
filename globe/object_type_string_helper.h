@@ -24,7 +24,7 @@
 #pragma warning( disable : 4065 )
 #endif
 
-#include <vulkan/vulkan.h>
+#include <vulkan/vulkan_core.h>
 
 static inline const char* string_VkObjectType(VkObjectType input_value)
 {
