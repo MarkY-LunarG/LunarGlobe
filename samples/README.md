@@ -132,14 +132,17 @@ expanded it to use a model instead of the simple geometry
 I had previously defined.
 I actually used the
 [SaschaWillems/Vulkan repo](https://github.com/SaschaWillems/Vulkan)
-as a reference while hooking up this functionality.
+as a reference while hooking up this functionality,
+and used the [Open Asset Import Library](https://github.com/assimp/assimp)
+for the actual work.
+I highly recommend that you chek out Sasha Willem's work.
 He's got some amazing code there and I highly recommend you using
 his repo for some advanced learning.
 
 The sample does the following:
  * Use a camera (defined as position and orientation) to
    generate both a projection and view matrix.
- * Load a model file from the resources.
+ * Load a model file from the resources using Assimp.
  * Use a dynamic uniform buffer to pass along the camera
    projection and view matrices to the shader.
  * Use push constants to define the current model matrix.
