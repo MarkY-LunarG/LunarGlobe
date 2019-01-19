@@ -38,10 +38,10 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class ModelApp : public GlobeApp {
+class SimpleModelApp : public GlobeApp {
    public:
-    ModelApp();
-    ~ModelApp();
+    SimpleModelApp();
+    ~SimpleModelApp();
 
     virtual void Cleanup() override;
 
@@ -74,7 +74,7 @@ class ModelApp : public GlobeApp {
     glm::vec4 _light_color;
 };
 
-ModelApp::ModelApp() {
+SimpleModelApp::SimpleModelApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -96,9 +96,9 @@ ModelApp::ModelApp() {
     _light_color = glm::vec4(1.f, 1.f, 1.f, 1.f);
 }
 
-ModelApp::~ModelApp() { Cleanup(); }
+SimpleModelApp::~SimpleModelApp() { Cleanup(); }
 
-void ModelApp::CalculateModelMatrices(void) {
+void SimpleModelApp::CalculateModelMatrices(void) {
     // Update model rotation
     glm::mat4 identity_mat = glm::mat4(1);
     glm::vec3 x_orbit_vec(1.f, 0.f, 0.f);
@@ -113,7 +113,7 @@ void ModelApp::CalculateModelMatrices(void) {
     _model_mat = glm::rotate(_model_mat, glm::radians(_model_orbit_rotation), y_orbit_vec);
 }
 
-void ModelApp::Cleanup() {
+void SimpleModelApp::Cleanup() {
     GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
@@ -155,7 +155,7 @@ void ModelApp::Cleanup() {
     GlobeApp::PostCleanup();
 }
 
-bool ModelApp::Setup() {
+bool SimpleModelApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -481,7 +481,7 @@ bool ModelApp::Setup() {
     if (var > 360.f) var -= 360.f;         \
     if (var < 0.f) var += 360.f
 
-bool ModelApp::Update(float diff_ms) {
+bool SimpleModelApp::Update(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
@@ -521,7 +521,7 @@ bool ModelApp::Update(float diff_ms) {
     return true;
 }
 
-bool ModelApp::Draw() {
+bool SimpleModelApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -597,12 +597,12 @@ bool ModelApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static ModelApp *g_app = nullptr;
+static SimpleModelApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Camera Sample";
+    init_struct.app_name = "Globe App - Simple Model GLM Sample";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -612,7 +612,7 @@ GLOBE_APP_MAIN() {
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    g_app = new ModelApp();
+    g_app = new SimpleModelApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();
