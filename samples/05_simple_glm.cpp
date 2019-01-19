@@ -36,10 +36,10 @@ struct VulkanBuffer {
     VkDeviceSize vk_size;
 };
 
-class CameraApp : public GlobeApp {
+class SimpleGlmApp : public GlobeApp {
    public:
-    CameraApp();
-    ~CameraApp();
+    SimpleGlmApp();
+    ~SimpleGlmApp();
 
     virtual void Cleanup() override;
 
@@ -95,7 +95,7 @@ static const float g_model_data[] = {
 static const uint32_t g_model_index_data[] = {0, 2, 1, 0, 3, 2, 0, 4, 3, 0, 1,  4, 5, 1, 2,  5,  2, 3, 5, 3, 4,
                                               5, 4, 1, 6, 8, 7, 6, 9, 8, 6, 10, 9, 6, 7, 10, 10, 7, 9, 9, 7, 8};
 
-CameraApp::CameraApp() {
+SimpleGlmApp::SimpleGlmApp() {
     _vk_descriptor_set_layout = VK_NULL_HANDLE;
     _vk_pipeline_layout = VK_NULL_HANDLE;
     _vk_render_pass = VK_NULL_HANDLE;
@@ -122,9 +122,9 @@ CameraApp::CameraApp() {
     _pyramid_orientation_rotation = 0.f;
 }
 
-CameraApp::~CameraApp() { Cleanup(); }
+SimpleGlmApp::~SimpleGlmApp() { Cleanup(); }
 
-void CameraApp::CalculateModelMatrices(void) {
+void SimpleGlmApp::CalculateModelMatrices(void) {
     // Update the Diamond and Pyramid rotation
     glm::mat4 identity_mat = glm::mat4(1);
     glm::vec3 x_orbit_vec(1.f, 0.f, 0.f);
@@ -137,7 +137,7 @@ void CameraApp::CalculateModelMatrices(void) {
     _diamond_mat = glm::rotate(_diamond_mat, glm::radians(_diamond_orbit_rotation), y_orbit_vec);
 }
 
-void CameraApp::Cleanup() {
+void SimpleGlmApp::Cleanup() {
     GlobeApp::PreCleanup();
     if (VK_NULL_HANDLE != _vk_pipeline) {
         vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
@@ -185,7 +185,7 @@ void CameraApp::Cleanup() {
     GlobeApp::PostCleanup();
 }
 
-bool CameraApp::Setup() {
+bool SimpleGlmApp::Setup() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandPool vk_setup_command_pool;
@@ -570,7 +570,7 @@ bool CameraApp::Setup() {
     if (var > 360.f) var -= 360.f;         \
     if (var < 0.f) var += 360.f
 
-bool CameraApp::Update(float diff_ms) {
+bool SimpleGlmApp::Update(float diff_ms) {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
@@ -608,7 +608,7 @@ bool CameraApp::Update(float diff_ms) {
     return true;
 }
 
-bool CameraApp::Draw() {
+bool SimpleGlmApp::Draw() {
     GlobeLogger &logger = GlobeLogger::getInstance();
 
     VkCommandBuffer vk_render_command_buffer;
@@ -691,12 +691,12 @@ bool CameraApp::Draw() {
     return GlobeApp::Draw();
 }
 
-static CameraApp *g_app = nullptr;
+static SimpleGlmApp *g_app = nullptr;
 
 GLOBE_APP_MAIN() {
     GlobeInitStruct init_struct = {};
     GLOBE_APP_MAIN_BEGIN(init_struct)
-    init_struct.app_name = "Globe App - Camera Sample";
+    init_struct.app_name = "Globe App - Simple GLM Sample";
     init_struct.version.major = 0;
     init_struct.version.minor = 1;
     init_struct.version.patch = 0;
@@ -706,7 +706,7 @@ GLOBE_APP_MAIN() {
     init_struct.num_swapchain_buffers = 3;
     init_struct.ideal_swapchain_format = VK_FORMAT_B8G8R8A8_UNORM;
     init_struct.secondary_swapchain_format = VK_FORMAT_B8G8R8A8_SRGB;
-    g_app = new CameraApp();
+    g_app = new SimpleGlmApp();
     g_app->Init(init_struct);
     g_app->Run();
     g_app->Exit();
