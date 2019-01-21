@@ -20,21 +20,31 @@
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
 
-static bool LoadFile(const GlobeResourceManager* resource_manager, const std::string& filename,
+uint32_t GlobeTexture::NextPowerOfTwo(uint32_t value) {
+    value--;
+    value |= (value >> 1);
+    value |= (value >> 2);
+    value |= (value >> 4);
+    value |= (value >> 8);
+    value |= (value >> 16);
+    return ++value;
+}
+
+static bool LoadFile(GlobeResourceManager* resource_manager, const std::string& filename,
                      GlobeTextureData& texture_data) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
 // filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
 #elif defined(__ANDROID__)
 #else
-    FILE* fPtr = fopen(filename.c_str(), "rb");
-    if (nullptr == fPtr) {
+    FILE* file_ptr = fopen(filename.c_str(), "rb");
+    if (nullptr == file_ptr) {
         return false;
     }
     int32_t int_width = 0;
     int32_t int_height = 0;
     int32_t num_channels = 0;
-    uint8_t* image_data = stbi_load_from_file(fPtr, &int_width, &int_height, &num_channels, 0);
+    uint8_t* image_data = stbi_load_from_file(file_ptr, &int_width, &int_height, &num_channels, 0);
     if (nullptr == image_data || int_width <= 0 || int_height <= 0 || num_channels <= 0) {
         if (nullptr != image_data) {
             stbi_image_free(image_data);
@@ -96,7 +106,7 @@ static bool LoadFile(const GlobeResourceManager* resource_manager, const std::st
     }
 
     stbi_image_free(image_data);
-    fclose(fPtr);
+    fclose(file_ptr);
 #endif
     return true;
 }
@@ -158,25 +168,14 @@ static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkIm
     return true;
 }
 
-GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                         VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                         const std::string& directory) {
+bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                   VkCommandBuffer vk_command_buffer, const std::string& texture_name,
+                                   GlobeTextureData& texture_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
-    GlobeTextureData texture_data = {};
-    std::string texture_file_name = directory;
-    texture_file_name += texture_name;
-
-    if (!LoadFile(resource_manager, texture_file_name, texture_data)) {
-        std::string error_message = "Failed to load texture for file \"";
-        error_message += texture_file_name;
-        error_message += "\"";
-        logger.LogError(error_message);
-        return nullptr;
-    }
-
     bool uses_staging = false;
     GlobeTextureData staging_texture_data = texture_data;
     GlobeTextureData* target_texture_data = &texture_data;
+
     VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
     if (!(texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) ||
         resource_manager->UseStagingBuffer()) {
@@ -206,24 +205,24 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     image_create_info.flags = 0;
     image_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
     if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &target_texture_data->vk_image)) {
-        std::string error_message = "Failed to load texture from file \"";
+        std::string error_message = "InitFromContent - Failed to load texture from file \"";
         error_message += texture_name;
         error_message += "\"";
         logger.LogError(error_message);
-        return nullptr;
+        return false;
     }
 
     if (!resource_manager->AllocateDeviceImageMemory(
             target_texture_data->vk_image, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
             target_texture_data->vk_device_memory, target_texture_data->vk_allocated_size)) {
-        logger.LogFatalError("Failed allocating target texture image to memory");
-        return nullptr;
+        logger.LogFatalError("InitFromContent - Failed allocating target texture image to memory");
+        return false;
     }
 
     if (VK_SUCCESS !=
         vkBindImageMemory(vk_device, target_texture_data->vk_image, target_texture_data->vk_device_memory, 0)) {
-        logger.LogError("Failed to binding memory to texture image");
-        return nullptr;
+        logger.LogError("InitFromContent - Failed to binding memory to texture image");
+        return false;
     }
 
     VkImageSubresource image_subresource = {};
@@ -237,8 +236,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     void* data;
     if (VK_SUCCESS != vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0,
                                   target_texture_data->vk_allocated_size, 0, &data)) {
-        logger.LogError("Failed to map memory for copying over texture image");
-        return nullptr;
+        logger.LogError("InitFromContent - Failed to map memory for copying over texture image");
+        return false;
     }
     uint8_t* data_ptr = reinterpret_cast<uint8_t*>(data);
     uint8_t* row_ptr = target_texture_data->raw_data.data();
@@ -260,8 +259,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
                                      static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                      VK_PIPELINE_STAGE_TRANSFER_BIT)) {
-            logger.LogError("Failed to transition staging image to transfer format");
-            return nullptr;
+            logger.LogError("InitFromContent - Failed to transition staging image to transfer format");
+            return false;
         }
 
         texture_data.width = staging_texture_data.width;
@@ -270,23 +269,23 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
         image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
         image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
         if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &texture_data.vk_image)) {
-            std::string error_message = "Failed to setup optimized tiled texture target for \"";
+            std::string error_message = "InitFromContent - Failed to setup optimized tiled texture target for \"";
             error_message += texture_name;
             error_message += "\"";
             logger.LogError(error_message);
-            return nullptr;
+            return false;
         }
 
         if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
                                                          texture_data.vk_device_memory,
                                                          texture_data.vk_allocated_size)) {
-            logger.LogFatalError("Failed allocating tiled target texture image to memory");
-            return nullptr;
+            logger.LogFatalError("InitFromContent - Failed allocating tiled target texture image to memory");
+            return false;
         }
 
         if (VK_SUCCESS != vkBindImageMemory(vk_device, texture_data.vk_image, texture_data.vk_device_memory, 0)) {
-            logger.LogError("Failed to binding memory to tiled texture image");
-            return nullptr;
+            logger.LogError("InitFromContent - Failed to binding memory to tiled texture image");
+            return false;
         }
 
         texture_data.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
@@ -295,8 +294,8 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
                                      static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                      VK_PIPELINE_STAGE_TRANSFER_BIT)) {
-            logger.LogError("Failed to transition resulting image to accept staging content");
-            return nullptr;
+            logger.LogError("InitFromContent - Failed to transition resulting image to accept staging content");
+            return false;
         }
         texture_data.staging_texture_data = &staging_texture_data;
 
@@ -314,16 +313,17 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
                                      VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture_data.vk_image_layout,
                                      VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
-            logger.LogError("Failed to transition resulting texture to shader readable after staging copy");
-            return nullptr;
+            logger.LogError(
+                "InitFromContent - Failed to transition resulting texture to shader readable after staging copy");
+            return false;
         }
     } else {
         if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
                                      VK_IMAGE_LAYOUT_PREINITIALIZED, texture_data.vk_image_layout,
                                      static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
                                      VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
-            logger.LogError("Failed to transition texture image to shader readable format");
-            return nullptr;
+            logger.LogError("InitFromContent - Failed to transition texture image to shader readable format");
+            return false;
         }
         texture_data.staging_texture_data = nullptr;
     }
@@ -362,13 +362,39 @@ GlobeTexture* GlobeTexture::LoadFromFile(const GlobeResourceManager* resource_ma
     image_view_create_info.flags = 0;
 
     if (VK_SUCCESS != vkCreateSampler(vk_device, &sampler_create_info, nullptr, &texture_data.vk_sampler)) {
-        logger.LogError("Failed creating texture sampler for primary texture");
-        return nullptr;
+        logger.LogError("InitFromContent - Failed creating texture sampler for primary texture");
+        return false;
     }
 
     image_view_create_info.image = texture_data.vk_image;
     if (VK_SUCCESS != vkCreateImageView(vk_device, &image_view_create_info, nullptr, &texture_data.vk_image_view)) {
-        logger.LogError("Failed creating texture image view for primary texture");
+        logger.LogError("InitFromContent - Failed creating texture image view for primary texture");
+        return false;
+    }
+    return true;
+}
+
+GlobeTexture* GlobeTexture::LoadFromFile(GlobeResourceManager* resource_manager, VkDevice vk_device,
+                                         VkCommandBuffer vk_command_buffer, const std::string& texture_name,
+                                         const std::string& directory) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    GlobeTextureData texture_data = {};
+    std::string texture_file_name = directory;
+    texture_file_name += texture_name;
+
+    if (!LoadFile(resource_manager, texture_file_name, texture_data)) {
+        std::string error_message = "Failed to load texture for file \"";
+        error_message += texture_file_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+        return nullptr;
+    }
+
+    if (!InitFromContent(resource_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
+        std::string error_message = "Failed to setting up texture for Vulkan \"";
+        error_message += texture_file_name;
+        error_message += "\"";
+        logger.LogError(error_message);
         return nullptr;
     }
 
@@ -403,7 +429,7 @@ static bool IsDepthFormat(VkFormat vk_format) {
     }
 }
 
-GlobeTexture* GlobeTexture::CreateRenderTarget(const GlobeResourceManager* resource_manager, VkDevice vk_device,
+GlobeTexture* GlobeTexture::CreateRenderTarget(GlobeResourceManager* resource_manager, VkDevice vk_device,
                                                VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
                                                VkFormat vk_format) {
     GlobeLogger& logger = GlobeLogger::getInstance();
@@ -585,8 +611,8 @@ VkAttachmentReference GlobeTexture::GenVkAttachmentReference(uint32_t attachment
     return texture_attach_ref;
 }
 
-GlobeTexture::GlobeTexture(const GlobeResourceManager* resource_manager, VkDevice vk_device,
-                           const std::string& texture_name, GlobeTextureData* texture_data)
+GlobeTexture::GlobeTexture(GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
+                           GlobeTextureData* texture_data)
     : _globe_resource_mgr(resource_manager), _vk_device(vk_device), _texture_name(texture_name) {
     _setup_for_render_target = texture_data->setup_for_render_target;
     _is_color = texture_data->is_color;
