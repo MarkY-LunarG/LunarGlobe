@@ -33,6 +33,8 @@ target_sources(globe PRIVATE
                    globe_shader.cpp
                    globe_texture.hpp
                    globe_texture.cpp
+                   globe_font.hpp
+                   globe_font.cpp
                    globe_submit_manager.hpp
                    globe_submit_manager.cpp
                    globe_model.hpp

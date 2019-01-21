@@ -12,6 +12,7 @@
 #include "globe_submit_manager.hpp"
 #include "globe_shader.hpp"
 #include "globe_texture.hpp"
+#include "globe_font.hpp"
 #include "globe_model.hpp"
 #include "globe_resource_manager.hpp"
 #include "globe_app.hpp"
@@ -34,7 +35,12 @@ GlobeResourceManager::GlobeResourceManager(const GlobeApp* app, const std::strin
 GlobeResourceManager::~GlobeResourceManager() {
     FreeAllTextures();
     FreeAllShaders();
+    FreeAllModels();
+    FreeAllFonts();
 }
+
+// Texture management methods
+// --------------------------------------------------------------------------------------------------------------
 
 GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name, VkCommandBuffer vk_command_buffer) {
     std::string texture_dir = _base_directory;
@@ -58,33 +64,6 @@ GlobeTexture* GlobeResourceManager::CreateRenderTargetTexture(VkCommandBuffer vk
     return texture;
 }
 
-GlobeShader* GlobeResourceManager::LoadShader(const std::string& shader_prefix) {
-    std::string shader_dir = _base_directory;
-    shader_dir += directory_symbol;
-    shader_dir += "shaders";
-    shader_dir += directory_symbol;
-    GlobeShader* shader = GlobeShader::LoadFromFile(_vk_device, shader_prefix, shader_dir);
-    if (nullptr != shader) {
-        _shaders.push_back(shader);
-    }
-    return shader;
-}
-
-GlobeModel* GlobeResourceManager::LoadModel(const std::string& sub_dir, const std::string& model_name,
-                                            const GlobeComponentSizes& sizes) {
-    std::string model_dir = _base_directory;
-    model_dir += directory_symbol;
-    model_dir += "models";
-    model_dir += directory_symbol;
-    model_dir += sub_dir;
-    model_dir += directory_symbol;
-    GlobeModel* model = GlobeModel::LoadModelFile(this, _vk_device, sizes, model_name, model_dir);
-    if (nullptr != model) {
-        _models.push_back(model);
-    }
-    return model;
-}
-
 void GlobeResourceManager::FreeAllTextures() {
     for (auto texture : _textures) {
         delete texture;
@@ -98,6 +77,52 @@ void GlobeResourceManager::FreeTexture(GlobeTexture* texture) {
             _textures.erase(_textures.begin() + tex_index);
         }
     }
+}
+
+// Font management methods
+// --------------------------------------------------------------------------------------------------------------
+
+GlobeFont* GlobeResourceManager::LoadFontMap(const std::string& font_name, VkCommandBuffer vk_command_buffer,
+                                             uint32_t font_size) {
+    std::string font_dir = _base_directory;
+    font_dir += directory_symbol;
+    font_dir += "fonts";
+    font_dir += directory_symbol;
+    GlobeFont* font = GlobeFont::LoadFontMap(this, _vk_device, vk_command_buffer, font_size, font_name, font_dir);
+    if (nullptr != font) {
+        _fonts.push_back(font);
+    }
+    return font;
+}
+
+void GlobeResourceManager::FreeAllFonts() {
+    for (auto font : _fonts) {
+        delete font;
+    }
+    _fonts.clear();
+}
+
+void GlobeResourceManager::FreeFont(GlobeFont* font) {
+    for (uint32_t font_index = 0; font_index < _fonts.size(); ++font_index) {
+        if (_fonts[font_index] == font) {
+            _fonts.erase(_fonts.begin() + font_index);
+        }
+    }
+}
+
+// Shader management methods
+// --------------------------------------------------------------------------------------------------------------
+
+GlobeShader* GlobeResourceManager::LoadShader(const std::string& shader_prefix) {
+    std::string shader_dir = _base_directory;
+    shader_dir += directory_symbol;
+    shader_dir += "shaders";
+    shader_dir += directory_symbol;
+    GlobeShader* shader = GlobeShader::LoadFromFile(_vk_device, shader_prefix, shader_dir);
+    if (nullptr != shader) {
+        _shaders.push_back(shader);
+    }
+    return shader;
 }
 
 void GlobeResourceManager::FreeAllShaders() {
@@ -116,6 +141,24 @@ void GlobeResourceManager::FreeShader(GlobeShader* shader) {
     }
 }
 
+// Model management methods
+// --------------------------------------------------------------------------------------------------------------
+
+GlobeModel* GlobeResourceManager::LoadModel(const std::string& sub_dir, const std::string& model_name,
+                                            const GlobeComponentSizes& sizes) {
+    std::string model_dir = _base_directory;
+    model_dir += directory_symbol;
+    model_dir += "models";
+    model_dir += directory_symbol;
+    model_dir += sub_dir;
+    model_dir += directory_symbol;
+    GlobeModel* model = GlobeModel::LoadModelFile(this, _vk_device, sizes, model_name, model_dir);
+    if (nullptr != model) {
+        _models.push_back(model);
+    }
+    return model;
+}
+
 void GlobeResourceManager::FreeAllModels() {
     for (auto model : _models) {
         delete model;
@@ -131,6 +174,9 @@ void GlobeResourceManager::FreeModel(GlobeModel* model) {
         }
     }
 }
+
+// Memory management methods
+// --------------------------------------------------------------------------------------------------------------
 
 bool GlobeResourceManager::AllocateDeviceBufferMemory(VkBuffer vk_buffer, VkMemoryPropertyFlags vk_memory_properties,
                                                       VkDeviceMemory& vk_device_memory,

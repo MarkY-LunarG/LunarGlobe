@@ -21,3 +21,9 @@ struct GlobeComponentSizes {
     uint8_t tangent;
     uint8_t bitangent;
 };
+
+struct GlobeVulkanBuffer {
+    VkBuffer vk_buffer;
+    VkDeviceMemory vk_memory;
+    VkDeviceSize vk_size;
+};

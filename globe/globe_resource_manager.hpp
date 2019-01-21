@@ -16,6 +16,7 @@
 #include "globe_basic_types.hpp"
 
 class GlobeTexture;
+class GlobeFont;
 class GlobeShader;
 class GlobeModel;
 
@@ -29,6 +30,10 @@ class GlobeResourceManager {
                                             VkFormat vk_format);
     void FreeTexture(GlobeTexture* texture);
     void FreeAllTextures();
+
+    GlobeFont* LoadFontMap(const std::string& font_name, VkCommandBuffer vk_command_buffer, uint32_t font_size);
+    void FreeFont(GlobeFont* font);
+    void FreeAllFonts();
 
     GlobeShader* LoadShader(const std::string& shader_prefix);
     void FreeShader(GlobeShader* shader);
@@ -58,6 +63,7 @@ class GlobeResourceManager {
     bool _uses_staging_buffer;
     std::string _base_directory;
     std::vector<GlobeTexture*> _textures;
+    std::vector<GlobeFont*> _fonts;
     std::vector<GlobeShader*> _shaders;
     std::vector<GlobeModel*> _models;
 };
