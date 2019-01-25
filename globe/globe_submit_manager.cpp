@@ -158,13 +158,14 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
         return false;
     }
 
-    float queue_priority = 0.0f;
+    float *queue_priorities = new float();
+    *queue_priorities = 0.f;
     VkDeviceQueueCreateInfo *queues = new VkDeviceQueueCreateInfo[2];
     queues[0].sType = VK_STRUCTURE_TYPE_DEVICE_QUEUE_CREATE_INFO;
     queues[0].pNext = NULL;
     queues[0].queueFamilyIndex = _graphics_queue_family_index;
     queues[0].queueCount = 1;
-    queues[0].pQueuePriorities = &queue_priority;
+    queues[0].pQueuePriorities = queue_priorities;
     queues[0].flags = 0;
     device_create_info.sType = VK_STRUCTURE_TYPE_DEVICE_CREATE_INFO;
     device_create_info.queueCreateInfoCount = 1;
@@ -174,7 +175,7 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
         queues[1].pNext = NULL;
         queues[1].queueFamilyIndex = _present_queue_family_index;
         queues[1].queueCount = 1;
-        queues[1].pQueuePriorities = &queue_priority;
+        queues[1].pQueuePriorities = queue_priorities;
         queues[1].flags = 0;
         device_create_info.queueCreateInfoCount = 2;
     }
@@ -184,7 +185,13 @@ bool GlobeSubmitManager::PrepareCreateDeviceItems(VkDeviceCreateInfo &device_cre
 }
 
 bool GlobeSubmitManager::ReleaseCreateDeviceItems(VkDeviceCreateInfo device_create_info, void **next) {
-    delete[] device_create_info.pQueueCreateInfos;
+    if (nullptr != device_create_info.pQueueCreateInfos) {
+        if (nullptr != device_create_info.pQueueCreateInfos[0].pQueuePriorities) {
+            delete device_create_info.pQueueCreateInfos[0].pQueuePriorities;
+        }
+        delete[] device_create_info.pQueueCreateInfos;
+        device_create_info.pQueueCreateInfos = nullptr;
+    }
     return true;
 }
 
