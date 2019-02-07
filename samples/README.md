@@ -135,9 +135,9 @@ I actually used the
 as a reference while hooking up this functionality,
 and used the [Open Asset Import Library](https://github.com/assimp/assimp)
 for the actual work.
-I highly recommend that you chek out Sasha Willem's work.
-He's got some amazing code there and I highly recommend you using
-his repo for some advanced learning.
+I highly recommend that you check out Sasha Willem's work.
+He's got some amazing code there and I highly recommend that you
+use his repo for some advanced learning.
 
 The sample does the following:
  * Use a camera (defined as position and orientation) to
