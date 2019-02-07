@@ -41,6 +41,7 @@ struct VulkanTarget {
     uint32_t height;
     VkRenderPass vk_render_pass;
     VkFramebuffer vk_framebuffer;
+    VkSemaphore vk_semaphore;
     VkDescriptorSetLayout vk_descriptor_set_layout;
     VkPipelineLayout vk_pipeline_layout;
     VkDescriptorPool vk_descriptor_pool;
@@ -178,6 +179,10 @@ void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget &target) {
     if (VK_NULL_HANDLE != target.vk_pipeline) {
         vkDestroyPipeline(_vk_device, target.vk_pipeline, nullptr);
         target.vk_pipeline = VK_NULL_HANDLE;
+    }
+    if (VK_NULL_HANDLE != target.vk_semaphore) {
+        vkDestroySemaphore(_vk_device, target.vk_semaphore, nullptr);
+        target.vk_semaphore = VK_NULL_HANDLE;
     }
     if (VK_NULL_HANDLE != target.vk_framebuffer) {
         vkDestroyFramebuffer(_vk_device, target.vk_framebuffer, nullptr);
@@ -361,6 +366,16 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     if (VK_SUCCESS !=
         vkCreateFramebuffer(_vk_device, &offscreen_framebuf_create_info, nullptr, &_offscreen_target.vk_framebuffer)) {
         logger.LogFatalError("Failed to create offscreen framebuffer");
+        return false;
+    }
+
+    // Create semaphores to synchronize usage of the offscreen render target content
+    VkSemaphoreCreateInfo semaphore_create_info = {};
+    semaphore_create_info.sType = VK_STRUCTURE_TYPE_SEMAPHORE_CREATE_INFO;
+    semaphore_create_info.pNext = nullptr;
+    semaphore_create_info.flags = 0;
+    if (VK_SUCCESS != vkCreateSemaphore(_vk_device, &semaphore_create_info, nullptr, &_offscreen_target.vk_semaphore)) {
+        logger.LogFatalError("Failed to create offscreen semaphore");
         return false;
     }
 
@@ -1300,8 +1315,8 @@ bool OffscreenRenderingApp::Draw() {
         return false;
     }
 
-    _globe_submit_mgr->Submit(_offscreen_target.vk_command_buffers[_current_buffer], VK_NULL_HANDLE, VK_NULL_HANDLE,
-                              offscreen_fence, true);
+    _globe_submit_mgr->Submit(_offscreen_target.vk_command_buffers[_current_buffer], VK_NULL_HANDLE,
+                              _offscreen_target.vk_semaphore, offscreen_fence, true);
 
     vkDestroyFence(_vk_device, offscreen_fence, nullptr);
 
@@ -1371,7 +1386,7 @@ bool OffscreenRenderingApp::Draw() {
 
     _globe_submit_mgr->InsertPresentCommandsToBuffer(vk_render_command_buffer);
 
-    _globe_submit_mgr->SubmitAndPresent(VK_NULL_HANDLE);
+    _globe_submit_mgr->SubmitAndPresent(_offscreen_target.vk_semaphore);
 
     return GlobeApp::Draw();
 }
