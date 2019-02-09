@@ -27,6 +27,10 @@ Several other projects have been included using Git Submodules.
 These projects may have their own licenses which can be found in
 the appropriate submodule/<project> folder.
 
+Also, several items under the "resources" folder have their own
+licenses which should be called out in license files in the
+corresponding directory.
+
 ## Notice of Copyright
 
 While this is a personal project, it should be seen as an extension
