@@ -14,6 +14,19 @@
 
 #include "vulkan/vulkan_core.h"
 
+#include <gli/gli.hpp>
+
+struct GlobeTextureLevel {
+    uint32_t width;
+    uint32_t height;
+    uint32_t data_size;
+};
+
+struct GlobeStandardTextureData {
+    std::vector<uint8_t> raw_data;
+    std::vector<GlobeTextureLevel> levels;
+};
+
 struct GlobeTextureData {
     bool setup_for_render_target;
     bool is_color;
@@ -21,7 +34,7 @@ struct GlobeTextureData {
     bool is_stencil;
     uint32_t width;
     uint32_t height;
-    uint32_t num_components;
+    uint32_t num_mip_levels;
     VkSampleCountFlagBits vk_sample_count;
     VkFormat vk_format;
     VkFormatProperties vk_format_props;
@@ -31,19 +44,27 @@ struct GlobeTextureData {
     VkDeviceMemory vk_device_memory;
     VkDeviceSize vk_allocated_size;
     VkImageView vk_image_view;
-    std::vector<uint8_t> raw_data;
-    GlobeTextureData* staging_texture_data;
+    bool uses_standard_data;
+    union {
+        GlobeStandardTextureData* standard_data;
+        gli::texture2d* gli_texture_2d;
+    };
 };
 
 class GlobeResourceManager;
+class GlobeSubmitManager;
 
 class GlobeTexture {
    public:
-    static GlobeTexture* LoadFromFile(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                      VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                      const std::string& directory);
-    static bool InitFromContent(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                VkCommandBuffer vk_command_buffer, const std::string& texture_name,
+    static GlobeTexture* LoadFromStandardFile(GlobeResourceManager* resource_manager,
+                                              GlobeSubmitManager* submit_manager, VkDevice vk_device,
+                                              VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
+                                              const std::string& texture_name, const std::string& directory);
+    static GlobeTexture* LoadFromKtxFile(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                         VkDevice vk_device, VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
+                                         const std::string& texture_name, const std::string& directory);
+    static bool InitFromContent(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& texture_name,
                                 GlobeTextureData& texture_data);
     static GlobeTexture* CreateRenderTarget(GlobeResourceManager* resource_manager, VkDevice vk_device,
                                             VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
@@ -57,9 +78,6 @@ class GlobeTexture {
 
     uint32_t Width() { return _width; }
     uint32_t Height() { return _height; }
-    bool UsesStagingTexture() { return _uses_staging_texture; }
-    GlobeTexture* StagingTexture() { return _staging_texture; }
-    bool DeleteStagingTexture();
     VkFormat GetVkFormat() { return _vk_format; }
     VkSampleCountFlagBits GetVkSampleCount() { return _vk_sample_count; }
     VkSampler GetVkSampler() { return _vk_sampler; }
@@ -74,14 +92,14 @@ class GlobeTexture {
     bool _is_color;
     bool _is_depth;
     bool _is_stencil;
+    bool _has_mipmaps;
     GlobeResourceManager* _globe_resource_mgr;
     VkPhysicalDevice _vk_physical_device;
     VkDevice _vk_device;
     std::string _texture_name;
-    bool _uses_staging_texture;
-    GlobeTexture* _staging_texture;
     uint32_t _width;
     uint32_t _height;
+    uint32_t _num_mip_levels;
     VkSampleCountFlagBits _vk_sample_count;
     VkFormat _vk_format;
     VkSampler _vk_sampler;

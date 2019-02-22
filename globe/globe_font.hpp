@@ -48,8 +48,8 @@ struct GlobeFontStringData {
 
 class GlobeFont : public GlobeTexture {
    public:
-    static GlobeFont* LoadFontMap(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                  VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
+    static GlobeFont* LoadFontMap(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                  VkDevice vk_device, VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
                                   const std::string& font_name, const std::string& directory);
 
     GlobeFont(GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& font_name,
@@ -68,10 +68,9 @@ class GlobeFont : public GlobeTexture {
     void DrawStrings(VkCommandBuffer command_buffer, glm::mat4 mvp);
 
    private:
-    static GlobeFont* GenerateFont(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                   VkCommandBuffer vk_command_buffer, const std::string& font_name,
-                                   GlobeFontData& font_data, VkFormat format, VkFormatProperties format_props,
-                                   std::vector<uint8_t>& font_bitmap);
+    static GlobeFont* GenerateFont(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& font_name,
+                                   GlobeFontData& font_data);
 
     std::string _font_name;
     float _generated_size;

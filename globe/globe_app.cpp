@@ -37,6 +37,7 @@ GlobeApp::GlobeApp() {
     _is_minimized = false;
     _is_paused = false;
     _must_exit = false;
+    _uses_staging_buffer = true;
     _google_display_timing_enabled = false;
     _current_frame = 0;
     _current_buffer = 0;
@@ -270,7 +271,8 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         return false;
     }
 
-    _globe_resource_mgr = new GlobeResourceManager(this, _resource_directory);
+    _globe_resource_mgr =
+        new GlobeResourceManager(this, _resource_directory, _globe_submit_mgr->GetGraphicsQueueIndex());
     if (nullptr == _globe_resource_mgr) {
         logger.LogFatalError("Failed to create resource manager!");
         return false;

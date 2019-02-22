@@ -56,8 +56,8 @@ class GlobeSubmitManager {
     bool AcquireNextImageIndex(uint32_t &index);
     bool AdjustPresentTiming();
     bool InsertPresentCommandsToBuffer(VkCommandBuffer command_buffer);
-    bool Submit(VkCommandBuffer command_buffer, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore,
-                VkFence fence, bool immediately_wait);
+    bool Submit(VkCommandBuffer command_buffer, VkSemaphore wait_semaphore, VkSemaphore signal_semaphore, VkFence fence,
+                bool immediately_wait);
     bool SubmitAndPresent(VkSemaphore wait_semaphore);
 
    private:

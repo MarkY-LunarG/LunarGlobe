@@ -45,6 +45,7 @@ target_include_directories(globe PUBLIC
                                ${VULKAN_HEADERS_INSTALL_DIR}/include
                                ${CMAKE_CURRENT_SOURCE_DIR}
                                ${PROJECT_SOURCE_DIR}/submodules/stb
+                               ${PROJECT_SOURCE_DIR}/submodules/gli
                                ${PROJECT_SOURCE_DIR}/submodules/glm
                                ${PROJECT_SOURCE_DIR}/submodules/assimp/include
                                ${CMAKE_BINARY_DIR}/submodules/assimp/include

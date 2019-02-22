@@ -79,6 +79,8 @@ class GlobeApp {
         instance = _vk_instance, phys_device = _vk_phys_device, device = _vk_device;
     }
     bool UsesStagingBuffer() const { return _uses_staging_buffer; }
+    GlobeResourceManager *ResourceManager() const { return _globe_resource_mgr; }
+    GlobeSubmitManager *SubmitManager() const { return _globe_submit_mgr; }
 
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     void SetAndroidNativeWindow(ANativeWindow *android_native_window) {

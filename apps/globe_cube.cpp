@@ -295,9 +295,9 @@ bool CubeApp::Setup() {
     _swapchain_resources.resize(_swapchain_count);
 
     if (!_is_minimized) {
-        _texture = _globe_resource_mgr->LoadTexture("lunarg.ppm", vk_setup_command_buffer);
+        _texture = _globe_resource_mgr->LoadTexture("lunarg.png", vk_setup_command_buffer, false);
         if (nullptr == _texture) {
-            logger.LogError("Failed loading lunarg.ppm texture");
+            logger.LogError("Failed loading lunarg.png texture");
             return false;
         }
 
@@ -623,11 +623,6 @@ bool CubeApp::Setup() {
     if (!GlobeApp::PostSetup(vk_setup_command_pool, vk_setup_command_buffer)) {
         return false;
     }
-
-    if (_texture->UsesStagingTexture()) {
-        _texture->DeleteStagingTexture();
-    }
-
     return true;
 }
 
