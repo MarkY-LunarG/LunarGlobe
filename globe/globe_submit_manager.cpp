@@ -937,6 +937,10 @@ bool GlobeSubmitManager::InsertPresentCommandsToBuffer(VkCommandBuffer command_b
 
 bool GlobeSubmitManager::Submit(VkCommandBuffer command_buffer, VkSemaphore wait_semaphore,
                                 VkSemaphore signal_semaphore, VkFence fence, bool immediately_wait) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
+    VkFence signal_fence = fence;
+    bool created_fence = false;
+    bool success = true;
     VkSubmitInfo submit_info = {};
     submit_info.sType = VK_STRUCTURE_TYPE_SUBMIT_INFO;
     submit_info.pNext = nullptr;
@@ -960,19 +964,35 @@ bool GlobeSubmitManager::Submit(VkCommandBuffer command_buffer, VkSemaphore wait
         submit_info.pSignalSemaphores = &signal_semaphore;
     }
 
-    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, fence)) {
-        GlobeLogger::getInstance().LogError("GlobeSubmitManager::Submit failed to submit to graphics queue");
-        return false;
+    if (immediately_wait && VK_NULL_HANDLE == signal_fence) {
+        VkFenceCreateInfo fence_create_info = {};
+        fence_create_info.sType = VK_STRUCTURE_TYPE_FENCE_CREATE_INFO;
+        fence_create_info.pNext = nullptr;
+        if (VK_SUCCESS != vkCreateFence(_vk_device, &fence_create_info, nullptr, &signal_fence)) {
+            logger.LogError("Failed to allocate a temporary fence to verify submission completion");
+            success = false;
+        }
+        created_fence = true;
     }
 
-    if (immediately_wait && VK_NULL_HANDLE != fence) {
-        if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &fence, VK_TRUE, UINT64_MAX)) {
-            GlobeLogger::getInstance().LogError(
-                "GlobeSubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
-            return false;
+    if (VK_SUCCESS != vkQueueSubmit(_graphics_queue, 1, &submit_info, signal_fence)) {
+        logger.LogError("GlobeSubmitManager::Submit failed to submit to graphics queue");
+        success = false;
+    } else {
+        if (immediately_wait) {
+            if (VK_SUCCESS != vkWaitForFences(_vk_device, 1, &signal_fence, VK_TRUE, UINT64_MAX)) {
+                logger.LogError(
+                    "GlobeSubmitManager::Submit failed to wait for submitted work on graphics queue to complete");
+                success = false;
+            }
         }
     }
-    return true;
+
+    if (created_fence) {
+        vkDestroyFence(_vk_device, signal_fence, nullptr);
+    }
+
+    return success;
 }
 
 bool GlobeSubmitManager::SubmitAndPresent(VkSemaphore wait_semaphore) {

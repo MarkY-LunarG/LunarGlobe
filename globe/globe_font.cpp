@@ -20,53 +20,30 @@
 #define STB_TRUETYPE_IMPLEMENTATION
 #include "stb_truetype.h"
 
-GlobeFont* GlobeFont::GenerateFont(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                   VkCommandBuffer vk_command_buffer, const std::string& font_name,
-                                   GlobeFontData& font_data, VkFormat format, VkFormatProperties format_props,
-                                   std::vector<uint8_t>& font_bitmap) {
+GlobeFont* GlobeFont::GenerateFont(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& font_name,
+                                   GlobeFontData& font_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
-    if (0 == (format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) &&
-        0 == (format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-        format = VK_FORMAT_R8G8B8A8_UNORM;
-        format_props = resource_manager->GetVkFormatProperties(format);
-        font_data.texture_data.num_components = 4;
-        font_data.texture_data.raw_data.resize(font_data.texture_data.width * font_data.texture_data.height * 4);
-
-        uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(font_data.texture_data.raw_data.data());
-        uint8_t* src_ptr = font_bitmap.data();
-        for (int32_t row = 0; row < font_data.texture_data.height; ++row) {
-            for (int32_t col = 0; col < font_data.texture_data.width; ++col) {
-                *dst_ptr++ = *src_ptr++;
-                *dst_ptr++ = *src_ptr++;
-                *dst_ptr++ = *src_ptr++;
-                *dst_ptr++ = 1.f;
-            }
-        }
-    } else {
-        font_data.texture_data.num_components = 1;
-        font_data.texture_data.raw_data = std::move(font_bitmap);
-    }
-    font_data.texture_data.vk_format = format;
-    font_data.texture_data.vk_format_props = format_props;
-
-    if (!InitFromContent(resource_manager, vk_device, vk_command_buffer, font_name, font_data.texture_data)) {
-        std::string error_message = "LoadFontMap - Failed to setting up font for Vulkan \"";
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, font_name,
+                         font_data.texture_data)) {
+        std::string error_message = "GenerateFont - Failed to setting up font for Vulkan \"";
         error_message += font_name;
         error_message += "\"";
         logger.LogError(error_message);
         return nullptr;
     }
+    delete font_data.texture_data.standard_data;
 
     GlobeFont* font = new GlobeFont(resource_manager, vk_device, font_name, &font_data);
     if (nullptr == font) {
-        logger.LogFatalError("LoadFontMap - Failed creating GlobeFont");
+        logger.LogError("GenerateFont - Failed creating GlobeFont");
         return nullptr;
     }
     return font;
 }
 
-GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                  VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
+GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                  VkDevice vk_device, VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
                                   const std::string& font_name, const std::string& directory) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
 // filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
@@ -84,7 +61,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, VkDevi
     if (nullptr == file_ptr) {
         std::string error_string = "LoadFontMap - Failed to open file ";
         error_string += font_file_name;
-        logger.LogFatalError(error_string);
+        logger.LogError(error_string);
         return nullptr;
     }
 
@@ -102,7 +79,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, VkDevi
     if (!stbtt_InitFont(&font_info, file_contents.data(), 0)) {
         std::string error_string = "LoadFontMap - loading font contents for file ";
         error_string += font_file_name;
-        logger.LogFatalError(error_string);
+        logger.LogError(error_string);
         return nullptr;
     }
 
@@ -189,8 +166,6 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, VkDevi
         }
     }
     bitmap_height = max_y;
-    font_data.texture_data.width = bitmap_width;
-    font_data.texture_data.height = bitmap_height;
     font_data.generated_size = static_cast<float>(character_pixel_size);
 
     float inv_x = 1.f / static_cast<float>(bitmap_width);
@@ -226,10 +201,38 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, VkDevi
     }
 #endif
 
-    VkFormat vk_format = VK_FORMAT_R8_UNORM;
-    VkFormatProperties vk_format_props = resource_manager->GetVkFormatProperties(vk_format);
-    return GenerateFont(resource_manager, vk_device, vk_command_buffer, font_name, font_data, vk_format,
-                        vk_format_props, font_bitmap);
+    font_data.texture_data.uses_standard_data = true;
+    font_data.texture_data.standard_data = new GlobeStandardTextureData();
+    if (font_data.texture_data.standard_data == nullptr) {
+        std::string error_string = "LoadFontMap - loading font contents for file ";
+        error_string += font_file_name;
+        logger.LogError(error_string);
+        return nullptr;
+    }
+
+    font_data.texture_data.width = bitmap_width;
+    font_data.texture_data.height = bitmap_height;
+    font_data.texture_data.num_mip_levels = 1;
+    font_data.texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
+    font_data.texture_data.vk_format_props = resource_manager->GetVkFormatProperties(font_data.texture_data.vk_format);
+    GlobeTextureLevel level_data = {};
+    level_data.width = bitmap_width;
+    level_data.height = bitmap_height;
+    level_data.data_size = bitmap_width * bitmap_height * 4;
+    font_data.texture_data.standard_data->levels.push_back(level_data);
+    font_data.texture_data.standard_data->raw_data.resize(level_data.data_size);
+    uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(font_data.texture_data.standard_data->raw_data.data());
+    uint8_t* src_ptr = font_bitmap.data();
+    for (int32_t row = 0; row < font_data.texture_data.height; ++row) {
+        for (int32_t col = 0; col < font_data.texture_data.width; ++col) {
+            *dst_ptr++ = *src_ptr;
+            *dst_ptr++ = *src_ptr;
+            *dst_ptr++ = *src_ptr++;
+            *dst_ptr++ = 255;
+        }
+    }
+
+    return GenerateFont(resource_manager, submit_manager, vk_device, vk_command_buffer, font_name, font_data);
 #endif
 }
 
@@ -267,7 +270,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     descriptor_set_layout.pBindings = &descriptor_set_layout_binding;
     if (VK_SUCCESS !=
         vkCreateDescriptorSetLayout(_vk_device, &descriptor_set_layout, nullptr, &_vk_descriptor_set_layout)) {
-        logger.LogFatalError("GlobeFont failed to create descriptor set layout");
+        logger.LogError("GlobeFont failed to create descriptor set layout");
         return false;
     }
 
@@ -284,7 +287,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     pipeline_layout_create_info.pushConstantRangeCount = 1;
     pipeline_layout_create_info.pPushConstantRanges = &push_constant_range;
     if (VK_SUCCESS != vkCreatePipelineLayout(_vk_device, &pipeline_layout_create_info, nullptr, &_vk_pipeline_layout)) {
-        logger.LogFatalError("GlobeFont failed to create pipeline layout layout");
+        logger.LogError("GlobeFont failed to create pipeline layout layout");
         return false;
     }
 
@@ -299,7 +302,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     descriptor_pool_create_info.poolSizeCount = 1;
     descriptor_pool_create_info.pPoolSizes = &pool_size;
     if (VK_SUCCESS != vkCreateDescriptorPool(_vk_device, &descriptor_pool_create_info, nullptr, &_vk_descriptor_pool)) {
-        logger.LogFatalError("GlobeFont failed to create descriptor pool");
+        logger.LogError("GlobeFont failed to create descriptor pool");
         return false;
     }
 
@@ -310,7 +313,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     descriptor_set_allocate_info.descriptorSetCount = 1;
     descriptor_set_allocate_info.pSetLayouts = &_vk_descriptor_set_layout;
     if (VK_SUCCESS != vkAllocateDescriptorSets(_vk_device, &descriptor_set_allocate_info, &_vk_descriptor_set)) {
-        logger.LogFatalError("GlobeFont failed to allocate descriptor set");
+        logger.LogError("GlobeFont failed to allocate descriptor set");
         return false;
     }
 
@@ -431,7 +434,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
 
     GlobeShader* font_shader = _globe_resource_mgr->LoadShader("poscolortex_pushmat");
     if (nullptr == font_shader) {
-        logger.LogFatalError("GlobeFont failed to load poscolortex_pushmat shaders");
+        logger.LogError("GlobeFont failed to load poscolortex_pushmat shaders");
         return false;
     }
     std::vector<VkPipelineShaderStageCreateInfo> pipeline_shader_stage_create_info;
@@ -453,7 +456,7 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     gfx_pipeline_create_info.pDynamicState = nullptr;
     if (VK_SUCCESS !=
         vkCreateGraphicsPipelines(_vk_device, VK_NULL_HANDLE, 1, &gfx_pipeline_create_info, nullptr, &_vk_pipeline)) {
-        logger.LogFatalError("GlobeFont failed to create graphics pipeline");
+        logger.LogError("GlobeFont failed to create graphics pipeline");
         return false;
     }
 
@@ -602,27 +605,27 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
         buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         buffer_create_info.flags = 0;
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.vertex_buffer.vk_buffer)) {
-            logger.LogFatalError("Failed to create vertex buffer");
+            logger.LogError("Failed to create vertex buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 string_data.vertex_buffer.vk_buffer,
                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 string_data.vertex_buffer.vk_memory, string_data.vertex_buffer.vk_size)) {
-            logger.LogFatalError("Failed to allocate vertex buffer memory");
+            logger.LogError("Failed to allocate vertex buffer memory");
             return false;
         }
         uint8_t* mapped_data;
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.vertex_buffer.vk_memory, 0,
                                       string_data.vertex_buffer.vk_size, 0, (void**)&mapped_data)) {
-            logger.LogFatalError("Failed to map vertex buffer memory");
+            logger.LogError("Failed to map vertex buffer memory");
             return false;
         }
         memcpy(mapped_data, string_data.vertex_data.data(), string_data.vertex_data.size() * sizeof(float));
         vkUnmapMemory(_vk_device, string_data.vertex_buffer.vk_memory);
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, string_data.vertex_buffer.vk_buffer,
                                              string_data.vertex_buffer.vk_memory, 0)) {
-            logger.LogFatalError("Failed to bind vertex buffer memory");
+            logger.LogError("Failed to bind vertex buffer memory");
             return false;
         }
 
@@ -630,26 +633,26 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
         buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         buffer_create_info.size = string_data.index_data.size() * sizeof(uint32_t);
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.index_buffer.vk_buffer)) {
-            logger.LogFatalError("Failed to create index buffer");
+            logger.LogError("Failed to create index buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 string_data.index_buffer.vk_buffer,
                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 string_data.index_buffer.vk_memory, string_data.index_buffer.vk_size)) {
-            logger.LogFatalError("Failed to allocate index buffer memory");
+            logger.LogError("Failed to allocate index buffer memory");
             return false;
         }
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.index_buffer.vk_memory, 0,
                                       string_data.index_buffer.vk_size, 0, (void**)&mapped_data)) {
-            logger.LogFatalError("Failed to map index buffer memory");
+            logger.LogError("Failed to map index buffer memory");
             return false;
         }
         memcpy(mapped_data, string_data.index_data.data(), string_data.index_data.size() * sizeof(uint32_t));
         vkUnmapMemory(_vk_device, string_data.index_buffer.vk_memory);
         if (VK_SUCCESS !=
             vkBindBufferMemory(_vk_device, string_data.index_buffer.vk_buffer, string_data.index_buffer.vk_memory, 0)) {
-            logger.LogFatalError("Failed to bind index buffer memory");
+            logger.LogError("Failed to bind index buffer memory");
             return false;
         }
 
@@ -677,7 +680,7 @@ bool GlobeFont::UpdateStringText(int32_t string_index, const std::string& text_s
         float* mapped_data;
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.vertex_buffer.vk_memory, 0,
                                       string_data.vertex_buffer.vk_size, 0, (void**)&mapped_data)) {
-            logger.LogFatalError("UpdateStringText - Failed to map vertex buffer memory");
+            logger.LogError("UpdateStringText - Failed to map vertex buffer memory");
         }
         uint32_t mapped_index = 0;
         for (uint32_t char_index = 0; char_index < text_string.length(); ++char_index) {

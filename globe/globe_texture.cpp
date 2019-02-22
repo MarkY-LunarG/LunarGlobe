@@ -15,7 +15,8 @@
 #include "globe_shader.hpp"
 #include "globe_texture.hpp"
 #include "globe_resource_manager.hpp"
-#include "globe_app.hpp"
+#include "globe_submit_manager.hpp"
+#include "globe_basic_types.hpp"
 
 #define STB_IMAGE_IMPLEMENTATION
 #include "stb_image.h"
@@ -30,8 +31,158 @@ uint32_t GlobeTexture::NextPowerOfTwo(uint32_t value) {
     return ++value;
 }
 
-static bool LoadFile(GlobeResourceManager* resource_manager, const std::string& filename,
-                     GlobeTextureData& texture_data) {
+static VkFormat GliFormatToVkFormat(gli::format gli_format) {
+    switch (gli_format) {
+        // R formats
+        case gli::FORMAT_R8_UNORM_PACK8:
+            return VK_FORMAT_R8_UNORM;
+        case gli::FORMAT_R8_SNORM_PACK8:
+            return VK_FORMAT_R8_SNORM;
+        case gli::FORMAT_R8_USCALED_PACK8:
+            return VK_FORMAT_R8_USCALED;
+        case gli::FORMAT_R8_SSCALED_PACK8:
+            return VK_FORMAT_R8_SSCALED;
+        case gli::FORMAT_R8_UINT_PACK8:
+            return VK_FORMAT_R8_UINT;
+        case gli::FORMAT_R8_SINT_PACK8:
+            return VK_FORMAT_R8_SINT;
+        case gli::FORMAT_R8_SRGB_PACK8:
+            return VK_FORMAT_R8_SRGB;
+        // RGB formats
+        case gli::FORMAT_RGB8_UNORM_PACK8:
+            return VK_FORMAT_R8G8B8_UNORM;
+        case gli::FORMAT_RGB8_SNORM_PACK8:
+            return VK_FORMAT_R8G8B8_SNORM;
+        case gli::FORMAT_RGB8_USCALED_PACK8:
+            return VK_FORMAT_R8G8B8_USCALED;
+        case gli::FORMAT_RGB8_SSCALED_PACK8:
+            return VK_FORMAT_R8G8B8_SSCALED;
+        case gli::FORMAT_RGB8_UINT_PACK8:
+            return VK_FORMAT_R8G8B8_UINT;
+        case gli::FORMAT_RGB8_SINT_PACK8:
+            return VK_FORMAT_R8G8B8_SINT;
+        case gli::FORMAT_RGB8_SRGB_PACK8:
+            return VK_FORMAT_R8G8B8_SRGB;
+        // BGR formats
+        case gli::FORMAT_BGR8_UNORM_PACK8:
+            return VK_FORMAT_B8G8R8_UNORM;
+        case gli::FORMAT_BGR8_SNORM_PACK8:
+            return VK_FORMAT_B8G8R8_SNORM;
+        case gli::FORMAT_BGR8_USCALED_PACK8:
+            return VK_FORMAT_B8G8R8_USCALED;
+        case gli::FORMAT_BGR8_SSCALED_PACK8:
+            return VK_FORMAT_B8G8R8_SSCALED;
+        case gli::FORMAT_BGR8_UINT_PACK8:
+            return VK_FORMAT_B8G8R8_UINT;
+        case gli::FORMAT_BGR8_SINT_PACK8:
+            return VK_FORMAT_B8G8R8_SINT;
+        case gli::FORMAT_BGR8_SRGB_PACK8:
+            return VK_FORMAT_B8G8R8_SRGB;
+        // RGBA8 formats
+        case gli::FORMAT_RGBA8_UNORM_PACK8:
+            return VK_FORMAT_R8G8B8A8_UNORM;
+        case gli::FORMAT_RGBA8_SNORM_PACK8:
+            return VK_FORMAT_R8G8B8A8_SNORM;
+        case gli::FORMAT_RGBA8_USCALED_PACK8:
+            return VK_FORMAT_R8G8B8A8_USCALED;
+        case gli::FORMAT_RGBA8_SSCALED_PACK8:
+            return VK_FORMAT_R8G8B8A8_SSCALED;
+        case gli::FORMAT_RGBA8_UINT_PACK8:
+            return VK_FORMAT_R8G8B8A8_UINT;
+        case gli::FORMAT_RGBA8_SINT_PACK8:
+            return VK_FORMAT_R8G8B8A8_SINT;
+        case gli::FORMAT_RGBA8_SRGB_PACK8:
+            return VK_FORMAT_R8G8B8A8_SRGB;
+        // BGRA8 formats
+        case gli::FORMAT_BGRA8_UNORM_PACK8:
+            return VK_FORMAT_B8G8R8A8_UNORM;
+        case gli::FORMAT_BGRA8_SNORM_PACK8:
+            return VK_FORMAT_B8G8R8A8_SNORM;
+        case gli::FORMAT_BGRA8_USCALED_PACK8:
+            return VK_FORMAT_B8G8R8A8_USCALED;
+        case gli::FORMAT_BGRA8_SSCALED_PACK8:
+            return VK_FORMAT_B8G8R8A8_SSCALED;
+        case gli::FORMAT_BGRA8_UINT_PACK8:
+            return VK_FORMAT_B8G8R8A8_UINT;
+        case gli::FORMAT_BGRA8_SINT_PACK8:
+            return VK_FORMAT_B8G8R8A8_SINT;
+        case gli::FORMAT_BGRA8_SRGB_PACK8:
+            return VK_FORMAT_B8G8R8A8_SRGB;
+        // RGB ETC2 Compression Formats
+        case gli::FORMAT_RGB_ETC2_UNORM_BLOCK8:
+            return VK_FORMAT_ETC2_R8G8B8_UNORM_BLOCK;
+        case gli::FORMAT_RGB_ETC2_SRGB_BLOCK8:
+            return VK_FORMAT_ETC2_R8G8B8_SRGB_BLOCK;
+        // RGBA ETC2 Compression Formats
+        case gli::FORMAT_RGBA_ETC2_UNORM_BLOCK8:
+            return VK_FORMAT_ETC2_R8G8B8A8_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ETC2_SRGB_BLOCK8:
+            return VK_FORMAT_ETC2_R8G8B8A8_SRGB_BLOCK;
+        // RGBA ASTC Compression Formats
+        case gli::FORMAT_RGBA_ASTC_4X4_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_4x4_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_4X4_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_4x4_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_5X4_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_5x4_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_5X4_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_5x4_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_5X5_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_5x5_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_5X5_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_5x5_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_6X5_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_6x5_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_6X5_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_6x5_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_6X6_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_6x6_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_6X6_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_6x6_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X5_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_8x5_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X5_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_8x5_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X6_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_8x6_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X6_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_8x6_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X8_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_8x8_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_8X8_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_8x8_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X5_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_10x5_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X5_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_10x5_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X6_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_10x6_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X6_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_10x6_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X8_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_10x8_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X8_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_10x8_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X10_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_10x10_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_10X10_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_10x10_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_12X10_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_12x10_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_12X10_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_12x10_SRGB_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_12X12_UNORM_BLOCK16:
+            return VK_FORMAT_ASTC_12x12_UNORM_BLOCK;
+        case gli::FORMAT_RGBA_ASTC_12X12_SRGB_BLOCK16:
+            return VK_FORMAT_ASTC_12x12_SRGB_BLOCK;
+    }
+    return VK_FORMAT_UNDEFINED;
+}
+
+static bool LoadStandardFile(GlobeResourceManager* resource_manager, const std::string& filename,
+                             GlobeTextureData& texture_data) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
 // filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
@@ -49,50 +200,43 @@ static bool LoadFile(GlobeResourceManager* resource_manager, const std::string& 
         if (nullptr != image_data) {
             stbi_image_free(image_data);
         }
+        std::string error_msg = "LoadStandardFile - Failed loading image ";
+        error_msg += filename;
+        error_msg += ", one or more of width/height/num_channels is incorrect";
+        logger.LogError(error_msg);
         return false;
     }
     texture_data.setup_for_render_target = false;
+    texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
     texture_data.width = static_cast<uint32_t>(int_width);
     texture_data.height = static_cast<uint32_t>(int_height);
-    bool requires_padding = false;
-    int32_t old_num_channels = num_channels;
-    switch (num_channels) {
-        case 1:
-            texture_data.vk_format = VK_FORMAT_R8_UNORM;
-            break;
-        case 2:
-            texture_data.vk_format = VK_FORMAT_R8G8_UNORM;
-            break;
-        case 3:
-            texture_data.vk_format = VK_FORMAT_R8G8B8_UNORM;
-            break;
-        case 4:
-            texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
-            break;
-        default:
-            break;
-    }
-    texture_data.vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
-    if (0 == (texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) &&
-        0 == (texture_data.vk_format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
-        texture_data.vk_format = VK_FORMAT_R8G8B8A8_UNORM;
-        requires_padding = true;
-        num_channels = 4;
-        texture_data.vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
-    }
-    texture_data.num_components = static_cast<uint32_t>(num_channels);
-    texture_data.raw_data.resize(int_width * int_height * num_channels);
 
-    if (requires_padding) {
-        uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(texture_data.raw_data.data());
+    texture_data.uses_standard_data = true;
+    texture_data.standard_data = new GlobeStandardTextureData();
+    if (texture_data.standard_data == nullptr) {
+        std::string error_string = "LoadStandardFile - loading texture contents for image ";
+        error_string += filename;
+        logger.LogError(error_string);
+        return false;
+    }
+    // TODO: Brainpain - Generate mipmaps if needed
+    texture_data.num_mip_levels = 1;
+    GlobeTextureLevel level_data = {};
+    level_data.width = int_width;
+    level_data.height = int_height;
+    level_data.data_size = int_width * int_height * 4;
+    texture_data.standard_data->levels.push_back(level_data);
+    texture_data.standard_data->raw_data.resize(level_data.data_size);
+    if (num_channels != 4) {
+        uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(texture_data.standard_data->raw_data.data());
         uint8_t* src_ptr = image_data;
         for (int32_t row = 0; row < int_height; ++row) {
             for (int32_t col = 0; col < int_width; ++col) {
                 int32_t comp = 0;
-                for (; comp < old_num_channels; ++comp) {
+                for (; comp < num_channels; ++comp) {
                     *dst_ptr++ = *src_ptr++;
                 }
-                while (comp++ < num_channels) {
+                while (comp++ < 4) {
                     if (comp == 4) {
                         *dst_ptr++ = 255;
                     } else {
@@ -102,7 +246,7 @@ static bool LoadFile(GlobeResourceManager* resource_manager, const std::string& 
             }
         }
     } else {
-        memcpy(texture_data.raw_data.data(), image_data, int_width * int_height * num_channels * sizeof(uint8_t));
+        memcpy(texture_data.standard_data->raw_data.data(), image_data, int_width * int_height * 4 * sizeof(uint8_t));
     }
 
     stbi_image_free(image_data);
@@ -111,222 +255,335 @@ static bool LoadFile(GlobeResourceManager* resource_manager, const std::string& 
     return true;
 }
 
-static bool TransitionVkImageLayout(VkCommandBuffer cmd_buf, VkImage image, VkImageAspectFlags aspect_mask,
-                                    VkImageLayout old_image_layout, VkImageLayout new_image_layout,
-                                    VkAccessFlagBits src_access_mask, VkPipelineStageFlags src_stages,
-                                    VkPipelineStageFlags dest_stages) {
+static bool LoadKtxFile(GlobeResourceManager* resource_manager, bool generate_mipmaps, const std::string& filename,
+                        GlobeTextureData& texture_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
-    if (VK_NULL_HANDLE == new_image_layout) {
-        logger.LogFatalError("TransitionVkImageLayout called with no created command buffer");
+
+#if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
+// filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
+#error("Unsupported platform")
+#elif defined(__ANDROID__)
+#else
+    gli::texture2d* gli_texture = new gli::texture2d(gli::load(filename.c_str()));
+    if (gli_texture->empty()) {
+        std::string error_msg = "GlobeTexture::LoadKtxFile failed for file ";
+        error_msg += filename;
+        error_msg += " because it either does not exist or is invalid";
+        logger.LogError(error_msg);
         return false;
-    }
-
-    VkImageMemoryBarrier image_memory_barrier = {};
-    image_memory_barrier.sType = VK_STRUCTURE_TYPE_IMAGE_MEMORY_BARRIER;
-    image_memory_barrier.pNext = nullptr;
-    image_memory_barrier.srcAccessMask = src_access_mask;
-    image_memory_barrier.dstAccessMask = 0;
-    image_memory_barrier.srcQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.dstQueueFamilyIndex = VK_QUEUE_FAMILY_IGNORED;
-    image_memory_barrier.oldLayout = old_image_layout;
-    image_memory_barrier.newLayout = new_image_layout;
-    image_memory_barrier.image = image;
-    image_memory_barrier.subresourceRange = {aspect_mask, 0, 1, 0, 1};
-
-    switch (new_image_layout) {
-        case VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL:
-            /* Make sure anything that was copying from this image has completed */
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_COLOR_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_COLOR_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_DEPTH_STENCIL_ATTACHMENT_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_DEPTH_STENCIL_ATTACHMENT_WRITE_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_SHADER_READ_BIT | VK_ACCESS_INPUT_ATTACHMENT_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_TRANSFER_READ_BIT;
-            break;
-
-        case VK_IMAGE_LAYOUT_PRESENT_SRC_KHR:
-            image_memory_barrier.dstAccessMask = VK_ACCESS_MEMORY_READ_BIT;
-            break;
-
-        default:
-            image_memory_barrier.dstAccessMask = 0;
-            break;
-    }
-
-    vkCmdPipelineBarrier(cmd_buf, src_stages, dest_stages, 0, 0, nullptr, 0, nullptr, 1, &image_memory_barrier);
-    return true;
-}
-
-bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                   VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                   GlobeTextureData& texture_data) {
-    GlobeLogger& logger = GlobeLogger::getInstance();
-    bool uses_staging = false;
-    GlobeTextureData staging_texture_data = texture_data;
-    GlobeTextureData* target_texture_data = &texture_data;
-
-    VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
-    if (!(texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) ||
-        resource_manager->UseStagingBuffer()) {
-        loading_image_usage_flags = VK_IMAGE_USAGE_TRANSFER_SRC_BIT;
-        target_texture_data = &staging_texture_data;
-        uses_staging = true;
     }
 
     texture_data.is_color = true;
     texture_data.is_stencil = false;
     texture_data.is_depth = false;
     texture_data.vk_sample_count = VK_SAMPLE_COUNT_1_BIT;
+    texture_data.setup_for_render_target = false;
+    texture_data.width = static_cast<uint32_t>(gli_texture[0].extent().x);
+    texture_data.height = static_cast<uint32_t>(gli_texture[0].extent().y);
+    if (generate_mipmaps) {
+        texture_data.num_mip_levels = static_cast<uint32_t>(gli_texture->levels());
+    } else {
+        texture_data.num_mip_levels = 1;
+    }
+    texture_data.vk_format = GliFormatToVkFormat(gli_texture->format());
+    texture_data.vk_format_props = resource_manager->GetVkFormatProperties(texture_data.vk_format);
+    if (0 == (texture_data.vk_format_props.linearTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT) &&
+        0 == (texture_data.vk_format_props.optimalTilingFeatures & VK_FORMAT_FEATURE_SAMPLED_IMAGE_BIT)) {
+        std::string error_msg = "GlobeTexture::LoadKtxFile failed for file ";
+        error_msg += filename;
+        error_msg += " because it uses an unsupported format";
+        logger.LogError(error_msg);
+    }
+    texture_data.gli_texture_2d = gli_texture;
+#endif
 
-    VkImageCreateInfo image_create_info = {};
-    image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
-    image_create_info.pNext = nullptr;
-    image_create_info.imageType = VK_IMAGE_TYPE_2D;
-    image_create_info.format = target_texture_data->vk_format;
-    image_create_info.extent.width = target_texture_data->width;
-    image_create_info.extent.height = target_texture_data->height;
-    image_create_info.extent.depth = 1;
-    image_create_info.mipLevels = 1;
-    image_create_info.arrayLayers = 1;
-    image_create_info.samples = texture_data.vk_sample_count;
-    image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
-    image_create_info.usage = loading_image_usage_flags;
-    image_create_info.flags = 0;
-    image_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
-    if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &target_texture_data->vk_image)) {
-        std::string error_message = "InitFromContent - Failed to load texture from file \"";
-        error_message += texture_name;
-        error_message += "\"";
-        logger.LogError(error_message);
+    return true;
+}
+
+bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+                                   const std::string& texture_name, GlobeTextureData& texture_data) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    bool uses_staging = resource_manager->UseStagingBuffer();
+    uint32_t num_mip_levels = texture_data.num_mip_levels;
+    uint8_t* raw_data;
+    size_t raw_data_size;
+    GlobeVulkanBuffer staging_buffer;
+
+    if (texture_data.uses_standard_data) {
+        raw_data = texture_data.standard_data->raw_data.data();
+        raw_data_size = texture_data.standard_data->raw_data.size();
+    } else {
+        raw_data = static_cast<uint8_t*>(texture_data.gli_texture_2d->data());
+        raw_data_size = texture_data.gli_texture_2d->size();
+    }
+
+    VkCommandBuffer texture_copy_cmd_buf;
+    if (!resource_manager->AllocateCommandBuffer(VK_COMMAND_BUFFER_LEVEL_PRIMARY, texture_copy_cmd_buf)) {
+        std::string error_msg = "InitFromContent - Failed allocating command buffer for copying texture  \"";
+        error_msg += texture_name;
+        error_msg += "\"";
+        logger.LogError(error_msg);
+        return false;
+    }
+    VkCommandBufferBeginInfo cmd_buf_begin_info = {};
+    cmd_buf_begin_info.sType = VK_STRUCTURE_TYPE_COMMAND_BUFFER_BEGIN_INFO;
+    cmd_buf_begin_info.flags = VK_COMMAND_BUFFER_USAGE_ONE_TIME_SUBMIT_BIT;
+    if (VK_SUCCESS != vkBeginCommandBuffer(texture_copy_cmd_buf, &cmd_buf_begin_info)) {
+        std::string error_msg = "InitFromContent - Failed beginning command buffer for copying texture  \"";
+        error_msg += texture_name;
+        error_msg += "\"";
+        logger.LogError(error_msg);
         return false;
     }
 
-    if (!resource_manager->AllocateDeviceImageMemory(
-            target_texture_data->vk_image, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
-            target_texture_data->vk_device_memory, target_texture_data->vk_allocated_size)) {
-        logger.LogFatalError("InitFromContent - Failed allocating target texture image to memory");
-        return false;
-    }
+    VkBufferCreateInfo buffer_create_info = {};
+    buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+    buffer_create_info.usage = VK_BUFFER_USAGE_TRANSFER_SRC_BIT;
 
-    if (VK_SUCCESS !=
-        vkBindImageMemory(vk_device, target_texture_data->vk_image, target_texture_data->vk_device_memory, 0)) {
-        logger.LogError("InitFromContent - Failed to binding memory to texture image");
-        return false;
-    }
+    VkImageSubresourceRange image_subresource_range = {};
+    image_subresource_range.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+    image_subresource_range.levelCount = num_mip_levels;
+    image_subresource_range.layerCount = 1;
 
-    VkImageSubresource image_subresource = {};
-    image_subresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
-    image_subresource.mipLevel = 0;
-    image_subresource.arrayLayer = 0;
-    VkSubresourceLayout vk_subresource_layout;
-
-    vkGetImageSubresourceLayout(vk_device, target_texture_data->vk_image, &image_subresource, &vk_subresource_layout);
-
-    void* data;
-    if (VK_SUCCESS != vkMapMemory(vk_device, target_texture_data->vk_device_memory, 0,
-                                  target_texture_data->vk_allocated_size, 0, &data)) {
-        logger.LogError("InitFromContent - Failed to map memory for copying over texture image");
-        return false;
-    }
-    uint8_t* data_ptr = reinterpret_cast<uint8_t*>(data);
-    uint8_t* row_ptr = target_texture_data->raw_data.data();
-    uint32_t from_size = target_texture_data->width * texture_data.num_components;
-    uint32_t to_size = target_texture_data->width * texture_data.num_components;
-    for (uint32_t y = 0; y < target_texture_data->height; y++) {
-        memcpy(data_ptr, row_ptr, from_size);
-        row_ptr += from_size;
-        data_ptr += vk_subresource_layout.rowPitch;
-    }
-    vkUnmapMemory(vk_device, target_texture_data->vk_device_memory);
-
-    target_texture_data->raw_data.clear();
-    target_texture_data->vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
-
-    // If we need to place this in tiled memory, we need to use a staging texture.
+    VkImageUsageFlags loading_image_usage_flags = VK_IMAGE_USAGE_SAMPLED_BIT;
     if (uses_staging) {
-        if (!TransitionVkImageLayout(vk_command_buffer, staging_texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                     VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                                     static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                     VK_PIPELINE_STAGE_TRANSFER_BIT)) {
-            logger.LogError("InitFromContent - Failed to transition staging image to transfer format");
+        // Create a temporary staging buffer that is host-visible that we can copy
+        // the image data into and then transfer over to the GPU in its most
+        // efficient memory layout.
+        buffer_create_info.size = raw_data_size;
+        buffer_create_info.queueFamilyIndexCount = 0;
+        buffer_create_info.pQueueFamilyIndices = nullptr;
+        buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        buffer_create_info.flags = 0;
+        if (VK_SUCCESS != vkCreateBuffer(vk_device, &buffer_create_info, NULL, &staging_buffer.vk_buffer)) {
+            std::string error_msg = "InitFromContent - Failed to create staging buffer for texture \"";
+            error_msg += texture_name;
+            error_msg += "\"";
+            logger.LogError(error_msg);
             return false;
         }
+        if (!resource_manager->AllocateDeviceBufferMemory(
+                staging_buffer.vk_buffer, (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                staging_buffer.vk_memory, staging_buffer.vk_size)) {
+            std::string error_msg = "InitFromContent - Failed to allocate memory for staging buffer for texture \"";
+            error_msg += texture_name;
+            error_msg += "\"";
+            logger.LogError(error_msg);
+            return false;
+        }
+        if (VK_SUCCESS != vkBindBufferMemory(vk_device, staging_buffer.vk_buffer, staging_buffer.vk_memory, 0)) {
+            std::string error_msg = "InitFromContent - Failed to bind memory to staging buffer for texture \"";
+            error_msg += texture_name;
+            error_msg += "\"";
+            logger.LogError(error_msg);
+            return false;
+        }
+        uint8_t* mapped_staging_memory;
+        if (VK_SUCCESS != vkMapMemory(vk_device, staging_buffer.vk_memory, 0, staging_buffer.vk_size, 0,
+                                      reinterpret_cast<void**>(&mapped_staging_memory))) {
+            std::string error_msg = "InitFromContent - Failed to map memory for staging buffer for texture \"";
+            error_msg += texture_name;
+            error_msg += "\"";
+            logger.LogError(error_msg);
+            return false;
+        }
+        memcpy(mapped_staging_memory, raw_data, raw_data_size);
+        vkUnmapMemory(vk_device, staging_buffer.vk_memory);
 
-        texture_data.width = staging_texture_data.width;
-        texture_data.height = staging_texture_data.height;
-        texture_data.vk_format = staging_texture_data.vk_format;
+        // Now define a texture image and memory for the resulting optimally tiled texture
+        // on the device itself instead of unoptimal host-visible memory.
+        VkImageCreateInfo image_create_info = {};
+        image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_create_info.imageType = VK_IMAGE_TYPE_2D;
+        image_create_info.format = texture_data.vk_format;
+        image_create_info.extent = {texture_data.width, texture_data.height, 1};
+        image_create_info.mipLevels = num_mip_levels;
+        image_create_info.arrayLayers = 1;
+        image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
         image_create_info.tiling = VK_IMAGE_TILING_OPTIMAL;
-        image_create_info.usage = VK_IMAGE_USAGE_TRANSFER_DST_BIT | VK_IMAGE_USAGE_SAMPLED_BIT;
+        image_create_info.usage = loading_image_usage_flags | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_create_info.initialLayout = VK_IMAGE_LAYOUT_UNDEFINED;
         if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &texture_data.vk_image)) {
-            std::string error_message = "InitFromContent - Failed to setup optimized tiled texture target for \"";
+            std::string error_message = "InitFromContent - Failed to create resulting image for texture \"";
+            error_message += texture_name;
+            error_message += "\"";
+            logger.LogError(error_message);
+            return false;
+        }
+        if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
+                                                         texture_data.vk_device_memory,
+                                                         texture_data.vk_allocated_size)) {
+            std::string error_message = "InitFromContent - Failed allocating memory for resulting image for texture \"";
+            error_message += texture_name;
+            error_message += "\"";
+            logger.LogError(error_message);
+            return false;
+        }
+        if (VK_SUCCESS != vkBindImageMemory(vk_device, texture_data.vk_image, texture_data.vk_device_memory, 0)) {
+            std::string error_message = "InitFromContent - Failed binding memory for resulting image for texture \"";
             error_message += texture_name;
             error_message += "\"";
             logger.LogError(error_message);
             return false;
         }
 
-        if (!resource_manager->AllocateDeviceImageMemory(texture_data.vk_image, VK_MEMORY_PROPERTY_DEVICE_LOCAL_BIT,
-                                                         texture_data.vk_device_memory,
-                                                         texture_data.vk_allocated_size)) {
-            logger.LogFatalError("InitFromContent - Failed allocating tiled target texture image to memory");
+        // Make sure we delay until we can copy over the contents of the texture read.
+        if (!resource_manager->InsertImageLayoutTransitionBarrier(
+                texture_copy_cmd_buf, texture_data.vk_image, image_subresource_range, VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
+                VK_IMAGE_LAYOUT_UNDEFINED, VK_PIPELINE_STAGE_TRANSFER_BIT, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL)) {
+            std::string error_message =
+                "InitFromContent - Failed to add layout transition image barrier for texture \"";
+            error_message += texture_name;
+            error_message += "\" to destination transfer state";
+            logger.LogError(error_message);
             return false;
         }
 
-        if (VK_SUCCESS != vkBindImageMemory(vk_device, texture_data.vk_image, texture_data.vk_device_memory, 0)) {
-            logger.LogError("InitFromContent - Failed to binding memory to tiled texture image");
-            return false;
+        // We now need to setup a copy for each miplevel in the texture.
+        std::vector<VkBufferImageCopy> vk_buffer_image_copies;
+        vk_buffer_image_copies.resize(num_mip_levels);
+        uint32_t current_buffer_offset = 0;
+        for (uint32_t mip = 0; mip < num_mip_levels; ++mip) {
+            vk_buffer_image_copies[mip] = {};
+            vk_buffer_image_copies[mip].bufferOffset = current_buffer_offset;
+            vk_buffer_image_copies[mip].imageSubresource.aspectMask = VK_IMAGE_ASPECT_COLOR_BIT;
+            vk_buffer_image_copies[mip].imageSubresource.mipLevel = mip;
+            vk_buffer_image_copies[mip].imageSubresource.layerCount = 1;
+
+            if (texture_data.uses_standard_data) {
+                vk_buffer_image_copies[mip].imageExtent.width =
+                    static_cast<uint32_t>(texture_data.standard_data->levels[mip].width);
+                vk_buffer_image_copies[mip].imageExtent.height =
+                    static_cast<uint32_t>(texture_data.standard_data->levels[mip].height);
+                vk_buffer_image_copies[mip].imageExtent.depth = 1;
+                // Update the offset to be after the current texture
+                current_buffer_offset += static_cast<uint32_t>(texture_data.standard_data->levels[mip].data_size);
+            } else {
+                vk_buffer_image_copies[mip].imageExtent.width =
+                    static_cast<uint32_t>((*texture_data.gli_texture_2d)[mip].extent().x);
+                vk_buffer_image_copies[mip].imageExtent.height =
+                    static_cast<uint32_t>((*texture_data.gli_texture_2d)[mip].extent().y);
+                vk_buffer_image_copies[mip].imageExtent.depth = 1;
+                // Update the offset to be after the current texture
+                current_buffer_offset += static_cast<uint32_t>((*texture_data.gli_texture_2d)[mip].size());
+            }
         }
 
-        texture_data.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
+        // Now, copy all the mip-map levels from the staging buffer into the final image.
+        vkCmdCopyBufferToImage(texture_copy_cmd_buf, staging_buffer.vk_buffer, texture_data.vk_image,
+                               VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
+                               static_cast<uint32_t>(vk_buffer_image_copies.size()), vk_buffer_image_copies.data());
 
-        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                     VK_IMAGE_LAYOUT_PREINITIALIZED, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL,
-                                     static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                     VK_PIPELINE_STAGE_TRANSFER_BIT)) {
-            logger.LogError("InitFromContent - Failed to transition resulting image to accept staging content");
-            return false;
-        }
-        texture_data.staging_texture_data = &staging_texture_data;
-
-        VkImageCopy image_copy = {};
-        image_copy.srcSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        image_copy.srcOffset = {0, 0, 0};
-        image_copy.dstSubresource = {VK_IMAGE_ASPECT_COLOR_BIT, 0, 0, 1};
-        image_copy.dstOffset = {0, 0, 0};
-        image_copy.extent.width = texture_data.width;
-        image_copy.extent.height = texture_data.height;
-        image_copy.extent.depth = 1;
-        vkCmdCopyImage(vk_command_buffer, staging_texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_SRC_OPTIMAL,
-                       texture_data.vk_image, VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, 1, &image_copy);
-        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                     VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, texture_data.vk_image_layout,
-                                     VK_ACCESS_TRANSFER_WRITE_BIT, VK_PIPELINE_STAGE_TRANSFER_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
-            logger.LogError(
-                "InitFromContent - Failed to transition resulting texture to shader readable after staging copy");
+        // Make sure we delay until we can copy over the contents of the texture read.
+        if (!resource_manager->InsertImageLayoutTransitionBarrier(
+                texture_copy_cmd_buf, texture_data.vk_image, image_subresource_range, VK_PIPELINE_STAGE_TRANSFER_BIT,
+                VK_IMAGE_LAYOUT_TRANSFER_DST_OPTIMAL, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) {
+            std::string error_message =
+                "InitFromContent - Failed to add layout transition image barrier for texture \"";
+            error_message += texture_name;
+            error_message += "\" to shader read state";
+            logger.LogError(error_message);
             return false;
         }
     } else {
-        if (!TransitionVkImageLayout(vk_command_buffer, texture_data.vk_image, VK_IMAGE_ASPECT_COLOR_BIT,
-                                     VK_IMAGE_LAYOUT_PREINITIALIZED, texture_data.vk_image_layout,
-                                     static_cast<VkAccessFlagBits>(0), VK_PIPELINE_STAGE_TOP_OF_PIPE_BIT,
-                                     VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT)) {
-            logger.LogError("InitFromContent - Failed to transition texture image to shader readable format");
+        // Define a texture for linear formatting in host visible/coherent memory.
+        VkImageCreateInfo image_create_info = {};
+        image_create_info.sType = VK_STRUCTURE_TYPE_IMAGE_CREATE_INFO;
+        image_create_info.imageType = VK_IMAGE_TYPE_2D;
+        image_create_info.format = texture_data.vk_format;
+        image_create_info.extent = {texture_data.width, texture_data.height, 1};
+        image_create_info.mipLevels = num_mip_levels;
+        image_create_info.arrayLayers = 1;
+        image_create_info.samples = VK_SAMPLE_COUNT_1_BIT;
+        image_create_info.tiling = VK_IMAGE_TILING_LINEAR;
+        image_create_info.usage = loading_image_usage_flags | VK_IMAGE_USAGE_TRANSFER_DST_BIT;
+        image_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        image_create_info.initialLayout = VK_IMAGE_LAYOUT_PREINITIALIZED;
+        if (VK_SUCCESS != vkCreateImage(vk_device, &image_create_info, NULL, &texture_data.vk_image)) {
+            std::string error_message = "InitFromContent - Failed to create resulting image for linear texture \"";
+            error_message += texture_name;
+            error_message += "\"";
+            logger.LogError(error_message);
             return false;
         }
-        texture_data.staging_texture_data = nullptr;
+        if (!resource_manager->AllocateDeviceImageMemory(
+                texture_data.vk_image, VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT,
+                texture_data.vk_device_memory, texture_data.vk_allocated_size)) {
+            std::string error_message =
+                "InitFromContent - Failed allocating memory for resulting image for linear texture \"";
+            error_message += texture_name;
+            error_message += "\"";
+            logger.LogError(error_message);
+            return false;
+        }
+        if (VK_SUCCESS != vkBindImageMemory(vk_device, texture_data.vk_image, texture_data.vk_device_memory, 0)) {
+            std::string error_message =
+                "InitFromContent - Failed binding memory for resulting image for linear texture \"";
+            error_message += texture_name;
+            error_message += "\"";
+            logger.LogError(error_message);
+            return false;
+        }
+
+        uint8_t* mapped_staging_memory;
+        if (VK_SUCCESS != vkMapMemory(vk_device, texture_data.vk_device_memory, 0, texture_data.vk_allocated_size, 0,
+                                      reinterpret_cast<void**>(&mapped_staging_memory))) {
+            std::string error_msg = "InitFromContent - Failed to map memory for staging buffer for linear texture \"";
+            error_msg += texture_name;
+            error_msg += "\"";
+            logger.LogError(error_msg);
+            return false;
+        }
+        memcpy(mapped_staging_memory, raw_data, raw_data_size);
+        vkUnmapMemory(vk_device, texture_data.vk_device_memory);
+
+        // Make sure the image is loaded.
+        if (!resource_manager->InsertImageLayoutTransitionBarrier(
+                texture_copy_cmd_buf, texture_data.vk_image, image_subresource_range, VK_PIPELINE_STAGE_HOST_BIT,
+                VK_IMAGE_LAYOUT_PREINITIALIZED, VK_PIPELINE_STAGE_FRAGMENT_SHADER_BIT,
+                VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL)) {
+            std::string error_message =
+                "InitFromContent - Failed to add layout transition image barrier for texture \"";
+            error_message += texture_name;
+            error_message += "\" to shader read state";
+            logger.LogError(error_message);
+            return false;
+        }
     }
+
+    if (VK_SUCCESS != vkEndCommandBuffer(texture_copy_cmd_buf)) {
+        std::string error_message = "InitFromContent - Failed to end copy command buffer for texture \"";
+        error_message += texture_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+        return false;
+    }
+
+    if (!submit_manager->Submit(texture_copy_cmd_buf, VK_NULL_HANDLE, VK_NULL_HANDLE, VK_NULL_HANDLE, true)) {
+        std::string error_message = "InitFromContent - Failed submitting command buffer for copying into texture \"";
+        error_message += texture_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+        return false;
+    }
+    if (!resource_manager->FreeCommandBuffer(texture_copy_cmd_buf)) {
+        std::string error_message = "InitFromContent - Failed freeing command buffer for copying into texture \"";
+        error_message += texture_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+        return false;
+    }
+
+    if (uses_staging) {
+        vkDestroyBuffer(vk_device, staging_buffer.vk_buffer, nullptr);
+        resource_manager->FreeDeviceMemory(staging_buffer.vk_memory);
+    }
+
+    // We're now ready to be read by a shader
+    texture_data.vk_image_layout = VK_IMAGE_LAYOUT_SHADER_READ_ONLY_OPTIMAL;
 
     VkSamplerCreateInfo sampler_create_info = {};
     sampler_create_info.sType = VK_STRUCTURE_TYPE_SAMPLER_CREATE_INFO;
@@ -374,24 +631,55 @@ bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, VkDev
     return true;
 }
 
-GlobeTexture* GlobeTexture::LoadFromFile(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                         VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                         const std::string& directory) {
+GlobeTexture* GlobeTexture::LoadFromStandardFile(GlobeResourceManager* resource_manager,
+                                                 GlobeSubmitManager* submit_manager, VkDevice vk_device,
+                                                 VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
+                                                 const std::string& texture_name, const std::string& directory) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     GlobeTextureData texture_data = {};
     std::string texture_file_name = directory;
     texture_file_name += texture_name;
 
-    if (!LoadFile(resource_manager, texture_file_name, texture_data)) {
-        std::string error_message = "Failed to load texture for file \"";
+    if (!LoadStandardFile(resource_manager, texture_file_name, texture_data)) {
+        std::string error_message = "LoadFromStandardFile: Failed to load texture for file \"";
         error_message += texture_file_name;
         error_message += "\"";
         logger.LogError(error_message);
         return nullptr;
     }
 
-    if (!InitFromContent(resource_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
-        std::string error_message = "Failed to setting up texture for Vulkan \"";
+    GlobeTexture* texture_pointer = nullptr;
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
+        std::string error_message = "LoadFromStandardFile: Failed to setting up texture for Vulkan \"";
+        error_message += texture_file_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+    } else {
+        texture_pointer = new GlobeTexture(resource_manager, vk_device, texture_name, &texture_data);
+    }
+    delete texture_data.standard_data;
+    return texture_pointer;
+}
+
+GlobeTexture* GlobeTexture::LoadFromKtxFile(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
+                                            VkDevice vk_device, VkCommandBuffer vk_command_buffer,
+                                            bool generate_mipmaps, const std::string& texture_name,
+                                            const std::string& directory) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    GlobeTextureData texture_data = {};
+    std::string texture_file_name = directory;
+    texture_file_name += texture_name;
+
+    if (!LoadKtxFile(resource_manager, generate_mipmaps, texture_file_name, texture_data)) {
+        std::string error_message = "LoadFromKtxFile - Failed to load texture for file \"";
+        error_message += texture_file_name;
+        error_message += "\"";
+        logger.LogError(error_message);
+        return nullptr;
+    }
+
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
+        std::string error_message = "LoadFromKtxFile - Failed to setting up texture for Vulkan \"";
         error_message += texture_file_name;
         error_message += "\"";
         logger.LogError(error_message);
@@ -628,14 +916,6 @@ GlobeTexture::GlobeTexture(GlobeResourceManager* resource_manager, VkDevice vk_d
     _vk_allocated_size = texture_data->vk_allocated_size;
     _vk_device_memory = texture_data->vk_device_memory;
     _vk_image_view = texture_data->vk_image_view;
-    if (nullptr != texture_data->staging_texture_data) {
-        _uses_staging_texture = true;
-        _staging_texture =
-            new GlobeTexture(resource_manager, vk_device, texture_name, texture_data->staging_texture_data);
-    } else {
-        _uses_staging_texture = false;
-        _staging_texture = nullptr;
-    }
 }
 
 GlobeTexture::~GlobeTexture() {
@@ -649,13 +929,4 @@ GlobeTexture::~GlobeTexture() {
     }
     vkDestroyImage(_vk_device, _vk_image, nullptr);
     _globe_resource_mgr->FreeDeviceMemory(_vk_device_memory);
-}
-
-bool GlobeTexture::DeleteStagingTexture() {
-    if (_uses_staging_texture) {
-        delete _staging_texture;
-        _staging_texture = nullptr;
-        _uses_staging_texture = false;
-    }
-    return true;
 }

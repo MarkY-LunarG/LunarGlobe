@@ -167,7 +167,7 @@ bool PushConstantApp::Setup() {
         uint8_t *mapped_data;
 
         if (nullptr == _texture_1) {
-            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer);
+            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer, false);
             if (nullptr == _texture_1) {
                 logger.LogError("Failed loading kootenay_winter_stream.jpg texture");
                 return false;
@@ -175,9 +175,10 @@ bool PushConstantApp::Setup() {
         }
 
         if (nullptr == _texture_2) {
-            _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.jpg", vk_setup_command_buffer);
+            _texture_2 =
+                _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.png", vk_setup_command_buffer, false);
             if (nullptr == _texture_2) {
-                logger.LogError("Failed loading cks_memorial_taipei_lake.jpg texture");
+                logger.LogError("Failed loading cks_memorial_taipei_lake.png texture");
                 return false;
             }
         }
@@ -619,14 +620,6 @@ bool PushConstantApp::Setup() {
     }
     _globe_submit_mgr->AttachRenderPassAndDepthBuffer(_vk_render_pass, _depth_buffer.vk_image_view);
     _current_buffer = 0;
-
-    if (_texture_1->UsesStagingTexture()) {
-        _texture_1->DeleteStagingTexture();
-    }
-
-    if (_texture_2->UsesStagingTexture()) {
-        _texture_2->DeleteStagingTexture();
-    }
 
     return true;
 }
