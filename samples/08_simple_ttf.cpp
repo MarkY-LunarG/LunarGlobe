@@ -605,38 +605,25 @@ bool SimpleTtfApp::Setup() {
             logger.LogFatalError("Failed loading font into render pass");
             return false;
         }
-        std::vector<glm::vec3> colors;
-        glm::vec3 cur_color = glm::vec3(1.0f, 0.5f, 0.5f);
-        colors.push_back(cur_color);
+
+        // Bottom text in pink with black semi-transparent background
+        glm::vec3 fg_color = glm::vec3(1.0f, 0.5f, 0.5f);
+        glm::vec4 bg_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.5f);
         glm::vec3 starting_pos = glm::vec3(-1.0f, 1.0f, 0.0f);
         glm::vec3 text_direction = glm::vec3(1.0f, 0.0f, 0.0f);
         glm::vec3 text_up = glm::vec3(0.0f, -1.0f, 0.0f);
-        if (0 > _font->AddString("Quick! brown, fox. jumps: over \"the lazy\' dog{}", colors, starting_pos,
+        if (0 > _font->AddString("Quick! brown, fox. jumps: over \"the lazy\' dog{}", fg_color, bg_color, starting_pos,
                                  text_direction, text_up, 0.1f, _globe_submit_mgr->GetGraphicsQueueIndex())) {
             logger.LogFatalError("Failed adding font string");
             return false;
         }
 
+        // FPS in Green with no background
         starting_pos = glm::vec3(-1.0f, -0.7f, 0.0f);
-        colors.clear();
-        // FPS in Green
-        cur_color = glm::vec3(0.0f, 1.0f, 0.0f);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        // Colon (:) in Yellow
-        cur_color = glm::vec3(1.0f, 1.0f, 1.0f);
-        colors.push_back(cur_color);
-        // Framerate in White
-        cur_color = glm::vec3(0.8f, 0.8f, 0.0f);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
-        colors.push_back(cur_color);
+        fg_color = glm::vec3(0.0f, 1.0f, 0.0f);
+        bg_color = glm::vec4(0.0f, 0.0f, 0.0f, 0.0f);
         for (uint32_t fps_str = 0; fps_str < _swapchain_count; ++fps_str) {
-            if (0 > _font->AddString("FPS:      ", colors, starting_pos, text_direction, text_up, 0.2f,
+            if (0 > _font->AddString("FPS:      ", fg_color, bg_color, starting_pos, text_direction, text_up, 0.2f,
                                      _globe_submit_mgr->GetGraphicsQueueIndex())) {
                 logger.LogFatalError("Failed adding font string");
                 return false;

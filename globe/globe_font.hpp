@@ -58,7 +58,7 @@ class GlobeFont : public GlobeTexture {
 
     bool LoadIntoRenderPass(VkRenderPass render_pass, float viewport_width, float viewport_height);
     void UnloadFromRenderPass();
-    int32_t AddString(const std::string& text_string, std::vector<glm::vec3> colors, glm::vec3 starting_pos,
+    int32_t AddString(const std::string& text_string, glm::vec3 fg_color, glm::vec4 bg_color, glm::vec3 starting_pos,
                       glm::vec3 text_direction, glm::vec3 text_up, float model_space_char_height,
                       uint32_t queue_family_index);
     bool UpdateStringText(int32_t string_index, const std::string& text_string);

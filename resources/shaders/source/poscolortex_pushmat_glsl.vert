@@ -16,15 +16,18 @@ layout(push_constant) uniform push_block {
 } push_constant_block;
 
 layout (location = 0) in vec4 in_position;
-layout (location = 1) in vec4 in_color;
-layout (location = 2) in vec4 in_tex_coord;
+layout (location = 1) in vec4 in_fg_color;
+layout (location = 2) in vec4 in_bg_color;
+layout (location = 3) in vec4 in_tex_coord;
 
-layout (location = 0) out vec4 out_color;
-layout (location = 1) out vec2 out_tex_coord;
+layout (location = 0) out vec4 out_fg_color;
+layout (location = 1) out vec4 out_bg_color;
+layout (location = 2) out vec2 out_tex_coord;
 
 void main() 
 {
-    out_color = in_color;
+    out_fg_color = in_fg_color;
+    out_bg_color = in_bg_color;
     out_tex_coord = in_tex_coord.xy;
     gl_Position = push_constant_block.mvp * in_position;
 }

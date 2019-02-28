@@ -335,8 +335,8 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     VkVertexInputBindingDescription vertex_input_binding_description = {};
     vertex_input_binding_description.binding = 0;
     vertex_input_binding_description.inputRate = VK_VERTEX_INPUT_RATE_VERTEX;
-    vertex_input_binding_description.stride = sizeof(float) * 12;
-    VkVertexInputAttributeDescription vertex_input_attribute_description[3];
+    vertex_input_binding_description.stride = sizeof(float) * 16;
+    VkVertexInputAttributeDescription vertex_input_attribute_description[4];
     vertex_input_attribute_description[0] = {};
     vertex_input_attribute_description[0].binding = 0;
     vertex_input_attribute_description[0].location = 0;
@@ -352,13 +352,18 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     vertex_input_attribute_description[2].location = 2;
     vertex_input_attribute_description[2].format = VK_FORMAT_R32G32B32A32_SFLOAT;
     vertex_input_attribute_description[2].offset = sizeof(float) * 8;
+    vertex_input_attribute_description[3] = {};
+    vertex_input_attribute_description[3].binding = 0;
+    vertex_input_attribute_description[3].location = 3;
+    vertex_input_attribute_description[3].format = VK_FORMAT_R32G32B32A32_SFLOAT;
+    vertex_input_attribute_description[3].offset = sizeof(float) * 12;
     VkPipelineVertexInputStateCreateInfo pipline_vert_input_state_create_info = {};
     pipline_vert_input_state_create_info.sType = VK_STRUCTURE_TYPE_PIPELINE_VERTEX_INPUT_STATE_CREATE_INFO;
     pipline_vert_input_state_create_info.pNext = NULL;
     pipline_vert_input_state_create_info.flags = 0;
     pipline_vert_input_state_create_info.vertexBindingDescriptionCount = 1;
     pipline_vert_input_state_create_info.pVertexBindingDescriptions = &vertex_input_binding_description;
-    pipline_vert_input_state_create_info.vertexAttributeDescriptionCount = 3;
+    pipline_vert_input_state_create_info.vertexAttributeDescriptionCount = 4;
     pipline_vert_input_state_create_info.pVertexAttributeDescriptions = vertex_input_attribute_description;
 
     // Just render a triangle strip
@@ -487,9 +492,9 @@ void GlobeFont::UnloadFromRenderPass() {
     }
 }
 
-int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::vec3> colors, glm::vec3 starting_pos,
-                             glm::vec3 text_direction, glm::vec3 text_up, float model_space_char_height,
-                             uint32_t queue_family_index) {
+int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color, glm::vec4 bg_color,
+                             glm::vec3 starting_pos, glm::vec3 text_direction, glm::vec3 text_up,
+                             float model_space_char_height, uint32_t queue_family_index) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     int32_t string_index = -1;
     if (text_string.length() > 0 && model_space_char_height > 0) {
@@ -512,13 +517,6 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
             // width and the size scale multiplier.
             float character_width = char_data->width * size_multiplier;
 
-            // By default, assume only one color is passed in, but check in case a user passed
-            // in a color per character
-            glm::vec3 color = colors[0];
-            if (colors.size() >= text_string.size()) {
-                color = colors[char_index];
-            }
-
             // Pre-calculate the other vertex positions for the character quad.
             glm::vec3 top_left_pos = cur_pos + (text_up * model_space_char_height);
             glm::vec3 top_right_pos =
@@ -530,10 +528,14 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
             string_data.vertex_data.push_back(cur_pos[1]);
             string_data.vertex_data.push_back(cur_pos[2]);
             string_data.vertex_data.push_back(1.f);
-            string_data.vertex_data.push_back(color[0]);
-            string_data.vertex_data.push_back(color[1]);
-            string_data.vertex_data.push_back(color[2]);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
             string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
             string_data.vertex_data.push_back(char_data->left_u);
             string_data.vertex_data.push_back(char_data->bottom_v);
             string_data.vertex_data.push_back(0.f);
@@ -544,10 +546,14 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
             string_data.vertex_data.push_back(bottom_right_pos[1]);
             string_data.vertex_data.push_back(bottom_right_pos[2]);
             string_data.vertex_data.push_back(1.f);
-            string_data.vertex_data.push_back(color[0]);
-            string_data.vertex_data.push_back(color[1]);
-            string_data.vertex_data.push_back(color[2]);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
             string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
             string_data.vertex_data.push_back(char_data->right_u);
             string_data.vertex_data.push_back(char_data->bottom_v);
             string_data.vertex_data.push_back(0.f);
@@ -558,10 +564,14 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
             string_data.vertex_data.push_back(top_right_pos[1]);
             string_data.vertex_data.push_back(top_right_pos[2]);
             string_data.vertex_data.push_back(1.f);
-            string_data.vertex_data.push_back(color[0]);
-            string_data.vertex_data.push_back(color[1]);
-            string_data.vertex_data.push_back(color[2]);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
             string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
             string_data.vertex_data.push_back(char_data->right_u);
             string_data.vertex_data.push_back(char_data->top_v);
             string_data.vertex_data.push_back(0.f);
@@ -572,10 +582,14 @@ int32_t GlobeFont::AddString(const std::string& text_string, std::vector<glm::ve
             string_data.vertex_data.push_back(top_left_pos[1]);
             string_data.vertex_data.push_back(top_left_pos[2]);
             string_data.vertex_data.push_back(1.f);
-            string_data.vertex_data.push_back(color[0]);
-            string_data.vertex_data.push_back(color[1]);
-            string_data.vertex_data.push_back(color[2]);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
             string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
             string_data.vertex_data.push_back(char_data->left_u);
             string_data.vertex_data.push_back(char_data->top_v);
             string_data.vertex_data.push_back(0.f);
@@ -685,15 +699,15 @@ bool GlobeFont::UpdateStringText(int32_t string_index, const std::string& text_s
         uint32_t mapped_index = 0;
         for (uint32_t char_index = 0; char_index < text_string.length(); ++char_index) {
             GlobeFontCharData* char_data = &_char_data[text_string[char_index] - GLOBE_FONT_STARTING_ASCII_CHAR];
-            mapped_data[mapped_index + 8] = char_data->left_u;
-            mapped_data[mapped_index + 9] = char_data->bottom_v;
-            mapped_data[mapped_index + 20] = char_data->right_u;
-            mapped_data[mapped_index + 21] = char_data->bottom_v;
-            mapped_data[mapped_index + 32] = char_data->right_u;
-            mapped_data[mapped_index + 33] = char_data->top_v;
-            mapped_data[mapped_index + 44] = char_data->left_u;
+            mapped_data[mapped_index + 12] = char_data->left_u;
+            mapped_data[mapped_index + 13] = char_data->bottom_v;
+            mapped_data[mapped_index + 28] = char_data->right_u;
+            mapped_data[mapped_index + 29] = char_data->bottom_v;
+            mapped_data[mapped_index + 44] = char_data->right_u;
             mapped_data[mapped_index + 45] = char_data->top_v;
-            mapped_index += 48;
+            mapped_data[mapped_index + 60] = char_data->left_u;
+            mapped_data[mapped_index + 61] = char_data->top_v;
+            mapped_index += 64;
         }
         vkUnmapMemory(_vk_device, string_data.vertex_buffer.vk_memory);
 

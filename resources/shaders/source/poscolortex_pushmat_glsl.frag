@@ -19,15 +19,18 @@
 
 layout (binding = 1) uniform sampler2D tex;
 
-layout (location = 0) in vec4 color;
-layout (location = 1) in vec2 tex_coord;
+layout (location = 0) in vec4 fg_color;
+layout (location = 1) in vec4 bg_color;
+layout (location = 2) in vec2 tex_coord;
 
 layout (location = 0) out vec4 out_color;
 
 void main() {
     vec4 texture_color = texture(tex, tex_coord.xy);
     if (texture_color.r > 0.02) {
-        out_color = vec4((color.rgb * texture_color.rrr), texture_color.r);
+        out_color = vec4((fg_color.rgb * texture_color.rrr), texture_color.r);
+    } else if (bg_color.a > 0.f) {
+        out_color = vec4((bg_color.rgb * (1.f - texture_color.rrr)), bg_color.a);
     } else {
         discard;
     }
