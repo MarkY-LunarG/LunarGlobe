@@ -33,12 +33,6 @@
 #define GLM_FORCE_DEPTH_ZERO_TO_ONE
 #include <glm/glm.hpp>
 
-struct VulkanBuffer {
-    VkBuffer vk_buffer;
-    VkDeviceMemory vk_memory;
-    VkDeviceSize vk_size;
-};
-
 class PushConstantApp : public GlobeApp {
    public:
     PushConstantApp();
@@ -56,9 +50,9 @@ class PushConstantApp : public GlobeApp {
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkRenderPass _vk_render_pass;
-    VulkanBuffer _vertex_buffer;
-    VulkanBuffer _index_buffer;
-    VulkanBuffer _uniform_buffer;
+    GlobeVulkanBuffer _vertex_buffer;
+    GlobeVulkanBuffer _index_buffer;
+    GlobeVulkanBuffer _uniform_buffer;
     VkDescriptorPool _vk_descriptor_pool;
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;
@@ -167,9 +161,9 @@ bool PushConstantApp::Setup() {
         uint8_t *mapped_data;
 
         if (nullptr == _texture_1) {
-            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.jpg", vk_setup_command_buffer, false);
+            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.png", vk_setup_command_buffer, false);
             if (nullptr == _texture_1) {
-                logger.LogError("Failed loading kootenay_winter_stream.jpg texture");
+                logger.LogError("Failed loading kootenay_winter_stream.png texture");
                 return false;
             }
         }

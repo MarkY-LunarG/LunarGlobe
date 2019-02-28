@@ -44,12 +44,6 @@ class GlobeModel {
         uint32_t index_count;
     };
 
-    struct VulkanBuffer {
-        VkBuffer vk_buffer;
-        VkDeviceMemory vk_memory;
-        VkDeviceSize vk_size;
-    };
-
     static GlobeModel* LoadModelFile(const GlobeResourceManager* resource_manager, VkDevice vk_device,
                                      const GlobeComponentSizes& sizes, const std::string& model_name,
                                      const std::string& directory);
@@ -78,8 +72,8 @@ class GlobeModel {
     const GlobeResourceManager* _globe_resource_mgr;
     std::string _model_name;
     std::vector<MeshInfo> _meshes;
-    VulkanBuffer _vertex_buffer;
-    VulkanBuffer _index_buffer;
+    GlobeVulkanBuffer _vertex_buffer;
+    GlobeVulkanBuffer _index_buffer;
     std::vector<float> _vertices;
     std::vector<uint32_t> _indices;
     BoundingBox _bounding_box;

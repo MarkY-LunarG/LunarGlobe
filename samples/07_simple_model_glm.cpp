@@ -32,12 +32,6 @@
 #include "globe/globe_app.hpp"
 #include "globe/globe_main.hpp"
 
-struct VulkanBuffer {
-    VkBuffer vk_buffer;
-    VkDeviceMemory vk_memory;
-    VkDeviceSize vk_size;
-};
-
 class SimpleModelApp : public GlobeApp {
    public:
     SimpleModelApp();
@@ -56,7 +50,7 @@ class SimpleModelApp : public GlobeApp {
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkRenderPass _vk_render_pass;
-    VulkanBuffer _uniform_buffer;
+    GlobeVulkanBuffer _uniform_buffer;
     GlobeModel *_model;
     uint8_t *_uniform_map;
     VkDescriptorPool _vk_descriptor_pool;

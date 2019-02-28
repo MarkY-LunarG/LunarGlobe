@@ -35,12 +35,6 @@
 #include <glm/gtc/matrix_transform.hpp>
 #include <glm/gtc/matrix_inverse.hpp>
 
-struct VulkanBuffer {
-    VkBuffer vk_buffer;
-    VkDeviceMemory vk_memory;
-    VkDeviceSize vk_size;
-};
-
 class DynamicUniformApp : public GlobeApp {
    public:
     DynamicUniformApp();
@@ -57,9 +51,9 @@ class DynamicUniformApp : public GlobeApp {
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
     VkRenderPass _vk_render_pass;
-    VulkanBuffer _vertex_buffer;
-    VulkanBuffer _index_buffer;
-    VulkanBuffer _uniform_buffer;
+    GlobeVulkanBuffer _vertex_buffer;
+    GlobeVulkanBuffer _index_buffer;
+    GlobeVulkanBuffer _uniform_buffer;
     VkDescriptorPool _vk_descriptor_pool;
     VkDescriptorSet _vk_descriptor_set;
     VkPipeline _vk_pipeline;

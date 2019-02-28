@@ -30,12 +30,6 @@
 #include "globe/globe_app.hpp"
 #include "globe/globe_main.hpp"
 
-struct VulkanBuffer {
-    VkBuffer vk_buffer;
-    VkDeviceMemory vk_memory;
-    VkDeviceSize vk_size;
-};
-
 struct VulkanTarget {
     uint32_t width;
     uint32_t height;
@@ -47,9 +41,9 @@ struct VulkanTarget {
     VkDescriptorPool vk_descriptor_pool;
     VkDescriptorSet vk_descriptor_set;
     VkPipeline vk_pipeline;
-    VulkanBuffer vertex_buffer;
-    VulkanBuffer index_buffer;
-    VulkanBuffer uniform_buffer;
+    GlobeVulkanBuffer vertex_buffer;
+    GlobeVulkanBuffer index_buffer;
+    GlobeVulkanBuffer uniform_buffer;
     uint8_t *uniform_map;
     VkCommandPool vk_command_pool;
     std::vector<VkCommandBuffer> vk_command_buffers;
