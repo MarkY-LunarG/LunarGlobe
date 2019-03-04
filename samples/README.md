@@ -1,5 +1,9 @@
 # LunarGlobe Samples
 
+All the following samples have a text overlay that can be enabled
+by hitting the 'o' key.
+The overlay currently prints the app name and FPS.
+
 ## 01 - Triangle
 
 <img src="screenshots/01_first_triangle.png" height="256px">
@@ -154,25 +158,4 @@ Shader(s) used:
 Model(s) used:
  * [Sascha Willems' Chinese Dragon Model](../resources/models/sascha_willems/chinesedragon.dae)
 
-
-## 08 - Simple TTF
-
-<img src="screenshots/08_simple_ttf.png" height="256px">
-
-I went back to the simple multi-texture application and I added
-in the ability to render TTF font's using the
-[STB header](https://github.com/nothings/stb).
-I created a new class, GlobeFont, which loads and renders the font.
-It's a little simplistic right now, but I added the ability to:
-
- * Load a TTF font
- * Define a string in model space for the font
- * Update an existing font string (must be exactly the same size)
- * Draw the font
-
-Shader(s) used by Font:
- * poscolortex_pushmat ([vert](../resources/shaders/source/poscolortex_pushmat_glsl.vert) / [frag](../resources/shaders/source/poscolortex_pushmat_glsl.frag))
-
-Font(s) used:
- * [OpenSans-Regular.ttf](../resources/fonts/OpenSans-Regular.ttf)
 

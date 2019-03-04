@@ -179,6 +179,95 @@ static VkFormat GliFormatToVkFormat(gli::format gli_format) {
     return VK_FORMAT_UNDEFINED;
 }
 
+static uint32_t PreviousPowerOfTwo(uint32_t number) {
+    if (!number) {
+        return 0;
+    }
+    uint32_t power = 1;
+    while (power < number) {
+        uint32_t new_power = power << 1;
+        if (new_power > number) {
+            return power;
+        }
+        if (new_power == 0x80000000) {
+            return new_power;
+        }
+        power = new_power;
+    }
+    return 0;
+}
+
+static void SampleSourceForMipmap(const uint8_t* src, uint32_t width, uint32_t height, uint32_t x, uint32_t y,
+                                  uint8_t* dst) {
+    uint32_t next_x = x + 1;
+    if (next_x >= width) {
+        next_x = x;
+    }
+    uint32_t next_y = y + 1;
+    if (next_y >= height) {
+        next_y = y;
+    }
+    uint32_t cum_dst[4];
+    cum_dst[0] = src[((y * height + x) * 4)];
+    cum_dst[1] = src[((y * height + x) * 4) + 1];
+    cum_dst[2] = src[((y * height + x) * 4) + 2];
+    cum_dst[3] = src[((y * height + x) * 4) + 3];
+    cum_dst[0] += src[((y * height + next_x) * 4)];
+    cum_dst[1] += src[((y * height + next_x) * 4) + 1];
+    cum_dst[2] += src[((y * height + next_x) * 4) + 2];
+    cum_dst[3] += src[((y * height + next_x) * 4) + 3];
+    cum_dst[0] += src[((next_y * height + x) * 4)];
+    cum_dst[1] += src[((next_y * height + x) * 4) + 1];
+    cum_dst[2] += src[((next_y * height + x) * 4) + 2];
+    cum_dst[3] += src[((next_y * height + x) * 4) + 3];
+    cum_dst[0] += src[((next_y * height + next_x) * 4)];
+    cum_dst[1] += src[((next_y * height + next_x) * 4) + 1];
+    cum_dst[2] += src[((next_y * height + next_x) * 4) + 2];
+    cum_dst[3] += src[((next_y * height + next_x) * 4) + 3];
+    dst[0] = static_cast<uint8_t>(cum_dst[0] >> 2);
+    dst[1] = static_cast<uint8_t>(cum_dst[1] >> 2);
+    dst[2] = static_cast<uint8_t>(cum_dst[2] >> 2);
+    dst[3] = static_cast<uint8_t>(cum_dst[3] >> 2);
+}
+
+static bool GenerateMipmaps(GlobeStandardTextureData& texture_data, uint32_t start_width, uint32_t start_height) {
+    if (texture_data.levels.size() != 1) {
+        return false;
+    }
+
+    uint32_t last_width = start_width;
+    uint32_t last_height = start_height;
+    uint32_t last_offset = 0;
+    uint32_t cur_width = PreviousPowerOfTwo(start_width);
+    uint32_t cur_height = PreviousPowerOfTwo(start_height);
+    uint32_t cur_offset = start_width * start_height * 4;
+    while (cur_width >= 1 && cur_height >= 1) {
+        GlobeTextureLevel level_data = {};
+        level_data.width = cur_width;
+        level_data.height = cur_height;
+        level_data.data_size = cur_width * cur_height * 4;
+        level_data.offset = cur_offset;
+        texture_data.levels.push_back(level_data);
+        texture_data.raw_data.resize(texture_data.raw_data.size() + level_data.data_size);
+
+        uint8_t* dst_ptr = texture_data.raw_data.data() + cur_offset;
+        uint8_t* src_ptr = texture_data.raw_data.data() + last_offset;
+        for (uint32_t row = 0; row < cur_height; ++row) {
+            for (uint32_t col = 0; col < cur_width; ++col) {
+                SampleSourceForMipmap(src_ptr, last_width, last_height, col * 2, row * 2,
+                                      &dst_ptr[(row * cur_height + col) * 4]);
+            }
+        }
+
+        cur_offset += cur_width * cur_height * 4;
+        last_width = cur_width;
+        last_height = cur_height;
+        cur_width >>= 1;
+        cur_height >>= 1;
+    }
+    return true;
+}
+
 static bool LoadStandardFile(GlobeResourceManager* resource_manager, const std::string& filename,
                              GlobeTextureData& texture_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
@@ -225,6 +314,7 @@ static bool LoadStandardFile(GlobeResourceManager* resource_manager, const std::
     level_data.width = int_width;
     level_data.height = int_height;
     level_data.data_size = int_width * int_height * 4;
+    level_data.offset = 0;
     texture_data.standard_data->levels.push_back(level_data);
     texture_data.standard_data->raw_data.resize(level_data.data_size);
     if (num_channels != 4) {
@@ -301,8 +391,8 @@ static bool LoadKtxFile(GlobeResourceManager* resource_manager, bool generate_mi
 }
 
 bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-                                   const std::string& texture_name, GlobeTextureData& texture_data) {
+                                   VkDevice vk_device, const std::string& texture_name,
+                                   GlobeTextureData& texture_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     bool uses_staging = resource_manager->UseStagingBuffer();
     uint32_t num_mip_levels = texture_data.num_mip_levels;
@@ -633,8 +723,8 @@ bool GlobeTexture::InitFromContent(GlobeResourceManager* resource_manager, Globe
 
 GlobeTexture* GlobeTexture::LoadFromStandardFile(GlobeResourceManager* resource_manager,
                                                  GlobeSubmitManager* submit_manager, VkDevice vk_device,
-                                                 VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
-                                                 const std::string& texture_name, const std::string& directory) {
+                                                 bool generate_mipmaps, const std::string& texture_name,
+                                                 const std::string& directory) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     GlobeTextureData texture_data = {};
     std::string texture_file_name = directory;
@@ -649,7 +739,7 @@ GlobeTexture* GlobeTexture::LoadFromStandardFile(GlobeResourceManager* resource_
     }
 
     GlobeTexture* texture_pointer = nullptr;
-    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, texture_name, texture_data)) {
         std::string error_message = "LoadFromStandardFile: Failed to setting up texture for Vulkan \"";
         error_message += texture_file_name;
         error_message += "\"";
@@ -662,8 +752,7 @@ GlobeTexture* GlobeTexture::LoadFromStandardFile(GlobeResourceManager* resource_
 }
 
 GlobeTexture* GlobeTexture::LoadFromKtxFile(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                            VkDevice vk_device, VkCommandBuffer vk_command_buffer,
-                                            bool generate_mipmaps, const std::string& texture_name,
+                                            VkDevice vk_device, bool generate_mipmaps, const std::string& texture_name,
                                             const std::string& directory) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     GlobeTextureData texture_data = {};
@@ -678,7 +767,7 @@ GlobeTexture* GlobeTexture::LoadFromKtxFile(GlobeResourceManager* resource_manag
         return nullptr;
     }
 
-    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, texture_name, texture_data)) {
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, texture_name, texture_data)) {
         std::string error_message = "LoadFromKtxFile - Failed to setting up texture for Vulkan \"";
         error_message += texture_file_name;
         error_message += "\"";
@@ -718,8 +807,7 @@ static bool IsDepthFormat(VkFormat vk_format) {
 }
 
 GlobeTexture* GlobeTexture::CreateRenderTarget(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                               VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
-                                               VkFormat vk_format) {
+                                               uint32_t width, uint32_t height, VkFormat vk_format) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     bool is_depth = IsDepthFormat(vk_format);
     bool is_stencil = IsStencilFormat(vk_format);

@@ -27,10 +27,10 @@ layout (location = 0) out vec4 out_color;
 
 void main() {
     vec4 texture_color = texture(tex, tex_coord.xy);
-    if (texture_color.r > 0.02) {
-        out_color = vec4((fg_color.rgb * texture_color.rrr), texture_color.r);
-    } else if (bg_color.a > 0.f) {
-        out_color = vec4((bg_color.rgb * (1.f - texture_color.rrr)), bg_color.a);
+    if (texture_color.r > 0.0f) {
+        out_color = vec4(fg_color.rgb, texture_color.r);
+    } else if (bg_color.a > 0.0f) {
+        out_color = bg_color;
     } else {
         discard;
     }

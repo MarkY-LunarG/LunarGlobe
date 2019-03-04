@@ -40,7 +40,7 @@ class DynamicUniformApp : public GlobeApp {
     DynamicUniformApp();
     ~DynamicUniformApp();
 
-    virtual void Cleanup() override;
+    virtual void CleanupCommandObjects(bool is_resize) override;
 
    protected:
     virtual bool Setup() override;
@@ -50,7 +50,6 @@ class DynamicUniformApp : public GlobeApp {
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
-    VkRenderPass _vk_render_pass;
     GlobeVulkanBuffer _vertex_buffer;
     GlobeVulkanBuffer _index_buffer;
     GlobeVulkanBuffer _uniform_buffer;
@@ -81,49 +80,50 @@ DynamicUniformApp::DynamicUniformApp() {
 
 DynamicUniformApp::~DynamicUniformApp() { Cleanup(); }
 
-void DynamicUniformApp::Cleanup() {
-    GlobeApp::PreCleanup();
-    if (VK_NULL_HANDLE != _vk_pipeline) {
-        vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
-        _vk_pipeline = VK_NULL_HANDLE;
+void DynamicUniformApp::CleanupCommandObjects(bool is_resize) {
+    if (!_is_minimized) {
+        if (VK_NULL_HANDLE != _vk_pipeline) {
+            vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
+            _vk_pipeline = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set) {
+            vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
+            _vk_descriptor_set = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_pool) {
+            vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
+            _vk_descriptor_pool = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
+            vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
+            vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
+            _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _index_buffer.vk_buffer) {
+            vkDestroyBuffer(_vk_device, _index_buffer.vk_buffer, nullptr);
+            _index_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vertex_buffer.vk_buffer) {
+            vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
+            _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
+        _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
+        _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
+        if (VK_NULL_HANDLE != _vk_render_pass) {
+            vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
+            _vk_render_pass = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_pipeline_layout) {
+            vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
+            _vk_pipeline_layout = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
+            vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
+            _vk_descriptor_set_layout = VK_NULL_HANDLE;
+        }
     }
-    if (VK_NULL_HANDLE != _vk_descriptor_set) {
-        vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
-        _vk_descriptor_set = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_pool) {
-        vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
-        _vk_descriptor_pool = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
-        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
-        vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
-        _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _index_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _index_buffer.vk_buffer, nullptr);
-        _index_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vertex_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
-        _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
-    if (VK_NULL_HANDLE != _vk_render_pass) {
-        vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
-        _vk_render_pass = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_pipeline_layout) {
-        vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
-        _vk_pipeline_layout = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
-        _vk_descriptor_set_layout = VK_NULL_HANDLE;
-    }
-    GlobeApp::PostCleanup();
+    GlobeApp::CleanupCommandObjects(is_resize);
 }
 
 static const float g_triangle_vertex_buffer_data[] = {
@@ -503,6 +503,7 @@ bool DynamicUniformApp::Setup() {
 }
 
 bool DynamicUniformApp::Update(float diff_ms) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
     VkDeviceSize offset = (_vk_uniform_matrix_alignment * _current_buffer);
     static float inc = 0.f;
@@ -518,6 +519,10 @@ bool DynamicUniformApp::Update(float diff_ms) {
     memoryRange.size = sizeof(glm::mat4);
     memoryRange.offset = offset;
     vkFlushMappedMemoryRanges(_vk_device, 1, &memoryRange);
+
+    if (!UpdateOverlay(_current_buffer)) {
+        logger.LogFatalError("Failed to update overlay");
+    }
     return true;
 }
 
@@ -585,6 +590,9 @@ bool DynamicUniformApp::Draw() {
     vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(vk_render_command_buffer, 3, 1, 0, 0, 1);
+
+    DrawOverlay(vk_render_command_buffer, _current_buffer);
+
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
         logger.LogFatalError("Failed to end command buffer");

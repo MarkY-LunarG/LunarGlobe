@@ -58,6 +58,7 @@ struct GlobeDepthBuffer {
 class GlobeResourceManager;
 class GlobeSubmitManager;
 class GlobeClock;
+class GlobeOverlay;
 
 class GlobeApp {
    public:
@@ -68,7 +69,9 @@ class GlobeApp {
     virtual void Resize();
     virtual bool Run();
     virtual bool Update(float diff_ms) = 0;
+    virtual bool UpdateOverlay(uint32_t copy);
     virtual bool Draw();
+    virtual bool DrawOverlay(VkCommandBuffer command_buffer, uint32_t copy);
     void PreCleanup();
     void PostCleanup();
     virtual void Cleanup();
@@ -122,8 +125,10 @@ class GlobeApp {
     bool _focused;
     bool _is_paused;
     bool _must_exit;
+    bool _display_overlay;
     bool _start_fullscreen;
     bool _google_display_timing_enabled;
+    bool _left_mouse_pressed;
     uint64_t _current_frame;
     uint32_t _current_buffer;
     bool _exit_on_frame;
@@ -136,9 +141,17 @@ class GlobeApp {
     VkPresentModeKHR _vk_present_mode;
     uint32_t _swapchain_count;
     VkFormat _vk_swapchain_format;
+    VkRenderPass _vk_render_pass;
     VkCommandPool _vk_setup_command_pool;
     VkCommandBuffer _vk_setup_command_buffer;
     GlobeDepthBuffer _depth_buffer;
+    GlobeOverlay *_overlay;
+    std::string _overlay_font_name;
+    uint32_t _fps_data_index;
+    uint8_t _ring_buffer_index;
+    float _diff_ring_buffer[50];
+    int32_t _int_fps;
+
 #if defined(VK_USE_PLATFORM_ANDROID_KHR)
     ANativeWindow *_android_native_window;
 #endif

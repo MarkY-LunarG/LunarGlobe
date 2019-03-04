@@ -44,7 +44,8 @@ GlobeResourceManager::GlobeResourceManager(const GlobeApp* app, const std::strin
 }
 
 GlobeResourceManager::~GlobeResourceManager() {
-    vkFreeCommandBuffers(_vk_device, _vk_cmd_pool, _targeted_vk_cmd_buffers.size(), _targeted_vk_cmd_buffers.data());
+    vkFreeCommandBuffers(_vk_device, _vk_cmd_pool, static_cast<uint32_t>(_targeted_vk_cmd_buffers.size()),
+                         _targeted_vk_cmd_buffers.data());
     vkDestroyCommandPool(_vk_device, _vk_cmd_pool, nullptr);
     FreeAllTextures();
     FreeAllShaders();
@@ -55,8 +56,7 @@ GlobeResourceManager::~GlobeResourceManager() {
 // Texture management methods
 // --------------------------------------------------------------------------------------------------------------
 
-GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name, VkCommandBuffer vk_command_buffer,
-                                                bool generate_mipmaps) {
+GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name, bool generate_mipmaps) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     std::string texture_dir = _base_directory;
     texture_dir += directory_symbol;
@@ -73,11 +73,11 @@ GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name,
     }
     GlobeTexture* texture;
     if (file_extension == "jpg" || file_extension == "jpeg" || file_extension == "png") {
-        texture = GlobeTexture::LoadFromStandardFile(this, _parent_app->SubmitManager(), _vk_device, vk_command_buffer,
-                                                     generate_mipmaps, texture_name, texture_dir);
+        texture = GlobeTexture::LoadFromStandardFile(this, _parent_app->SubmitManager(), _vk_device, generate_mipmaps,
+                                                     texture_name, texture_dir);
     } else {
-        texture = GlobeTexture::LoadFromKtxFile(this, _parent_app->SubmitManager(), _vk_device, vk_command_buffer,
-                                                generate_mipmaps, texture_name, texture_dir);
+        texture = GlobeTexture::LoadFromKtxFile(this, _parent_app->SubmitManager(), _vk_device, generate_mipmaps,
+                                                texture_name, texture_dir);
     }
     if (nullptr != texture) {
         _textures.push_back(texture);
@@ -85,10 +85,8 @@ GlobeTexture* GlobeResourceManager::LoadTexture(const std::string& texture_name,
     return texture;
 }
 
-GlobeTexture* GlobeResourceManager::CreateRenderTargetTexture(VkCommandBuffer vk_command_buffer, uint32_t width,
-                                                              uint32_t height, VkFormat vk_format) {
-    GlobeTexture* texture =
-        GlobeTexture::CreateRenderTarget(this, _vk_device, vk_command_buffer, width, height, vk_format);
+GlobeTexture* GlobeResourceManager::CreateRenderTargetTexture(uint32_t width, uint32_t height, VkFormat vk_format) {
+    GlobeTexture* texture = GlobeTexture::CreateRenderTarget(this, _vk_device, width, height, vk_format);
     if (nullptr != texture) {
         _textures.push_back(texture);
     }
@@ -247,14 +245,13 @@ bool GlobeResourceManager::InsertImageLayoutTransitionBarrier(VkCommandBuffer vk
 // Font management methods
 // --------------------------------------------------------------------------------------------------------------
 
-GlobeFont* GlobeResourceManager::LoadFontMap(const std::string& font_name, VkCommandBuffer vk_command_buffer,
-                                             uint32_t font_size) {
+GlobeFont* GlobeResourceManager::LoadFontMap(const std::string& font_name, float font_size) {
     std::string font_dir = _base_directory;
     font_dir += directory_symbol;
     font_dir += "fonts";
     font_dir += directory_symbol;
-    GlobeFont* font = GlobeFont::LoadFontMap(this, _parent_app->SubmitManager(), _vk_device, vk_command_buffer,
-                                             font_size, font_name, font_dir);
+    GlobeFont* font =
+        GlobeFont::LoadFontMap(this, _parent_app->SubmitManager(), _vk_device, font_size, font_name, font_dir);
     if (nullptr != font) {
         _fonts.push_back(font);
     }

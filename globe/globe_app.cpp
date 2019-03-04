@@ -7,9 +7,13 @@
 // Author(s):               Mark Young <marky@lunarg.com>
 //
 
+#include <sstream>
+#include <iomanip>
+
 #include "globe_event.hpp"
 #include "globe_submit_manager.hpp"
 #include "globe_resource_manager.hpp"
+#include "globe_overlay.hpp"
 #include "globe_clock.hpp"
 #include "globe_app.hpp"
 #include "globe_logger.hpp"
@@ -37,8 +41,11 @@ GlobeApp::GlobeApp() {
     _is_minimized = false;
     _is_paused = false;
     _must_exit = false;
+    _display_overlay = false;
+    _overlay = nullptr;
     _uses_staging_buffer = true;
     _google_display_timing_enabled = false;
+    _left_mouse_pressed = false;
     _current_frame = 0;
     _current_buffer = 0;
     _exit_on_frame = false;
@@ -48,9 +55,12 @@ GlobeApp::GlobeApp() {
     _vk_device = VK_NULL_HANDLE;
     _vk_setup_command_pool = VK_NULL_HANDLE;
     _vk_setup_command_buffer = VK_NULL_HANDLE;
+    _ring_buffer_index = 0;
+    _overlay_font_name = "RobotoMono-Regular";
 }
 
 GlobeApp::~GlobeApp() {
+    delete _overlay;
     if (nullptr != _globe_window) {
         delete _globe_window;
         _globe_window = nullptr;
@@ -62,6 +72,7 @@ GlobeApp::~GlobeApp() {
     if (nullptr != _globe_resource_mgr) {
         _globe_resource_mgr->FreeAllTextures();
         _globe_resource_mgr->FreeAllShaders();
+        _globe_resource_mgr->FreeAllFonts();
         delete _globe_resource_mgr;
         _globe_resource_mgr = nullptr;
     }
@@ -285,6 +296,38 @@ bool GlobeApp::Init(GlobeInitStruct &init_struct) {
         return false;
     }
 
+    _overlay = new GlobeOverlay(_globe_resource_mgr, _globe_submit_mgr, _vk_device);
+    if (nullptr == _overlay) {
+        logger.LogFatalError("Failed to create Overlay Display!");
+        return false;
+    }
+    _overlay->UpdateViewport(static_cast<float>(_width), static_cast<float>(_height));
+    if (!_overlay->LoadFont(_overlay_font_name, _height / 20)) {
+        logger.LogFatalError("Failed loading default Overlay Display font!");
+        return false;
+    }
+    glm::vec3 white_color(1.f, 1.f, 1.f);
+    glm::vec3 yellow_color(1.f, 1.f, 0.f);
+    glm::vec4 no_color(0.f, 0.f, 0.f, 0.f);
+    float font_height = static_cast<float>(_height) * 0.1f;
+    if (0 > _overlay->AddScreenSpaceStaticText(_overlay_font_name, font_height, -1.0f, -0.9f, white_color, no_color,
+                                               _name)) {
+        logger.LogFatalError("Failed adding app name to Overlay!");
+        return false;
+    }
+    std::string fps_string = "FPS:";
+    if (0 > _overlay->AddScreenSpaceStaticText(_overlay_font_name, font_height, 0.69f, -0.9f, yellow_color, no_color,
+                                               fps_string)) {
+        logger.LogFatalError("Failed adding FPS string to Overlay!");
+        return false;
+    }
+    std::string fps_data_string = "000";
+    _fps_data_index = _overlay->AddScreenSpaceDynamicText(_overlay_font_name, font_height, 0.86f, -0.9f, yellow_color,
+                                                          no_color, fps_data_string, 8);
+    if (0 > _fps_data_index) {
+        logger.LogFatalError("Failed adding FPS data to Overlay!");
+        return false;
+    }
     _globe_clock = GlobeClock::CreateClock();
 
     if (!Setup()) {
@@ -401,6 +444,11 @@ bool GlobeApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &
     vk_setup_command_buffer = VK_NULL_HANDLE;
 
     if (!_is_minimized) {
+        if (!_overlay->SetRenderPass(_vk_render_pass)) {
+            logger.LogFatalError("Failed to set font render pass!");
+            return false;
+        }
+
         // Flush all the initialization command buffer items
         if (VK_SUCCESS != vkEndCommandBuffer(_vk_setup_command_buffer)) {
             logger.LogFatalError("Failed ending primary device command buffer");
@@ -431,7 +479,7 @@ bool GlobeApp::PostSetup(VkCommandPool &vk_setup_command_pool, VkCommandBuffer &
 }
 
 void GlobeApp::Resize() {
-    if (_must_exit) {
+    if (_must_exit || _left_mouse_pressed) {
         return;
     }
 
@@ -487,6 +535,28 @@ bool GlobeApp::Run() {
         float comp_diff = 0;
         float game_diff = 0;
         _globe_clock->GetTimeDiffMS(comp_diff, game_diff);
+
+        // Keep a running count over the last 50 frames
+        _diff_ring_buffer[_ring_buffer_index++] = comp_diff;
+        if (_ring_buffer_index == 50) {
+            _ring_buffer_index = 0;
+        }
+        if (_display_overlay) {
+            // Determine the average for the last 50
+            float average_diff = 0.f;
+            for (uint8_t cur_index = 0; cur_index < 50; ++cur_index) {
+                average_diff += _diff_ring_buffer[cur_index];
+            }
+            average_diff /= 50;
+            // Convert to int and print
+            _int_fps = static_cast<int32_t>(1000.f / average_diff);
+            if (_int_fps > 999) {
+                _int_fps = 999;
+            } else if (_int_fps < 0) {
+                _int_fps = 0;
+            }
+        }
+
 #if defined(VK_USE_PLATFORM_XCB_KHR)
         if (_is_paused) {
             _globe_window->HandlePausedXcbEvent();
@@ -551,11 +621,24 @@ bool GlobeApp::Run() {
     return true;
 }
 
+bool GlobeApp::UpdateOverlay(uint32_t copy) {
+    std::stringstream stream;
+    stream << std::setw(3) << _int_fps;
+    return _overlay->UpdateDynamicText(_overlay_font_name, _fps_data_index, stream.str(), copy);
+}
+
 bool GlobeApp::Draw() {
     _current_frame++;
     if (_exit_on_frame && _current_frame == _exit_frame) {
         GlobeEvent quit_event(GLOBE_EVENT_QUIT);
         GlobeEventList::getInstance().InsertEvent(quit_event);
+    }
+    return true;
+}
+
+bool GlobeApp::DrawOverlay(VkCommandBuffer command_buffer, uint32_t copy) {
+    if (_display_overlay) {
+        return _overlay->Draw(command_buffer, copy);
     }
     return true;
 }
@@ -590,10 +673,23 @@ bool GlobeApp::ProcessEvents() {
 
 void GlobeApp::HandleEvent(GlobeEvent &event) {
     switch (event.Type()) {
+        case GLOBE_EVENT_MOUSE_PRESS:
+            if (event._data.mouse_button & GLOBE_MOUSEBUTTON_LEFT) {
+                _left_mouse_pressed = true;
+            }
+            break;
+        case GLOBE_EVENT_MOUSE_RELEASE:
+            if (event._data.mouse_button & GLOBE_MOUSEBUTTON_LEFT) {
+                _left_mouse_pressed = false;
+            }
+            break;
         case GLOBE_EVENT_KEY_RELEASE:
             switch (event._data.key) {
                 case GLOBE_KEYNAME_ESCAPE:
                     _must_exit = true;
+                    break;
+                case GLOBE_KEYNAME_O:
+                    _display_overlay = !_display_overlay;
                     break;
                 case GLOBE_KEYNAME_SPACE:
                     _is_paused = !_is_paused;
@@ -616,7 +712,9 @@ void GlobeApp::HandleEvent(GlobeEvent &event) {
                 _focused = !_is_minimized;
                 _width = event._data.resize.width;
                 _height = event._data.resize.height;
-                Resize();
+                if (!_left_mouse_pressed) {
+                    Resize();
+                }
             } else {
                 GlobeLogger::getInstance().LogInfo("Redundant resize call");
             }

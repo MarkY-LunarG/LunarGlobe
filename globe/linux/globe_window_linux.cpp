@@ -255,7 +255,8 @@ bool GlobeWindowLinux::CreateVkSurface(VkInstance instance, VkPhysicalDevice phy
 void GlobeWindowLinux::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
     GlobeEventType globe_event_type = GLOBE_EVENT_NONE;
     int key_id = 0;
-    uint8_t event_code = xcb_event->response_type & 0x7f;
+    //    uint8_t event_code = xcb_event->response_type & 0x7f;
+    uint8_t event_code = xcb_event->response_type;
     switch (event_code) {
         case XCB_EXPOSE:
             // TODO: Resize window
@@ -277,6 +278,40 @@ void GlobeWindowLinux::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
             key_id = key->detail;
             globe_event_type = GLOBE_EVENT_KEY_RELEASE;
         } break;
+        case XCB_BUTTON_PRESS: {
+            const xcb_button_press_event_t *button = (const xcb_button_press_event_t *)xcb_event;
+            GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_MOUSE_PRESS);
+            switch (button->detail) {
+                case 1:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_LEFT;
+                    break;
+                case 2:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_MIDDLE;
+                    break;
+                case 3:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_RIGHT;
+                    break;
+            }
+            GlobeEventList::getInstance().InsertEvent(*event);
+            delete event;
+        } break;
+        case XCB_BUTTON_RELEASE: {
+            const xcb_button_press_event_t *button = (const xcb_button_press_event_t *)xcb_event;
+            GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_MOUSE_RELEASE);
+            switch (button->detail) {
+                case 1:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_LEFT;
+                    break;
+                case 2:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_MIDDLE;
+                    break;
+                case 3:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_RIGHT;
+                    break;
+            }
+            GlobeEventList::getInstance().InsertEvent(*event);
+            delete event;
+        } break;
         case XCB_CONFIGURE_NOTIFY: {
             const xcb_configure_notify_event_t *cfg = (const xcb_configure_notify_event_t *)xcb_event;
             if ((_width != cfg->width) || (_height != cfg->height)) {
@@ -294,24 +329,367 @@ void GlobeWindowLinux::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
     }
     if (globe_event_type == GLOBE_EVENT_KEY_PRESS || globe_event_type == GLOBE_EVENT_KEY_RELEASE) {
         switch (key_id) {
-            case 0x9:  // Escape
+            case 0x9:  // escape
             {
                 GlobeEvent *event = new GlobeEvent(globe_event_type);
                 event->_data.key = GLOBE_KEYNAME_ESCAPE;
                 GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
-            case 0x71:  // left arrow key
+            case 0xA:  // 1
             {
                 GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                event->_data.key = GLOBE_KEYNAME_1;
                 GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
-            case 0x72:  // right arrow key
+            case 0xB:  // 2
             {
                 GlobeEvent *event = new GlobeEvent(globe_event_type);
-                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                event->_data.key = GLOBE_KEYNAME_2;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0xC:  // 3
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_3;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0xD:  // 4
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_4;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0xE:  // 5
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_5;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0xF:  // 6
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_6;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x10:  // 7
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_7;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x11:  // 8
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_8;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x12:  // 9
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_9;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x13:  // 0
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_0;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x14:  // -
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_DASH;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x15:  // =
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_EQUAL;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x16:  // backspace
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_BACKSPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x17:  // tab
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_TAB;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x18:  // q
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_Q;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x19:  // w
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_W;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1A:  // e
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_E;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1B:  // r
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_R;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1C:  // t
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_T;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1D:  // y
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_Y;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1E:  // u
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_U;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x1F:  // i
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_I;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x20:  // o
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_O;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x21:  // p
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_P;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x22:  // [
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_LEFT_BRACKET;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x23:  // ]
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_RIGHT_BRACKET;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x24:  // enter
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ENTER;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x25:  // left control
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_LEFT_CTRL;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x26:  // a
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_A;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x27:  // s
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_S;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x28:  // d
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_D;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x29:  // f
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2A:  // g
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_G;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2B:  // h
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_H;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2C:  // j
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_J;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2D:  // k
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_K;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2E:  // l
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_L;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x2F:  // ;
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_SEMICOLON;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x30:  // '
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_QUOTE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x31:  // `
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_BACK_QUOTE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x32:  // left shift
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_LEFT_SHIFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x33:  // forward slash
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_FORWARD_SLASH;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x34:  // z
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_Z;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x35:  // x
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_X;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x36:  // c
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_C;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x37:  // v
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_V;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x38:  // b
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_B;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x39:  // n
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_N;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x3A:  // m
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_M;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x3E:  // right shift
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_RIGHT_SHIFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x40:  // left alt
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_LEFT_ALT;
                 GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
@@ -319,6 +697,174 @@ void GlobeWindowLinux::HandleXcbEvent(xcb_generic_event_t *xcb_event) {
             {
                 GlobeEvent *event = new GlobeEvent(globe_event_type);
                 event->_data.key = GLOBE_KEYNAME_SPACE;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x43:  // F1
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F1;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x44:  // F2
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F2;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x45:  // F3
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F3;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x46:  // F4
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F4;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x47:  // F5
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F5;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x48:  // F6
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F6;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x49:  // F7
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F7;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x4A:  // F8
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F8;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x4B:  // F9
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F9;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x4C:  // F10
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F10;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x5F:  // F11
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F11;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x60:  // F12
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_F12;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x69:  // right control
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_RIGHT_CTRL;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x6C:  // right alt
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_RIGHT_ALT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x6E:  // home
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_HOME;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x6F:  // up arrow
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_UP;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x70:  // page up
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_PAGE_UP;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x71:  // left arrow
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_LEFT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x72:  // right arrow
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_RIGHT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x73:  // end
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_END;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x74:  // down arrow
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_ARROW_DOWN;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x75:  // page down
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_PAGE_DOWN;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x76:  // insert
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_INSERT;
+                GlobeEventList::getInstance().InsertEvent(*event);
+                delete event;
+            } break;
+            case 0x77:  // delete
+            {
+                GlobeEvent *event = new GlobeEvent(globe_event_type);
+                event->_data.key = GLOBE_KEYNAME_DELETE;
                 GlobeEventList::getInstance().InsertEvent(*event);
                 delete event;
             } break;
@@ -367,6 +913,40 @@ void GlobeWindowLinux::HandleXlibEvent() {
         case KeyRelease:
             globe_event_type = GLOBE_EVENT_KEY_RELEASE;
             break;
+        case ButtonPress: {
+            const XButtonEvent *button_event = (const XButtonEvent *)xlib_event;
+            GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_MOUSE_PRESS);
+            switch (button_event->button) {
+                case 1:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_LEFT;
+                    break;
+                case 2:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_MIDDLE;
+                    break;
+                case 3:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_RIGHT;
+                    break;
+            }
+            GlobeEventList::getInstance().InsertEvent(*event);
+            delete event;
+        } break;
+        case ButtonRelease: {
+            const XButtonEvent *button_event = (const XButtonEvent *)xlib_event;
+            GlobeEvent *event = new GlobeEvent(GLOBE_EVENT_MOUSE_RELEASE);
+            switch (button_event->button) {
+                case 1:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_LEFT;
+                    break;
+                case 2:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_MIDDLE;
+                    break;
+                case 3:
+                    event->_data.mouse_button |= GLOBE_MOUSEBUTTON_RIGHT;
+                    break;
+            }
+            GlobeEventList::getInstance().InsertEvent(*event);
+            delete event;
+        } break;
         case ConfigureNotify: {
             uint32_t xlib_width = static_cast<uint32_t>(xlib_event.xconfigure.width);
             uint32_t xlib_height = static_cast<uint32_t>(xlib_event.xconfigure.height);
@@ -616,7 +1196,8 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
 
     value_mask = XCB_CW_BACK_PIXEL | XCB_CW_EVENT_MASK;
     value_list[0] = _screen->black_pixel;
-    value_list[1] = XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
+    value_list[1] = XCB_EVENT_MASK_BUTTON_PRESS | XCB_EVENT_MASK_BUTTON_RELEASE | XCB_EVENT_MASK_KEY_PRESS |
+                    XCB_EVENT_MASK_KEY_RELEASE | XCB_EVENT_MASK_EXPOSURE | XCB_EVENT_MASK_STRUCTURE_NOTIFY;
 
     xcb_create_window(_connection, XCB_COPY_FROM_PARENT, _xcb_window, _screen->root, 0, 0, _width, _height, 0,
                       XCB_WINDOW_CLASS_INPUT_OUTPUT, _screen->root_visual, value_mask, value_list);
@@ -667,7 +1248,8 @@ bool GlobeWindowLinux::CreatePlatformWindow(VkInstance instance, VkPhysicalDevic
     windowAttributes.colormap = colormap;
     windowAttributes.background_pixel = 0xFFFFFFFF;
     windowAttributes.border_pixel = 0;
-    windowAttributes.event_mask = KeyPressMask | KeyReleaseMask | StructureNotifyMask | ExposureMask;
+    windowAttributes.event_mask =
+        KeyPressMask | KeyReleaseMask | ButtonPressMask | ButtonReleaseMask | StructureNotifyMask | ExposureMask;
 
     _xlib_window = XCreateWindow(_display, RootWindow(_display, vInfoTemplate.screen), 0, 0, width, height, 0,
                                  visualInfo->depth, InputOutput, visualInfo->visual,

@@ -176,7 +176,6 @@ class CubeApp : public GlobeApp {
     VkPipelineLayout _vk_pipeline_layout;
     VkPipelineCache _vk_pipeline_cache;
     VkPipeline _vk_pipeline;
-    VkRenderPass _vk_render_pass;
     VkDescriptorPool _vk_desc_pool;
 
     float _spin_angle;
@@ -295,7 +294,7 @@ bool CubeApp::Setup() {
     _swapchain_resources.resize(_swapchain_count);
 
     if (!_is_minimized) {
-        _texture = _globe_resource_mgr->LoadTexture("lunarg.png", vk_setup_command_buffer, false);
+        _texture = _globe_resource_mgr->LoadTexture("lunarg.png", false);
         if (nullptr == _texture) {
             logger.LogError("Failed loading lunarg.png texture");
             return false;

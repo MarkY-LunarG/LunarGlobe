@@ -44,13 +44,15 @@ struct GlobeFontStringData {
     GlobeVulkanBuffer vertex_buffer;
     std::vector<uint32_t> index_data;
     GlobeVulkanBuffer index_buffer;
+    uint32_t num_copies;
+    uint32_t vertex_size_per_copy;
 };
 
 class GlobeFont : public GlobeTexture {
    public:
     static GlobeFont* LoadFontMap(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                  VkDevice vk_device, VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
-                                  const std::string& font_name, const std::string& directory);
+                                  VkDevice vk_device, float character_pixel_size, const std::string& font_name,
+                                  const std::string& directory);
 
     GlobeFont(GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& font_name,
               GlobeFontData* font_data);
@@ -58,19 +60,22 @@ class GlobeFont : public GlobeTexture {
 
     bool LoadIntoRenderPass(VkRenderPass render_pass, float viewport_width, float viewport_height);
     void UnloadFromRenderPass();
-    int32_t AddString(const std::string& text_string, glm::vec3 fg_color, glm::vec4 bg_color, glm::vec3 starting_pos,
-                      glm::vec3 text_direction, glm::vec3 text_up, float model_space_char_height,
-                      uint32_t queue_family_index);
-    bool UpdateStringText(int32_t string_index, const std::string& text_string);
+    int32_t AddStaticString(const std::string& text_string, const glm::vec3& fg_color, const glm::vec4& bg_color,
+                            const glm::vec3& starting_pos, const glm::vec3& text_direction, const glm::vec3& text_up,
+                            float model_space_char_height, uint32_t queue_family_index);
+    int32_t AddDynamicString(const std::string& text_string, const glm::vec3& fg_color, const glm::vec4& bg_color,
+                             const glm::vec3& starting_pos, const glm::vec3& text_direction, const glm::vec3& text_up,
+                             float model_space_char_height, uint32_t queue_family_index, uint32_t copies);
+    bool UpdateStringText(int32_t string_index, const std::string& text_string, uint32_t copy = 0);
     void RemoveString(int32_t string_index);
     void RemoveAllStrings();
-    void DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t string_index);
-    void DrawStrings(VkCommandBuffer command_buffer, glm::mat4 mvp);
+    void DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t string_index, uint32_t copy = 0);
+    void DrawStrings(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t copy = 0);
+    float Size() { return _generated_size; }
 
    private:
     static GlobeFont* GenerateFont(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& font_name,
-                                   GlobeFontData& font_data);
+                                   VkDevice vk_device, const std::string& font_name, GlobeFontData& font_data);
 
     std::string _font_name;
     float _generated_size;
