@@ -21,11 +21,9 @@
 #include "stb_truetype.h"
 
 GlobeFont* GlobeFont::GenerateFont(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                   VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& font_name,
-                                   GlobeFontData& font_data) {
+                                   VkDevice vk_device, const std::string& font_name, GlobeFontData& font_data) {
     GlobeLogger& logger = GlobeLogger::getInstance();
-    if (!InitFromContent(resource_manager, submit_manager, vk_device, vk_command_buffer, font_name,
-                         font_data.texture_data)) {
+    if (!InitFromContent(resource_manager, submit_manager, vk_device, font_name, font_data.texture_data)) {
         std::string error_message = "GenerateFont - Failed to setting up font for Vulkan \"";
         error_message += font_name;
         error_message += "\"";
@@ -43,8 +41,8 @@ GlobeFont* GlobeFont::GenerateFont(GlobeResourceManager* resource_manager, Globe
 }
 
 GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                  VkDevice vk_device, VkCommandBuffer vk_command_buffer, uint32_t character_pixel_size,
-                                  const std::string& font_name, const std::string& directory) {
+                                  VkDevice vk_device, float character_pixel_size, const std::string& font_name,
+                                  const std::string& directory) {
 #if (defined(VK_USE_PLATFORM_IOS_MVK) || defined(VK_USE_PLATFORM_MACOS_MVK) || defined(__ANDROID__))
 // filename = [[[NSBundle mainBundle] resourcePath] stringByAppendingPathComponent:@(filename.c_str())].UTF8String;
 #error("Unsupported platform")
@@ -56,6 +54,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeS
     GlobeFontData font_data = {};
     std::string font_file_name = directory;
     font_file_name += font_name;
+    font_file_name += ".ttf";
 
     FILE* file_ptr = fopen(font_file_name.c_str(), "rb");
     if (nullptr == file_ptr) {
@@ -158,7 +157,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeS
         char_data->top_v = static_cast<float>(cur_row_y - 1);
         char_data->right_u = static_cast<float>(next_x - 1);
         char_data->bottom_v = static_cast<float>(cur_row_y + row_increment - 2);
-        char_data->width = char_width;
+        char_data->width = static_cast<float>(char_width);
 
         x = next_x;
         if (y + char_bitmap_height + padding > max_y) {
@@ -166,7 +165,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeS
         }
     }
     bitmap_height = max_y;
-    font_data.generated_size = static_cast<float>(character_pixel_size);
+    font_data.generated_size = character_pixel_size;
 
     float inv_x = 1.f / static_cast<float>(bitmap_width);
     float inv_y = 1.f / static_cast<float>(bitmap_height);
@@ -223,8 +222,8 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeS
     font_data.texture_data.standard_data->raw_data.resize(level_data.data_size);
     uint8_t* dst_ptr = reinterpret_cast<uint8_t*>(font_data.texture_data.standard_data->raw_data.data());
     uint8_t* src_ptr = font_bitmap.data();
-    for (int32_t row = 0; row < font_data.texture_data.height; ++row) {
-        for (int32_t col = 0; col < font_data.texture_data.width; ++col) {
+    for (int32_t row = 0; row < static_cast<int32_t>(font_data.texture_data.height); ++row) {
+        for (int32_t col = 0; col < static_cast<int32_t>(font_data.texture_data.width); ++col) {
             *dst_ptr++ = *src_ptr;
             *dst_ptr++ = *src_ptr;
             *dst_ptr++ = *src_ptr++;
@@ -232,7 +231,7 @@ GlobeFont* GlobeFont::LoadFontMap(GlobeResourceManager* resource_manager, GlobeS
         }
     }
 
-    return GenerateFont(resource_manager, submit_manager, vk_device, vk_command_buffer, font_name, font_data);
+    return GenerateFont(resource_manager, submit_manager, vk_device, font_name, font_data);
 #endif
 }
 
@@ -402,13 +401,13 @@ bool GlobeFont::LoadIntoRenderPass(VkRenderPass render_pass, float viewport_widt
     VkRect2D scissor_rect = {};
     scissor_rect.offset.x = 0;
     scissor_rect.offset.y = 0;
-    scissor_rect.extent.width = viewport_width;
-    scissor_rect.extent.height = viewport_height;
+    scissor_rect.extent.width = static_cast<uint32_t>(viewport_width);
+    scissor_rect.extent.height = static_cast<uint32_t>(viewport_height);
     VkViewport viewport = {};
     viewport.x = 0.0f;
     viewport.y = 0.0f;
-    viewport.width = (float)viewport_width;
-    viewport.height = (float)viewport_height;
+    viewport.width = viewport_width;
+    viewport.height = viewport_height;
     viewport.minDepth = 0.0f;
     viewport.maxDepth = 1.0f;
     VkPipelineViewportStateCreateInfo pipeline_viewport_state_create_info = {};
@@ -492,9 +491,10 @@ void GlobeFont::UnloadFromRenderPass() {
     }
 }
 
-int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color, glm::vec4 bg_color,
-                             glm::vec3 starting_pos, glm::vec3 text_direction, glm::vec3 text_up,
-                             float model_space_char_height, uint32_t queue_family_index) {
+int32_t GlobeFont::AddStaticString(const std::string& text_string, const glm::vec3& fg_color, const glm::vec4& bg_color,
+                                   const glm::vec3& starting_pos, const glm::vec3& text_direction,
+                                   const glm::vec3& text_up, float model_space_char_height,
+                                   uint32_t queue_family_index) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     int32_t string_index = -1;
     if (text_string.length() > 0 && model_space_char_height > 0) {
@@ -504,10 +504,12 @@ int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color,
         string_data.starting_pos = starting_pos;
         string_data.num_vertices = static_cast<uint32_t>(text_string.length()) * 4;
         string_data.num_indices = static_cast<uint32_t>(text_string.length()) * 6;
+        string_data.num_copies = 0;
+        string_data.vertex_size_per_copy = 0;
         glm::vec3 cur_pos = starting_pos;
         float size_multiplier = model_space_char_height / _generated_size;
         if (size_multiplier > 1.1f) {
-            logger.LogWarning("Font is being scaled up to a point pixelation may be obvious");
+            logger.LogWarning("AddStaticString: Font is being scaled up to a point pixelation may be obvious");
         }
         uint32_t cur_index = 0;
         for (uint32_t char_index = 0; char_index < text_string.length(); ++char_index) {
@@ -619,27 +621,27 @@ int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color,
         buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
         buffer_create_info.flags = 0;
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.vertex_buffer.vk_buffer)) {
-            logger.LogError("Failed to create vertex buffer");
+            logger.LogError("AddStaticString: Failed to create vertex buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 string_data.vertex_buffer.vk_buffer,
                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 string_data.vertex_buffer.vk_memory, string_data.vertex_buffer.vk_size)) {
-            logger.LogError("Failed to allocate vertex buffer memory");
+            logger.LogError("AddStaticString: Failed to allocate vertex buffer memory");
             return false;
         }
         uint8_t* mapped_data;
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.vertex_buffer.vk_memory, 0,
                                       string_data.vertex_buffer.vk_size, 0, (void**)&mapped_data)) {
-            logger.LogError("Failed to map vertex buffer memory");
+            logger.LogError("AddStaticString: Failed to map vertex buffer memory");
             return false;
         }
         memcpy(mapped_data, string_data.vertex_data.data(), string_data.vertex_data.size() * sizeof(float));
         vkUnmapMemory(_vk_device, string_data.vertex_buffer.vk_memory);
         if (VK_SUCCESS != vkBindBufferMemory(_vk_device, string_data.vertex_buffer.vk_buffer,
                                              string_data.vertex_buffer.vk_memory, 0)) {
-            logger.LogError("Failed to bind vertex buffer memory");
+            logger.LogError("AddStaticString: Failed to bind vertex buffer memory");
             return false;
         }
 
@@ -647,26 +649,26 @@ int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color,
         buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
         buffer_create_info.size = string_data.index_data.size() * sizeof(uint32_t);
         if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.index_buffer.vk_buffer)) {
-            logger.LogError("Failed to create index buffer");
+            logger.LogError("AddStaticString: Failed to create index buffer");
             return false;
         }
         if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
                 string_data.index_buffer.vk_buffer,
                 (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
                 string_data.index_buffer.vk_memory, string_data.index_buffer.vk_size)) {
-            logger.LogError("Failed to allocate index buffer memory");
+            logger.LogError("AddStaticString: Failed to allocate index buffer memory");
             return false;
         }
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.index_buffer.vk_memory, 0,
                                       string_data.index_buffer.vk_size, 0, (void**)&mapped_data)) {
-            logger.LogError("Failed to map index buffer memory");
+            logger.LogError("AddStaticString: Failed to map index buffer memory");
             return false;
         }
         memcpy(mapped_data, string_data.index_data.data(), string_data.index_data.size() * sizeof(uint32_t));
         vkUnmapMemory(_vk_device, string_data.index_buffer.vk_memory);
         if (VK_SUCCESS !=
             vkBindBufferMemory(_vk_device, string_data.index_buffer.vk_buffer, string_data.index_buffer.vk_memory, 0)) {
-            logger.LogError("Failed to bind index buffer memory");
+            logger.LogError("AddStaticString: Failed to bind index buffer memory");
             return false;
         }
 
@@ -676,7 +678,199 @@ int32_t GlobeFont::AddString(const std::string& text_string, glm::vec3 fg_color,
     return string_index;
 }
 
-bool GlobeFont::UpdateStringText(int32_t string_index, const std::string& text_string) {
+int32_t GlobeFont::AddDynamicString(const std::string& text_string, const glm::vec3& fg_color,
+                                    const glm::vec4& bg_color, const glm::vec3& starting_pos,
+                                    const glm::vec3& text_direction, const glm::vec3& text_up,
+                                    float model_space_char_height, uint32_t queue_family_index, uint32_t copies) {
+    GlobeLogger& logger = GlobeLogger::getInstance();
+    int32_t string_index = -1;
+    if (text_string.length() > 0 && model_space_char_height > 0) {
+        GlobeFontStringData string_data = {};
+        string_data.queue_family_index = queue_family_index;
+        string_data.text_string = text_string;
+        string_data.starting_pos = starting_pos;
+        string_data.num_vertices = static_cast<uint32_t>(text_string.length()) * 4;
+        string_data.num_indices = static_cast<uint32_t>(text_string.length()) * 6;
+        string_data.num_copies = copies;
+        glm::vec3 cur_pos = starting_pos;
+        float size_multiplier = model_space_char_height / _generated_size;
+        if (size_multiplier > 1.1f) {
+            logger.LogWarning("AddDynamicString: Font is being scaled up to a point pixelation may be obvious");
+        }
+        uint32_t cur_index = 0;
+        for (uint32_t char_index = 0; char_index < text_string.length(); ++char_index) {
+            GlobeFontCharData* char_data = &_char_data[text_string[char_index] - GLOBE_FONT_STARTING_ASCII_CHAR];
+
+            // Determine the adjusted character width based on the generated font character
+            // width and the size scale multiplier.
+            float character_width = char_data->width * size_multiplier;
+
+            // Pre-calculate the other vertex positions for the character quad.
+            glm::vec3 top_left_pos = cur_pos + (text_up * model_space_char_height);
+            glm::vec3 top_right_pos =
+                cur_pos + (text_direction * character_width) + (text_up * model_space_char_height);
+            glm::vec3 bottom_right_pos = cur_pos + (text_direction * character_width);
+
+            // Bottom left
+            string_data.vertex_data.push_back(cur_pos[0]);
+            string_data.vertex_data.push_back(cur_pos[1]);
+            string_data.vertex_data.push_back(cur_pos[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
+            string_data.vertex_data.push_back(char_data->left_u);
+            string_data.vertex_data.push_back(char_data->bottom_v);
+            string_data.vertex_data.push_back(0.f);
+            string_data.vertex_data.push_back(1.f);
+
+            // Bottom right
+            string_data.vertex_data.push_back(bottom_right_pos[0]);
+            string_data.vertex_data.push_back(bottom_right_pos[1]);
+            string_data.vertex_data.push_back(bottom_right_pos[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
+            string_data.vertex_data.push_back(char_data->right_u);
+            string_data.vertex_data.push_back(char_data->bottom_v);
+            string_data.vertex_data.push_back(0.f);
+            string_data.vertex_data.push_back(1.f);
+
+            // Top right
+            string_data.vertex_data.push_back(top_right_pos[0]);
+            string_data.vertex_data.push_back(top_right_pos[1]);
+            string_data.vertex_data.push_back(top_right_pos[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
+            string_data.vertex_data.push_back(char_data->right_u);
+            string_data.vertex_data.push_back(char_data->top_v);
+            string_data.vertex_data.push_back(0.f);
+            string_data.vertex_data.push_back(1.f);
+
+            // Top left
+            string_data.vertex_data.push_back(top_left_pos[0]);
+            string_data.vertex_data.push_back(top_left_pos[1]);
+            string_data.vertex_data.push_back(top_left_pos[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(fg_color[0]);
+            string_data.vertex_data.push_back(fg_color[1]);
+            string_data.vertex_data.push_back(fg_color[2]);
+            string_data.vertex_data.push_back(1.f);
+            string_data.vertex_data.push_back(bg_color[0]);
+            string_data.vertex_data.push_back(bg_color[1]);
+            string_data.vertex_data.push_back(bg_color[2]);
+            string_data.vertex_data.push_back(bg_color[3]);
+            string_data.vertex_data.push_back(char_data->left_u);
+            string_data.vertex_data.push_back(char_data->top_v);
+            string_data.vertex_data.push_back(0.f);
+            string_data.vertex_data.push_back(1.f);
+
+            // Update indices
+            string_data.index_data.push_back(cur_index);
+            string_data.index_data.push_back(cur_index + 1);
+            string_data.index_data.push_back(cur_index + 2);
+            string_data.index_data.push_back(cur_index);
+            string_data.index_data.push_back(cur_index + 2);
+            string_data.index_data.push_back(cur_index + 3);
+
+            // Update index and pos
+            cur_index += 4;
+            cur_pos = bottom_right_pos;
+        }
+        string_data.vertex_size_per_copy = string_data.vertex_data.size();
+        for (uint32_t copy = 0; copy < copies; ++copy) {
+            for (uint32_t vert_copy = 0; vert_copy < string_data.vertex_size_per_copy; ++vert_copy) {
+                string_data.vertex_data.push_back(string_data.vertex_data[vert_copy]);
+            }
+        }
+
+        // Create the vertex buffer
+        VkBufferCreateInfo buffer_create_info = {};
+        buffer_create_info.sType = VK_STRUCTURE_TYPE_BUFFER_CREATE_INFO;
+        buffer_create_info.pNext = nullptr;
+        buffer_create_info.usage = VK_BUFFER_USAGE_VERTEX_BUFFER_BIT;
+        buffer_create_info.size = string_data.vertex_data.size() * sizeof(float);
+        buffer_create_info.queueFamilyIndexCount = 0;
+        buffer_create_info.pQueueFamilyIndices = nullptr;
+        buffer_create_info.sharingMode = VK_SHARING_MODE_EXCLUSIVE;
+        buffer_create_info.flags = 0;
+        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.vertex_buffer.vk_buffer)) {
+            logger.LogError("AddDynamicString: Failed to create vertex buffer");
+            return false;
+        }
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
+                string_data.vertex_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                string_data.vertex_buffer.vk_memory, string_data.vertex_buffer.vk_size)) {
+            logger.LogError("AddDynamicString: Failed to allocate vertex buffer memory");
+            return false;
+        }
+        uint8_t* mapped_data;
+        if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.vertex_buffer.vk_memory, 0,
+                                      string_data.vertex_buffer.vk_size, 0, (void**)&mapped_data)) {
+            logger.LogError("AddDynamicString: Failed to map vertex buffer memory");
+            return false;
+        }
+        memcpy(mapped_data, string_data.vertex_data.data(), string_data.vertex_data.size() * sizeof(float));
+        vkUnmapMemory(_vk_device, string_data.vertex_buffer.vk_memory);
+        if (VK_SUCCESS != vkBindBufferMemory(_vk_device, string_data.vertex_buffer.vk_buffer,
+                                             string_data.vertex_buffer.vk_memory, 0)) {
+            logger.LogError("AddDynamicString: Failed to bind vertex buffer memory");
+            return false;
+        }
+
+        // Create the index buffer
+        buffer_create_info.usage = VK_BUFFER_USAGE_INDEX_BUFFER_BIT;
+        buffer_create_info.size = string_data.index_data.size() * sizeof(uint32_t);
+        if (VK_SUCCESS != vkCreateBuffer(_vk_device, &buffer_create_info, NULL, &string_data.index_buffer.vk_buffer)) {
+            logger.LogError("AddDynamicString: Failed to create index buffer");
+            return false;
+        }
+        if (!_globe_resource_mgr->AllocateDeviceBufferMemory(
+                string_data.index_buffer.vk_buffer,
+                (VK_MEMORY_PROPERTY_HOST_VISIBLE_BIT | VK_MEMORY_PROPERTY_HOST_COHERENT_BIT),
+                string_data.index_buffer.vk_memory, string_data.index_buffer.vk_size)) {
+            logger.LogError("AddDynamicString: Failed to allocate index buffer memory");
+            return false;
+        }
+        if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.index_buffer.vk_memory, 0,
+                                      string_data.index_buffer.vk_size, 0, (void**)&mapped_data)) {
+            logger.LogError("AddDynamicString: Failed to map index buffer memory");
+            return false;
+        }
+        memcpy(mapped_data, string_data.index_data.data(), string_data.index_data.size() * sizeof(uint32_t));
+        vkUnmapMemory(_vk_device, string_data.index_buffer.vk_memory);
+        if (VK_SUCCESS !=
+            vkBindBufferMemory(_vk_device, string_data.index_buffer.vk_buffer, string_data.index_buffer.vk_memory, 0)) {
+            logger.LogError("AddDynamicString: Failed to bind index buffer memory");
+            return false;
+        }
+
+        string_index = static_cast<int32_t>(_string_data.size());
+        _string_data.push_back(string_data);
+    }
+    return string_index;
+}
+
+bool GlobeFont::UpdateStringText(int32_t string_index, const std::string& text_string, uint32_t copy) {
     GlobeLogger& logger = GlobeLogger::getInstance();
     std::string error_message;
 
@@ -691,11 +885,17 @@ bool GlobeFont::UpdateStringText(int32_t string_index, const std::string& text_s
             logger.LogError(error_message);
             return false;
         }
+        if (copy >= string_data.num_copies) {
+            logger.LogError("UpdateStringText - Attempting to update past valid copy");
+            return false;
+        }
         float* mapped_data;
         if (VK_SUCCESS != vkMapMemory(_vk_device, string_data.vertex_buffer.vk_memory, 0,
                                       string_data.vertex_buffer.vk_size, 0, (void**)&mapped_data)) {
             logger.LogError("UpdateStringText - Failed to map vertex buffer memory");
+            return false;
         }
+        mapped_data += string_data.vertex_size_per_copy * copy;
         uint32_t mapped_index = 0;
         for (uint32_t char_index = 0; char_index < text_string.length(); ++char_index) {
             GlobeFontCharData* char_data = &_char_data[text_string[char_index] - GLOBE_FONT_STARTING_ASCII_CHAR];
@@ -749,7 +949,7 @@ void GlobeFont::RemoveAllStrings() {
     }
 }
 
-void GlobeFont::DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t string_index) {
+void GlobeFont::DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t string_index, uint32_t copy) {
     if (string_index >= _string_data.size()) {
         return;
     }
@@ -757,7 +957,10 @@ void GlobeFont::DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32
     vkCmdBindDescriptorSets(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline_layout, 0, 1,
                             &_vk_descriptor_set, 0, nullptr);
     vkCmdBindPipeline(command_buffer, VK_PIPELINE_BIND_POINT_GRAPHICS, _vk_pipeline);
-    const VkDeviceSize vert_buffer_offset = 0;
+    VkDeviceSize vert_buffer_offset = 0;
+    if (_string_data[string_index].num_copies > 0) {
+        vert_buffer_offset = _string_data[string_index].vertex_size_per_copy * sizeof(float);
+    }
     vkCmdPushConstants(command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &mvp);
     vkCmdBindVertexBuffers(command_buffer, 0, 1, &_string_data[string_index].vertex_buffer.vk_buffer,
                            &vert_buffer_offset);
@@ -765,8 +968,8 @@ void GlobeFont::DrawString(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32
     vkCmdDrawIndexed(command_buffer, _string_data[string_index].num_indices, 1, 0, 0, 1);
 }
 
-void GlobeFont::DrawStrings(VkCommandBuffer command_buffer, glm::mat4 mvp) {
+void GlobeFont::DrawStrings(VkCommandBuffer command_buffer, glm::mat4 mvp, uint32_t copy) {
     for (uint32_t string_index = 0; string_index < _string_data.size(); ++string_index) {
-        DrawString(command_buffer, mvp, string_index);
+        DrawString(command_buffer, mvp, string_index, copy);
     }
 }

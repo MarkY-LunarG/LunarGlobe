@@ -38,7 +38,7 @@ class PushConstantApp : public GlobeApp {
     PushConstantApp();
     ~PushConstantApp();
 
-    virtual void Cleanup() override;
+    virtual void CleanupCommandObjects(bool is_resize) override;
 
    protected:
     virtual bool Setup() override;
@@ -49,7 +49,6 @@ class PushConstantApp : public GlobeApp {
    private:
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
-    VkRenderPass _vk_render_pass;
     GlobeVulkanBuffer _vertex_buffer;
     GlobeVulkanBuffer _index_buffer;
     GlobeVulkanBuffer _uniform_buffer;
@@ -88,53 +87,54 @@ PushConstantApp::PushConstantApp() {
 
 PushConstantApp::~PushConstantApp() { Cleanup(); }
 
-void PushConstantApp::Cleanup() {
-    GlobeApp::PreCleanup();
-    if (nullptr != _push_constants) {
-        delete[] _push_constants;
-        _push_constants = nullptr;
+void PushConstantApp::CleanupCommandObjects(bool is_resize) {
+    if (!_is_minimized) {
+        if (nullptr != _push_constants) {
+            delete[] _push_constants;
+            _push_constants = nullptr;
+        }
+        if (VK_NULL_HANDLE != _vk_pipeline) {
+            vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
+            _vk_pipeline = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set) {
+            vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
+            _vk_descriptor_set = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_pool) {
+            vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
+            _vk_descriptor_pool = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
+            vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
+            vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
+            _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _index_buffer.vk_buffer) {
+            vkDestroyBuffer(_vk_device, _index_buffer.vk_buffer, nullptr);
+            _index_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vertex_buffer.vk_buffer) {
+            vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
+            _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
+        _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
+        _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
+        if (VK_NULL_HANDLE != _vk_render_pass) {
+            vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
+            _vk_render_pass = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_pipeline_layout) {
+            vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
+            _vk_pipeline_layout = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
+            vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
+            _vk_descriptor_set_layout = VK_NULL_HANDLE;
+        }
     }
-    if (VK_NULL_HANDLE != _vk_pipeline) {
-        vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
-        _vk_pipeline = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set) {
-        vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
-        _vk_descriptor_set = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_pool) {
-        vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
-        _vk_descriptor_pool = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
-        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
-        vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
-        _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _index_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _index_buffer.vk_buffer, nullptr);
-        _index_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vertex_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _vertex_buffer.vk_buffer, nullptr);
-        _vertex_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_index_buffer.vk_memory);
-    _globe_resource_mgr->FreeDeviceMemory(_vertex_buffer.vk_memory);
-    if (VK_NULL_HANDLE != _vk_render_pass) {
-        vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
-        _vk_render_pass = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_pipeline_layout) {
-        vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
-        _vk_pipeline_layout = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
-        _vk_descriptor_set_layout = VK_NULL_HANDLE;
-    }
-    GlobeApp::PostCleanup();
+    GlobeApp::CleanupCommandObjects(is_resize);
 }
 
 static const float g_quad_vertex_buffer_data[] = {
@@ -161,7 +161,7 @@ bool PushConstantApp::Setup() {
         uint8_t *mapped_data;
 
         if (nullptr == _texture_1) {
-            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.png", vk_setup_command_buffer, false);
+            _texture_1 = _globe_resource_mgr->LoadTexture("kootenay_winter_stream.png", false);
             if (nullptr == _texture_1) {
                 logger.LogError("Failed loading kootenay_winter_stream.png texture");
                 return false;
@@ -169,8 +169,7 @@ bool PushConstantApp::Setup() {
         }
 
         if (nullptr == _texture_2) {
-            _texture_2 =
-                _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.png", vk_setup_command_buffer, false);
+            _texture_2 = _globe_resource_mgr->LoadTexture("cks_memorial_taipei_pond.png", false);
             if (nullptr == _texture_2) {
                 logger.LogError("Failed loading cks_memorial_taipei_lake.png texture");
                 return false;
@@ -673,6 +672,10 @@ bool PushConstantApp::Draw() {
     _globe_submit_mgr->GetCurrentRenderCommandBuffer(vk_render_command_buffer);
     _globe_submit_mgr->GetCurrentFramebuffer(vk_framebuffer);
 
+    if (!UpdateOverlay(_current_buffer)) {
+        logger.LogFatalError("Failed to update overlay");
+    }
+
     VkCommandBufferBeginInfo command_buffer_begin_info = {};
     VkClearValue clear_values[2];
     VkRenderPassBeginInfo render_pass_begin_info = {};
@@ -741,6 +744,9 @@ bool PushConstantApp::Draw() {
     vkCmdBindVertexBuffers(vk_render_command_buffer, 0, 1, &_vertex_buffer.vk_buffer, &vert_buffer_offset);
     vkCmdBindIndexBuffer(vk_render_command_buffer, _index_buffer.vk_buffer, 0, VK_INDEX_TYPE_UINT32);
     vkCmdDrawIndexed(vk_render_command_buffer, 6, 1, 0, 0, 1);
+
+    DrawOverlay(vk_render_command_buffer, _current_buffer);
+
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
         logger.LogFatalError("Failed to end command buffer");

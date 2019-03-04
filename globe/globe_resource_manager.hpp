@@ -26,10 +26,8 @@ class GlobeResourceManager {
     GlobeResourceManager(const GlobeApp* app, const std::string& directory, uint32_t queue_family_index);
     ~GlobeResourceManager();
 
-    GlobeTexture* LoadTexture(const std::string& texture_name, VkCommandBuffer vk_command_buffer,
-                              bool generate_mipmaps);
-    GlobeTexture* CreateRenderTargetTexture(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
-                                            VkFormat vk_format);
+    GlobeTexture* LoadTexture(const std::string& texture_name, bool generate_mipmaps);
+    GlobeTexture* CreateRenderTargetTexture(uint32_t width, uint32_t height, VkFormat vk_format);
     void FreeTexture(GlobeTexture* texture);
     void FreeAllTextures();
     bool InsertImageLayoutTransitionBarrier(VkCommandBuffer command_vk_buffer, VkImage vk_image,
@@ -37,7 +35,7 @@ class GlobeResourceManager {
                                             VkPipelineStageFlags vk_starting_stage, VkImageLayout vk_starting_layout,
                                             VkPipelineStageFlags vk_target_stage, VkImageLayout vk_target_layout);
 
-    GlobeFont* LoadFontMap(const std::string& font_name, VkCommandBuffer vk_command_buffer, uint32_t font_size);
+    GlobeFont* LoadFontMap(const std::string& font_name, float font_size);
     void FreeFont(GlobeFont* font);
     void FreeAllFonts();
 

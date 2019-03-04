@@ -33,8 +33,8 @@
 struct VulkanTarget {
     uint32_t width;
     uint32_t height;
-    VkRenderPass vk_render_pass;
     VkFramebuffer vk_framebuffer;
+    VkRenderPass vk_render_pass;
     VkSemaphore vk_semaphore;
     VkDescriptorSetLayout vk_descriptor_set_layout;
     VkPipelineLayout vk_pipeline_layout;
@@ -54,7 +54,7 @@ class OffscreenRenderingApp : public GlobeApp {
     OffscreenRenderingApp();
     ~OffscreenRenderingApp();
 
-    virtual void Cleanup() override;
+    virtual void CleanupCommandObjects(bool is_resize) override;
 
    protected:
     bool CreateOffscreenTarget(VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
@@ -231,11 +231,12 @@ void OffscreenRenderingApp::CleanupVulkanTarget(VulkanTarget &target) {
     target.vk_command_pool = VK_NULL_HANDLE;
 }
 
-void OffscreenRenderingApp::Cleanup() {
-    GlobeApp::PreCleanup();
-    CleanupVulkanTarget(_offscreen_target);
-    CleanupVulkanTarget(_onscreen_target);
-    GlobeApp::PostCleanup();
+void OffscreenRenderingApp::CleanupCommandObjects(bool is_resize) {
+    if (!_is_minimized) {
+        CleanupVulkanTarget(_offscreen_target);
+        CleanupVulkanTarget(_onscreen_target);
+    }
+    GlobeApp::CleanupCommandObjects(is_resize);
 }
 
 void OffscreenRenderingApp::CalculateOffscreenModelMatrices(void) {
@@ -267,8 +268,8 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
     CalculateOffscreenModelMatrices();
 
     // Create an offscreen color and depth render target
-    _offscreen_color = _globe_resource_mgr->CreateRenderTargetTexture(vk_command_buffer, _offscreen_target.width,
-                                                                      _offscreen_target.height, vk_color_format);
+    _offscreen_color = _globe_resource_mgr->CreateRenderTargetTexture(_offscreen_target.width, _offscreen_target.height,
+                                                                      vk_color_format);
     if (nullptr == _offscreen_color) {
         logger.LogError("Failed creating color render target texture");
         return false;
@@ -276,7 +277,7 @@ bool OffscreenRenderingApp::CreateOffscreenTarget(VkCommandBuffer vk_command_buf
 
     if (VK_FORMAT_UNDEFINED != vk_depth_stencil_format) {
         _offscreen_depth = _globe_resource_mgr->CreateRenderTargetTexture(
-            vk_command_buffer, _offscreen_target.width, _offscreen_target.height, vk_depth_stencil_format);
+            _offscreen_target.width, _offscreen_target.height, vk_depth_stencil_format);
         if (nullptr == _offscreen_depth) {
             logger.LogError("Failed creating depth render target texture");
             return false;
@@ -850,11 +851,11 @@ bool OffscreenRenderingApp::Setup() {
         render_pass_create_info.pSubpasses = &subpass_description;
         render_pass_create_info.dependencyCount = 0;
         render_pass_create_info.pDependencies = nullptr;
-        if (VK_SUCCESS !=
-            vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_onscreen_target.vk_render_pass)) {
+        if (VK_SUCCESS != vkCreateRenderPass(_vk_device, &render_pass_create_info, NULL, &_vk_render_pass)) {
             logger.LogFatalError("Failed to create renderpass");
             return false;
         }
+        _onscreen_target.vk_render_pass = _vk_render_pass;
 
         // Viewport and scissor dynamic state
         VkDynamicState dynamic_state_enables[2];
@@ -1160,6 +1161,7 @@ bool OffscreenRenderingApp::Setup() {
     if (var < 0.f) var += 360.f
 
 bool OffscreenRenderingApp::Update(float diff_ms) {
+    GlobeLogger &logger = GlobeLogger::getInstance();
     _globe_submit_mgr->AcquireNextImageIndex(_current_buffer);
 
     static float cur_time_diff = 0;
@@ -1212,6 +1214,9 @@ bool OffscreenRenderingApp::Update(float diff_ms) {
     memory_range.offset = offset;
     vkFlushMappedMemoryRanges(_vk_device, 1, &memory_range);
 
+    if (!UpdateOverlay(_current_buffer)) {
+        logger.LogFatalError("Failed to update overlay");
+    }
     return true;
 }
 
@@ -1372,6 +1377,9 @@ bool OffscreenRenderingApp::Draw() {
     vkCmdPushConstants(vk_render_command_buffer, _onscreen_target.vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64,
                        &_onscreen_cube_mat);
     vkCmdDrawIndexed(vk_render_command_buffer, sizeof(g_onscreen_cube_index_data) / sizeof(uint32_t), 1, 0, 0, 1);
+
+    DrawOverlay(vk_render_command_buffer, _current_buffer);
+
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {
         logger.LogFatalError("Failed to end command buffer");

@@ -20,6 +20,7 @@ struct GlobeTextureLevel {
     uint32_t width;
     uint32_t height;
     uint32_t data_size;
+    uint32_t offset;
 };
 
 struct GlobeStandardTextureData {
@@ -58,17 +59,15 @@ class GlobeTexture {
    public:
     static GlobeTexture* LoadFromStandardFile(GlobeResourceManager* resource_manager,
                                               GlobeSubmitManager* submit_manager, VkDevice vk_device,
-                                              VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
-                                              const std::string& texture_name, const std::string& directory);
+                                              bool generate_mipmaps, const std::string& texture_name,
+                                              const std::string& directory);
     static GlobeTexture* LoadFromKtxFile(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                         VkDevice vk_device, VkCommandBuffer vk_command_buffer, bool generate_mipmaps,
-                                         const std::string& texture_name, const std::string& directory);
+                                         VkDevice vk_device, bool generate_mipmaps, const std::string& texture_name,
+                                         const std::string& directory);
     static bool InitFromContent(GlobeResourceManager* resource_manager, GlobeSubmitManager* submit_manager,
-                                VkDevice vk_device, VkCommandBuffer vk_command_buffer, const std::string& texture_name,
-                                GlobeTextureData& texture_data);
-    static GlobeTexture* CreateRenderTarget(GlobeResourceManager* resource_manager, VkDevice vk_device,
-                                            VkCommandBuffer vk_command_buffer, uint32_t width, uint32_t height,
-                                            VkFormat vk_format);
+                                VkDevice vk_device, const std::string& texture_name, GlobeTextureData& texture_data);
+    static GlobeTexture* CreateRenderTarget(GlobeResourceManager* resource_manager, VkDevice vk_device, uint32_t width,
+                                            uint32_t height, VkFormat vk_format);
 
     GlobeTexture(GlobeResourceManager* resource_manager, VkDevice vk_device, const std::string& texture_name,
                  GlobeTextureData* texture_data);

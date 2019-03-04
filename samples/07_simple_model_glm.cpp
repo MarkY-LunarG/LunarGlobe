@@ -37,7 +37,7 @@ class SimpleModelApp : public GlobeApp {
     SimpleModelApp();
     ~SimpleModelApp();
 
-    virtual void Cleanup() override;
+    virtual void CleanupCommandObjects(bool is_resize) override;
 
    protected:
     virtual bool Setup() override;
@@ -49,7 +49,6 @@ class SimpleModelApp : public GlobeApp {
 
     VkDescriptorSetLayout _vk_descriptor_set_layout;
     VkPipelineLayout _vk_pipeline_layout;
-    VkRenderPass _vk_render_pass;
     GlobeVulkanBuffer _uniform_buffer;
     GlobeModel *_model;
     uint8_t *_uniform_map;
@@ -107,46 +106,47 @@ void SimpleModelApp::CalculateModelMatrices(void) {
     _model_mat = glm::rotate(_model_mat, glm::radians(_model_orbit_rotation), y_orbit_vec);
 }
 
-void SimpleModelApp::Cleanup() {
-    GlobeApp::PreCleanup();
-    if (VK_NULL_HANDLE != _vk_pipeline) {
-        vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
-        _vk_pipeline = VK_NULL_HANDLE;
+void SimpleModelApp::CleanupCommandObjects(bool is_resize) {
+    if (!_is_minimized) {
+        if (VK_NULL_HANDLE != _vk_pipeline) {
+            vkDestroyPipeline(_vk_device, _vk_pipeline, nullptr);
+            _vk_pipeline = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set) {
+            vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
+            _vk_descriptor_set = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_pool) {
+            vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
+            _vk_descriptor_pool = VK_NULL_HANDLE;
+        }
+        if (nullptr != _uniform_map) {
+            vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
+            _uniform_map = nullptr;
+        }
+        if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
+            vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
+            _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
+        }
+        if (nullptr != _model) {
+            _globe_resource_mgr->FreeModel(_model);
+            _model = nullptr;
+        }
+        _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
+        if (VK_NULL_HANDLE != _vk_render_pass) {
+            vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
+            _vk_render_pass = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_pipeline_layout) {
+            vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
+            _vk_pipeline_layout = VK_NULL_HANDLE;
+        }
+        if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
+            vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
+            _vk_descriptor_set_layout = VK_NULL_HANDLE;
+        }
     }
-    if (VK_NULL_HANDLE != _vk_descriptor_set) {
-        vkFreeDescriptorSets(_vk_device, _vk_descriptor_pool, 1, &_vk_descriptor_set);
-        _vk_descriptor_set = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_pool) {
-        vkDestroyDescriptorPool(_vk_device, _vk_descriptor_pool, nullptr);
-        _vk_descriptor_pool = VK_NULL_HANDLE;
-    }
-    if (nullptr != _uniform_map) {
-        vkUnmapMemory(_vk_device, _uniform_buffer.vk_memory);
-        _uniform_map = nullptr;
-    }
-    if (VK_NULL_HANDLE != _uniform_buffer.vk_buffer) {
-        vkDestroyBuffer(_vk_device, _uniform_buffer.vk_buffer, nullptr);
-        _uniform_buffer.vk_buffer = VK_NULL_HANDLE;
-    }
-    if (nullptr != _model) {
-        _globe_resource_mgr->FreeModel(_model);
-        _model = nullptr;
-    }
-    _globe_resource_mgr->FreeDeviceMemory(_uniform_buffer.vk_memory);
-    if (VK_NULL_HANDLE != _vk_render_pass) {
-        vkDestroyRenderPass(_vk_device, _vk_render_pass, nullptr);
-        _vk_render_pass = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_pipeline_layout) {
-        vkDestroyPipelineLayout(_vk_device, _vk_pipeline_layout, nullptr);
-        _vk_pipeline_layout = VK_NULL_HANDLE;
-    }
-    if (VK_NULL_HANDLE != _vk_descriptor_set_layout) {
-        vkDestroyDescriptorSetLayout(_vk_device, _vk_descriptor_set_layout, nullptr);
-        _vk_descriptor_set_layout = VK_NULL_HANDLE;
-    }
-    GlobeApp::PostCleanup();
+    GlobeApp::CleanupCommandObjects(is_resize);
 }
 
 bool SimpleModelApp::Setup() {
@@ -512,6 +512,9 @@ bool SimpleModelApp::Update(float diff_ms) {
     mapped_range.size = _vk_uniform_frame_size;
     vkFlushMappedMemoryRanges(_vk_device, 1, &mapped_range);
 
+    if (!UpdateOverlay(_current_buffer)) {
+        logger.LogFatalError("Failed to update overlay");
+    }
     return true;
 }
 
@@ -578,6 +581,8 @@ bool SimpleModelApp::Draw() {
     const VkDeviceSize vert_buffer_offset = 0;
     vkCmdPushConstants(vk_render_command_buffer, _vk_pipeline_layout, VK_SHADER_STAGE_VERTEX_BIT, 0, 64, &_model_mat);
     _model->Draw(vk_render_command_buffer);
+
+    DrawOverlay(vk_render_command_buffer, _current_buffer);
 
     vkCmdEndRenderPass(vk_render_command_buffer);
     if (VK_SUCCESS != vkEndCommandBuffer(vk_render_command_buffer)) {

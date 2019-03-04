@@ -15,6 +15,8 @@ target_sources(globe PRIVATE
                    globe_vulkan_headers.hpp
                    globe_glm_include.hpp
                    globe_basic_types.hpp
+                   globe_overlay.hpp
+                   globe_overlay.cpp
                    globe_app.hpp
                    globe_app.cpp
                    globe_camera.hpp
